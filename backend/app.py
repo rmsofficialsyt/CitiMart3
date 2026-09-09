@@ -160,6 +160,25 @@ def health() -> dict[str, object]:
     }
 
 
+@app.get("/", include_in_schema=False)
+def root_info() -> dict[str, str]:
+    """Root info endpoint for Render and browser health checks."""
+    return {
+        "status": "ok",
+        "message": "CITIMART Daily Operations Backend API is running.",
+        "health": "/api/health",
+        "docs": "/docs"
+    }
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    """Empty 204 response for browser favicon requests."""
+    from fastapi.responses import Response
+    return Response(status_code=204)
+
+
+
 # Routers first: Starlette matches routes in registration order, and the
 # StaticFiles mount below is a catch-all at "/" -- it must be registered
 # last or it would shadow every /api/* request.
