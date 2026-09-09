@@ -1,0 +1,17 @@
+# Config for this sub-project's one Streamlit app (streamlit_daily_app.py),
+# launched from backend/. Pins the *default* ("Default" theme) look; the
+# runtime "Neon" toggle (src/streamlit_theme.py) layers its own CSS on top when
+# selected and does not touch this file.
+#
+# The port is pinned so the three Streamlit apps across the two sub-projects
+# never fight over 8501:
+#   8601  Daily Operations      -- streamlit_daily_app.py      (this file)
+#   8602  Analytics             -- streamlit_app.py
+#   8603  Analytics -> Forecast -- streamlit_forecast_app.py   (--server.port)
+[server]
+port = 8601
+
+[theme]
+base = "light"
+primaryColor = "#2563eb"
+font = "sans serif"

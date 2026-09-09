@@ -1,0 +1,177 @@
+import type { DailyKpiKey } from "@/lib/types";
+
+const NA = "N/A";
+
+// "Today" in Kolkata (IST) as YYYY-MM-DD. Deliberately not
+// toISOString().slice(0,10) (that reads UTC -> yesterday for the first ~5.5h
+// after IST midnight) and deliberately not `new Date()` local components
+// either -- an in-store tablet on a non-IST timezone would then log the wrong
+// calendar day. The whole app is IST-only, so pin to Asia/Kolkata. en-CA
+// formats as YYYY-MM-DD.
+const IST_ISO_DATE = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" });
+export function todayLocalDate(): string {
+  return IST_ISO_DATE.format(new Date());
+}
+
+const IST_TIME_HHMM = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Asia/Kolkata",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+// Current wall-clock time in Kolkata (IST) as "HH:MM", for the Manual Daily
+// Entry Time Stamp default. Deliberately NOT `new Date().getHours()` -- an
+// in-store tablet left on a non-IST timezone was producing e.g. an early-
+// morning UTC value there, which falls outside every TIME_SLOT band and made
+// the Time Slot field read "—" for store managers while working fine on the
+// admin's correctly-set desktop. Pinning to Asia/Kolkata (same as every other
+// date/time surface in this app) removes that whole class of bug.
+export function nowTimeHHMM(): string {
+  return IST_TIME_HHMM.format(new Date());
+}
+
+const INDIAN_DATE_DISPLAY = new Intl.DateTimeFormat("en-IN", {
+  timeZone: "Asia/Kolkata",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+
+// Display-only: renders a YYYY-MM-DD date string (e.g. from todayLocalDate())
+// in Indian format ("21 August 2026"). The ISO string itself stays the
+// wire/API format everywhere -- only the on-screen presentation changes.
+export function fmtDateIndian(isoDate: string): string {
+  return INDIAN_DATE_DISPLAY.format(new Date(`${isoDate}T00:00:00Z`));
+}
+
+// All KPI/table figures are rounded to whole numbers for display (the
+// underlying computed values retain full precision -- only presentation
+// rounds off, via Math.round semantics through maximumFractionDigits: 0).
+export function fmtCurrency(v: number | null | undefined): string {
+  if (v === null || v === undefined || Number.isNaN(v)) return NA;
+  return "₹" + v.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+}
+
+export function fmtNumber(v: number | null | undefined): string {
+  if (v === null || v === undefined || Number.isNaN(v)) return NA;
+  return v.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+}
+
+export function fmtPercent(v: number | null | undefined): string {
+  if (v === null || v === undefined || Number.isNaN(v)) return NA;
+  return Math.round(v) + "%";
+}
+
+// Daily Dashboard/Manual Entry only (TEST_DAILY_DASHBOARD.xlsx-driven, live
+// data): missing values show 0 rather than N/A, since on that page a blank
+// field usually means "hasn't happened yet today" rather than "the source
+// column doesn't exist" -- unlike the DATASET.xlsx-driven historical pages,
+// which keep the project's normal don't-fabricate N/A convention.
+export const fmtCurrencyOrZero = (v: number | null | undefined) => fmtCurrency(v ?? 0);
+export const fmtNumberOrZero = (v: number | null | undefined) => fmtNumber(v ?? 0);
+export const fmtPercentOrZero = (v: number | null | undefined) => fmtPercent(v ?? 0);
+
+// Generic table-cell formatter: same column-name heuristic the old app.js
+// used for regular data tables (top products/brands, store scorecard, ...).
+// NOT used for the KPI table -- that needs a per-row formatter, see
+// KPI_FORMATTERS below and components/KpiTable.tsx.
+const CURRENCY_KEYS = new Set([
+  "net_sales", "gross_sales", "discounts", "gross_profit", "avg_net_sales",
+  "atv", "rpv", "sales_target", "returned_value",
+  "cost", "target", "gross_amount", "net_profit", "promo_amount",
+  // Product & Brand: category_net_sales_table / top_category_table
+  "cogs_gst", "discount",
+  // src/forecasting/* table/overview columns:
+  "forecast_total", "total_net_sales", "avg_net_per_bill",
+  "flat_continuation", "model_forecast_total", "confidence_lower", "confidence_upper",
+  "current_avg_daily", "required_avg_daily", "point", "lower", "upper",
+  // performer_pairing table: measure-suffixed strong/weak/gap columns
+  "strong_net_sales", "weak_net_sales", "gap_net_sales",
+  "strong_gross_profit", "weak_gross_profit", "gap_gross_profit",
+  // same_period_year_over_year_table
+  "current_year_net_sales", "previous_year_net_sales", "absolute_variance",
+]);
+const PERCENT_KEYS = new Set([
+  "conversion_pct", "achievement_pct", "remaining_pct", "percentage_variance",
+  "discount_pct", "gross_margin_pct", "share_pct", "contribution_pct",
+  "uplift_pct", "gap_pct",
+]);
+// Plain-count columns -- a missing value here means 0, same as the currency /
+// percent columns (Historical Analytics Overhaul: missing numeric -> 0, not N/A).
+const COUNT_KEYS = new Set([
+  "bill_quantity", "footfall", "nob", "quantity", "transactions", "rank",
+  "basket_size", "promo_names",
+  "returned_units", "strong_quantity", "weak_quantity", "gap_quantity",
+  "current_year_transactions", "previous_year_transactions",
+  // conversion_funnel_table (date mode): a stage's raw count
+  "value",
+]);
+
+export function fmtCell(key: string, v: unknown): string {
+  const numericIntent = CURRENCY_KEYS.has(key) || PERCENT_KEYS.has(key) || COUNT_KEYS.has(key);
+  // Missing numeric-column value -> 0 (not N/A). A null in a text / date column
+  // (product_style, promo_type, previous_year_date, ...) still shows N/A.
+  if (v === null || v === undefined) return numericIntent ? fmtCell(key, 0) : NA;
+  if (typeof v !== "number") return String(v);
+  if (CURRENCY_KEYS.has(key)) return fmtCurrency(v);
+  if (PERCENT_KEYS.has(key)) return fmtPercent(v);
+  return fmtNumber(v);
+}
+
+// The per-store Daily Dashboards' KPI set (MongoDB-driven, via
+// GET /api/daily/live). No Gross Sales / Discounts / Product Returns -- none of
+// those are logged here -- plus Remaining % (its gauge's companion figure).
+// Object.keys() insertion order drives card display order.
+//
+// The historical KPI_LABELS / KPI_ORDER / KPI_FORMATTERS / KPI_FORMULAS maps
+// that used to sit above these went to the Analytics & Forecasting sub-project
+// with the pages they fed. Every formatter below is an *OrZero variant: on a
+// live manual-entry surface a blank means "hasn't happened yet today", not
+// "the source column is missing".
+export const DAILY_KPI_LABELS: Record<DailyKpiKey, string> = {
+  sales_target: "Total Sales Target",
+  net_sales: "Net Sales",
+  remaining: "Remaining",
+  bill_quantity: "Bill Quantity",
+  footfall: "Footfall",
+  nob: "Transactions (NOB)",
+  atv: "ATV",
+  rpv: "RPV",
+  basket_size: "Basket Size",
+  conversion_pct: "Conversion %",
+  achievement_pct: "Achievement %",
+  remaining_pct: "Remaining %",
+};
+
+export const DAILY_KPI_ORDER = Object.keys(DAILY_KPI_LABELS) as DailyKpiKey[];
+
+export const DAILY_KPI_FORMATTERS: Record<DailyKpiKey, (v: number | null | undefined) => string> = {
+  sales_target: fmtCurrencyOrZero,
+  net_sales: fmtCurrencyOrZero,
+  remaining: fmtCurrencyOrZero,
+  bill_quantity: fmtNumberOrZero,
+  footfall: fmtNumberOrZero,
+  nob: fmtNumberOrZero,
+  atv: fmtCurrencyOrZero,
+  rpv: fmtCurrencyOrZero,
+  basket_size: fmtNumberOrZero,
+  conversion_pct: fmtPercentOrZero,
+  achievement_pct: fmtPercentOrZero,
+  remaining_pct: fmtPercentOrZero,
+};
+
+export const DAILY_KPI_FORMULAS: Record<DailyKpiKey, string> = {
+  sales_target: "Admin-set — DAILY SALES TARGET sheet",
+  net_sales: "SUM(Net Amount) — today's bill log",
+  remaining: "Total Sales Target − Net Sales",
+  bill_quantity: "SUM(Bill Quantity) — today's bill log",
+  footfall: "SUM(Footfall) — today's Logged Footfall entries",
+  nob: "SUM(NOB) — today's Logged NOB entries",
+  atv: "Net Sales ÷ NOB",
+  rpv: "Net Sales ÷ Footfall",
+  basket_size: "Bill Quantity ÷ NOB",
+  conversion_pct: "NOB ÷ Footfall × 100",
+  achievement_pct: "Net Sales ÷ Sales Target × 100",
+  remaining_pct: "Remaining ÷ Sales Target × 100",
+};

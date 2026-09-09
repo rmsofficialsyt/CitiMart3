@@ -1,0 +1,92 @@
+# ---------------------------------------------------------------------------
+# Daily Operations -- sub-project .gitignore.
+#
+# This folder is meant to be its own git repository (frontend/ is deployed to
+# Vercel, backend/ to Render), so this file is the root of its own rule set --
+# it does NOT inherit anything from the parent folder. Per-folder rules also
+# live next to the code they cover:
+#   backend/.gitignore   -- Python caches, .env, .cache/, reports/
+#   frontend/.gitignore  -- node_modules/, dist/, Vite caches, .env
+# The secret/key patterns below are duplicated on purpose: they are the
+# safety net that catches a new secret file dropped anywhere in this tree.
+# ---------------------------------------------------------------------------
+
+# --- Secrets & credentials -- never commit ---------------------------------
+.env
+.env.*
+!.env.example
+*.env
+.envrc
+
+# Local secrets dumps (Atlas URI, JWT secret, live passwords).
+LOGIN_CREDENTIALS*.txt
+CREDENTIALS*.txt
+secrets/
+*.secret
+*.secrets
+
+# Keys / certs / cloud service-account files.
+*.pem
+*.key
+*.pfx
+*.p12
+*.pkcs12
+id_rsa*
+*serviceAccount*.json
+*service-account*.json
+gcp-*.json
+aws-credentials*
+.aws/
+credentials.json
+
+# Admin-set status-band overrides -- machine-local runtime state written by
+# PUT /api/kpi-thresholds, not source (config/kpi_thresholds.py holds the
+# factory defaults).
+backend/config/kpi_thresholds.local.json
+
+# --- Environments & dependencies -------------------------------------------
+# The Python venv is shared with the sibling sub-project and lives one level
+# up, outside this repo -- these are here only to catch a venv created inside
+# it by mistake.
+.venv/
+venv/
+node_modules/
+
+# --- Claude Code tooling ---------------------------------------------------
+# Local dev-assistant config/skills/docs, never published.
+.claude/
+CLAUDE.md
+
+# --- Catch-alls that must hold anywhere in the tree ------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+~$*.xlsx
+
+# Backups / patch leftovers / scratch files.
+*.backup-*
+*.bak
+*.orig
+*.rej
+*.tmp
+
+# Logs and run-time output.
+*.log
+logs/
+
+# Build output.
+dist/
+build/
+
+# --- Editor / OS cruft -----------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,0 +1,74 @@
+# ---------------------------------------------------------------------------
+# backend/.gitignore  --  Python side of Daily Operations.
+# Sub-project-wide rules (OS cruft, editor dirs, generic secret patterns) live
+# in ../.gitignore; this file only covers what is specific to backend/.
+# ---------------------------------------------------------------------------
+
+# --- Secrets ---------------------------------------------------------------
+# MONGODB_URI (Atlas), JWT_SECRET, *_INITIAL_PASSWORD. config/env.py pins its
+# env_file to this absolute path, so it is the one real secret file here.
+.env
+.env.*
+!.env.example
+
+# Live login dumps mirrored from config/auth_users.DEFAULT_PASSWORDS.
+CREDENTIALS*.txt
+LOGIN_CREDENTIALS*.txt
+
+# Streamlit's secrets store (.streamlit/config.toml itself IS committed --
+# it only pins the default theme and the port).
+.streamlit/secrets.toml
+
+# --- Virtualenvs -----------------------------------------------------------
+.venv/
+venv/
+env/
+
+# --- Python bytecode / build artifacts -------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# --- Test / type / lint caches ---------------------------------------------
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.hypothesis/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# --- Generated data & runtime output ---------------------------------------
+# .cache/ holds src/daily_context.py's weather_cache.json -- derived output
+# from Open-Meteo, never source. (The pickled workbook cache that also used to
+# live here went with DATASET.xlsx to the other sub-project.)
+.cache/
+
+# Report exports written by src/daily_report.py via src/reports/*.
+reports/*
+!reports/.gitkeep
+
+# Admin-set KPI status-band overrides overlaid on config/kpi_thresholds._DEFAULTS
+# -- machine-local operator config, not source.
+config/kpi_thresholds.local.json
+
+# --- Workbooks -------------------------------------------------------------
+# There is no committed workbook in this sub-project: every figure comes from
+# MongoDB. This catches Excel's lock files if a report export is opened here.
+~$*.xlsx
+
+# --- Misc ------------------------------------------------------------------
+*.log
+logs/
+*.bak
+*.orig
+*.rej
+*.tmp
+*.backup-*

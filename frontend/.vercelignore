@@ -1,0 +1,11 @@
+# Files Vercel never needs to upload for a build. `dist/` is gitignored and
+# rebuilt on Vercel by `npm run build`; node_modules is reinstalled there.
+node_modules
+dist
+.env
+.env.*
+!.env.example
+*.log
+*.tsbuildinfo
+.oxlintcache
+.vite

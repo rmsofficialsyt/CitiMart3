@@ -1,0 +1,375 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/fira-code";
+
+@custom-variant dark (&:is(.dark *));
+@custom-variant neon (&:is(.neon *));
+
+:root {
+  --radius: 0.625rem;
+  --background: oklch(0.985 0.004 247);
+  --foreground: oklch(0.21 0.05 265);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.05 265);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.05 265);
+  --primary: oklch(0.42 0.16 265);
+  --primary-foreground: oklch(0.985 0.005 247);
+  --secondary: oklch(0.95 0.02 250);
+  --secondary-foreground: oklch(0.34 0.13 265);
+  --muted: oklch(0.96 0.01 250);
+  --muted-foreground: oklch(0.5 0.03 260);
+  --accent: oklch(0.6 0.19 258);
+  --accent-foreground: oklch(0.985 0.005 247);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.9 0.015 255);
+  --input: oklch(0.9 0.015 255);
+  --ring: oklch(0.6 0.19 258);
+  --chart-1: oklch(0.42 0.16 265);
+  --chart-2: oklch(0.6 0.19 258);
+  --chart-3: oklch(0.75 0.16 75);
+  --chart-4: oklch(0.65 0.14 220);
+  --chart-5: oklch(0.55 0.18 300);
+  --sidebar: oklch(0.985 0.004 247);
+  --sidebar-foreground: oklch(0.21 0.05 265);
+  --sidebar-primary: oklch(0.42 0.16 265);
+  --sidebar-primary-foreground: oklch(0.985 0.005 247);
+  --sidebar-accent: oklch(0.95 0.02 250);
+  --sidebar-accent-foreground: oklch(0.34 0.13 265);
+  --sidebar-border: oklch(0.9 0.015 255);
+  --sidebar-ring: oklch(0.6 0.19 258);
+
+  --status-red: oklch(0.58 0.22 27);
+  --status-red-bg: oklch(0.94 0.05 27);
+  --status-yellow: oklch(0.6 0.15 75);
+  --status-yellow-bg: oklch(0.95 0.08 90);
+  --status-green: oklch(0.55 0.15 145);
+  --status-green-bg: oklch(0.94 0.08 145);
+}
+
+.dark {
+  --background: oklch(0.19 0.025 260);
+  --foreground: oklch(0.96 0.01 250);
+  --card: oklch(0.24 0.03 260);
+  --card-foreground: oklch(0.96 0.01 250);
+  --popover: oklch(0.24 0.03 260);
+  --popover-foreground: oklch(0.96 0.01 250);
+  --primary: oklch(0.72 0.15 258);
+  --primary-foreground: oklch(0.19 0.04 260);
+  --secondary: oklch(0.3 0.03 260);
+  --secondary-foreground: oklch(0.9 0.03 255);
+  --muted: oklch(0.3 0.03 260);
+  --muted-foreground: oklch(0.68 0.03 255);
+  --accent: oklch(0.68 0.16 258);
+  --accent-foreground: oklch(0.19 0.04 260);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.68 0.16 258);
+  --sidebar: oklch(0.24 0.03 260);
+  --sidebar-foreground: oklch(0.96 0.01 250);
+  --sidebar-primary: oklch(0.72 0.15 258);
+  --sidebar-primary-foreground: oklch(0.19 0.04 260);
+  --sidebar-accent: oklch(0.3 0.03 260);
+  --sidebar-accent-foreground: oklch(0.9 0.03 255);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.68 0.16 258);
+
+  --status-red: oklch(0.7 0.19 27);
+  --status-red-bg: oklch(0.3 0.09 27);
+  --status-yellow: oklch(0.75 0.14 85);
+  --status-yellow-bg: oklch(0.32 0.08 85);
+  --status-green: oklch(0.72 0.15 145);
+  --status-green-bg: oklch(0.28 0.08 145);
+  --chart-1: oklch(0.72 0.15 258);
+  --chart-2: oklch(0.68 0.16 220);
+  --chart-3: oklch(0.78 0.15 75);
+  --chart-4: oklch(0.7 0.13 300);
+  --chart-5: oklch(0.75 0.12 190);
+}
+
+/* ---------------------------------------------------------------------------
+   "Neon" theme (opt-in, screen-only). A dark indigo canvas with a fixed
+   radial-gradient mesh, neon cyan/magenta/lime accents, and frosted-glass
+   panels. Mirrors the full `.dark` token set so every semantic-token surface
+   (bg-card / bg-popover / bg-muted / border / text-*-foreground / bg-status-*)
+   reskins automatically -- see the glass + hardcoded-spot overrides below.
+   Report exports never receive this theme; `src/theme.py` is the chart-side
+   equivalent for the Plotly figures.
+   --------------------------------------------------------------------------- */
+.neon {
+  --background: oklch(0.15 0.03 275);
+  --foreground: oklch(0.95 0.01 250);
+  --card: oklch(0.24 0.045 278 / 0.55);
+  --card-foreground: oklch(0.95 0.01 250);
+  --popover: oklch(0.2 0.04 278 / 0.92);
+  --popover-foreground: oklch(0.95 0.01 250);
+  --primary: oklch(0.82 0.15 200);
+  --primary-foreground: oklch(0.16 0.03 275);
+  --secondary: oklch(0.32 0.05 285 / 0.6);
+  --secondary-foreground: oklch(0.95 0.01 250);
+  --muted: oklch(0.3 0.04 285 / 0.5);
+  --muted-foreground: oklch(0.72 0.03 255);
+  --accent: oklch(0.78 0.17 330);
+  --accent-foreground: oklch(0.16 0.03 275);
+  --destructive: oklch(0.7 0.19 15);
+  --border: oklch(0.8 0.14 205 / 0.22);
+  --input: oklch(0.72 0.1 220 / 0.25);
+  --ring: oklch(0.82 0.15 200);
+  --chart-1: oklch(0.82 0.15 200);
+  --chart-2: oklch(0.78 0.17 330);
+  --chart-3: oklch(0.88 0.19 130);
+  --chart-4: oklch(0.85 0.16 85);
+  --chart-5: oklch(0.75 0.15 300);
+  --sidebar: oklch(0.2 0.04 278 / 0.7);
+  --sidebar-foreground: oklch(0.95 0.01 250);
+  --sidebar-primary: oklch(0.82 0.15 200);
+  --sidebar-primary-foreground: oklch(0.16 0.03 275);
+  --sidebar-accent: oklch(0.32 0.05 285 / 0.6);
+  --sidebar-accent-foreground: oklch(0.95 0.01 250);
+  --sidebar-border: oklch(0.8 0.14 205 / 0.2);
+  --sidebar-ring: oklch(0.82 0.15 200);
+
+  --status-red: oklch(0.72 0.19 15);
+  --status-red-bg: oklch(0.5 0.18 15 / 0.2);
+  --status-yellow: oklch(0.85 0.16 85);
+  --status-yellow-bg: oklch(0.6 0.14 85 / 0.2);
+  --status-green: oklch(0.8 0.15 160);
+  --status-green-bg: oklch(0.55 0.13 160 / 0.2);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-status-red: var(--status-red);
+  --color-status-red-bg: var(--status-red-bg);
+  --color-status-yellow: var(--status-yellow);
+  --color-status-yellow-bg: var(--status-yellow-bg);
+  --color-status-green: var(--status-green);
+  --color-status-green-bg: var(--status-green-bg);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-heading: var(--font-sans);
+  --font-sans: 'Geist Variable', sans-serif;
+  --font-mono: 'Fira Code Variable', ui-monospace, monospace;
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Mobile / small-screen baseline. Everything here is either a no-op on a
+   desktop pointer or scoped behind a `max-width` / `pointer: coarse` query, so
+   the desktop layout is byte-for-byte what it was.
+   --------------------------------------------------------------------------- */
+
+html {
+  /* Safari/Chrome on iOS otherwise inflate body text after a rotation. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  /* A single overflowing child (a wide table someone forgot to wrap, a Plotly
+     figure mid-resize, the filter drawer parked at translateX(105%)) must never
+     make the WHOLE page pan sideways -- the scroll belongs to that element's
+     own overflow-x container.
+     `clip`, NOT `hidden`: `overflow-x: hidden` makes <body> a scroll container
+     on both axes, which is the classic way to silently break the docked filter
+     panel's `position: sticky`. `clip` cuts the overflow without creating one. */
+  overflow-x: clip;
+  /* Kills the grey flash on every tap in mobile WebKit. */
+  -webkit-tap-highlight-color: transparent;
+  /* Notch / rounded-corner insets (viewport-fit=cover in index.html). The top
+     inset is deliberately left to .topbar below, which paints its own bg. */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* iOS Safari zooms the whole page in when a focused form control renders below
+   16px. Every input in this app is `text-sm` (14px), so it would zoom on every
+   single manual-entry field. Forcing 16px on small screens is the only fix
+   that doesn't require disabling pinch-zoom. */
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea,
+  [data-slot="select-trigger"] {
+    font-size: 16px !important;
+  }
+}
+
+/* Touch pointers need a ~44px target (WCAG 2.5.5 / Apple HIG). The `xs`
+   buttons in the logged-entries tables are 20px tall by default, which is a
+   genuine mis-tap generator on a phone. Scoped to coarse pointers so a mouse
+   user's dense table stays dense. */
+@media (pointer: coarse) {
+  button,
+  [role="button"],
+  a[href],
+  [data-slot="select-trigger"],
+  [data-slot="popover-trigger"] {
+    touch-action: manipulation;
+  }
+  button[data-slot="button"] {
+    min-height: 36px;
+  }
+  input[type="date"],
+  input[type="time"],
+  input[type="month"] {
+    min-height: 40px;
+  }
+}
+
+/* Horizontally-scrollable strips (the nav tab rows) -- scroll without the
+   scrollbar eating 15px of an already-short row. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Every overflow-x container in the app (tables, tab strips) gets momentum
+   scrolling and stops the vertical page from rubber-banding along with it. */
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+/* Plotly's own touch handling is turned off in lib/plotlyTouch.ts (dragmode
+   false + no modebar) so a swipe over a figure scrolls the page instead of
+   drawing a zoom box. This just makes sure the figure itself can never widen
+   its container mid-resize and hand the page a horizontal scrollbar. */
+.js-plotly-plot,
+.js-plotly-plot .plot-container {
+  max-width: 100%;
+}
+
+/* The sticky top bar owns the notch inset so its dark background bleeds up
+   behind the status bar instead of leaving a white strip. */
+.topbar {
+  padding-top: max(0.875rem, env(safe-area-inset-top));
+}
+
+/* Off-canvas filter drawer backdrop (App.tsx, mobile only). */
+.filter-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: oklch(0 0 0 / 0.5);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+/* ---------------------------------------------------------------------------
+   Neon theme: glassmorphism + the handful of surfaces that hardcode colours
+   instead of going through a semantic token. Everything else reskins from the
+   `.neon { … }` token block above. All rules are scoped under `.neon` so
+   light/dark are byte-for-byte unaffected.
+   --------------------------------------------------------------------------- */
+
+/* Fixed radial-gradient mesh behind the whole app. `background-image` layers
+   over the `bg-background` colour the base layer already paints on <body>. */
+.neon body {
+  background-image:
+    radial-gradient(ellipse 80% 60% at 12% -5%, oklch(0.55 0.2 200 / 0.2), transparent 60%),
+    radial-gradient(ellipse 70% 55% at 88% 12%, oklch(0.55 0.24 330 / 0.16), transparent 55%),
+    radial-gradient(ellipse 95% 70% at 50% 108%, oklch(0.5 0.2 285 / 0.16), transparent 62%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+/* Frosted glass on every token-driven panel surface. `--card` / `--popover`
+   carry an alpha channel under `.neon`, so these just add the blur + depth. */
+.neon .bg-card,
+.neon [data-slot="card"] {
+  backdrop-filter: blur(14px) saturate(1.5);
+  -webkit-backdrop-filter: blur(14px) saturate(1.5);
+  box-shadow:
+    0 0 0 1px oklch(0.85 0.16 205 / 0.08),
+    0 8px 32px oklch(0.06 0.04 275 / 0.55),
+    inset 0 1px 0 oklch(1 0 0 / 0.06);
+}
+.neon .bg-popover {
+  backdrop-filter: blur(16px) saturate(1.5);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+}
+.neon .bg-card:hover {
+  box-shadow:
+    0 0 0 1px oklch(0.85 0.16 205 / 0.18),
+    0 10px 44px oklch(0.65 0.2 205 / 0.16),
+    inset 0 1px 0 oklch(1 0 0 / 0.08);
+}
+
+/* Neon glow on headings. */
+.neon h1,
+.neon h2,
+.neon h3 {
+  text-shadow: 0 0 20px oklch(0.85 0.15 205 / 0.18);
+}
+
+/* TopBar: hardcoded `bg-[#0f172a]` strip -> translucent glass bar. The
+   `.topbar` class is added in TopBar.tsx; `.neon .topbar` outranks the
+   arbitrary bg utility on specificity, no !important needed. */
+.neon .topbar {
+  background-color: oklch(0.18 0.04 278 / 0.72);
+  backdrop-filter: blur(14px) saturate(1.5);
+  -webkit-backdrop-filter: blur(14px) saturate(1.5);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 4px 24px oklch(0.06 0.04 275 / 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .neon body {
+    background-attachment: scroll;
+  }
+}

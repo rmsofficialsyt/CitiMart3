@@ -1,0 +1,55 @@
+# ---------------------------------------------------------------------------
+# frontend/.gitignore  --  React / TypeScript / Vite SPA.
+# Repo-wide rules (OS cruft, editor dirs, generic secret patterns) live in the
+# root .gitignore; this file only covers what is specific to frontend/.
+# ---------------------------------------------------------------------------
+
+# --- Dependencies ----------------------------------------------------------
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+!.yarn/versions
+
+# --- Build output ----------------------------------------------------------
+# dist/ is produced by `npm run build` and served by ../backend/app.py from
+# disk. It is a build artifact -- rebuild it, don't commit it.
+dist/
+dist-ssr/
+build/
+
+# --- Tooling caches --------------------------------------------------------
+.vite/
+node_modules/.vite/
+.eslintcache
+*.tsbuildinfo
+.oxlintcache
+
+# --- Environment / secrets -------------------------------------------------
+# Vite inlines anything prefixed VITE_ into the shipped bundle -- never put a
+# real secret in here, and never commit these files.
+.env
+.env.*
+!.env.example
+*.local
+
+# --- Logs ------------------------------------------------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# --- Editor / project cruft ------------------------------------------------
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

@@ -1,0 +1,25 @@
+# Daily Operations -- sub-project .gitattributes.
+#
+# No Git LFS rule here: this half of the project has no large binary at all.
+# DATASET.xlsx and its Parquet cache belong to the Analytics and Forecasting
+# sub-project; everything Daily Operations reads lives in MongoDB.
+
+# Normalise line endings so a Windows checkout and a Linux (Render) build
+# agree on file contents -- otherwise a CRLF-committed shell script or a
+# hashed asset differs between the two.
+* text=auto eol=lf
+
+# Binary assets: never touch their bytes.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.xlsx binary
+
+# Lockfile: keep it in the diff (it's how a deploy reproduces a build) but
+# collapse it in review, since it is generated rather than hand-edited.
+frontend/package-lock.json linguist-generated=true -diff

@@ -1,0 +1,46 @@
+# CITIMART Daily Operations -- backend dependencies.
+#
+# Deliberately smaller than the Analytics & Forecasting sub-project's list:
+# the whole forecasting/ML stack (statsmodels, scikit-learn, xgboost, prophet)
+# is gone, and so is openpyxl-for-reading-DATASET.xlsx. pandas stays because
+# src/charts.py still builds Plotly figures from small in-memory frames, and
+# openpyxl stays because api/routes_targets.py parses an uploaded Sales Target
+# workbook and src/reports/renderers/xlsx.py writes the Excel export.
+#
+# Both sub-projects share the repository-root .venv, so `pip install -r` here
+# and there together produce the union of the two lists -- keep pinned versions
+# identical between the two files or the second install will churn.
+
+# --- web / API ---
+fastapi==0.141.1
+uvicorn==0.52.1
+python-multipart==0.0.20        # multipart form parsing for the Sales Target xlsx upload
+pydantic-settings==2.15.0
+PyJWT==2.10.1                   # HS256 access tokens (api/auth.py)
+
+# --- database ---
+pymongo==4.17.0
+
+# --- data / charting ---
+pandas==3.0.5
+numpy==2.5.1
+plotly==6.9.0
+openpyxl==3.1.5
+
+# --- Today's Context lookups (src/daily_context.py) ---
+requests==2.34.2
+holidays==0.102
+
+# --- report export (src/reports/) ---
+reportlab==5.0.1                # PDF
+kaleido==1.3.0                  # rasterises Plotly figures/gauges to PNG
+python-docx==1.2.0
+python-pptx==1.0.2
+
+# --- local Streamlit dashboard (streamlit_daily_app.py) ---
+streamlit==1.61.1
+
+# --- test ---
+pytest==9.1.1
+mongomock==4.3.0                # in-memory MongoDB for the whole suite
+httpx==0.28.1                   # FastAPI TestClient transport
