@@ -101,9 +101,24 @@ async def lifespan(app: FastAPI):
     # inline: uvicorn doesn't open the listening port until lifespan startup
     # returns, and a slow/unreachable cluster would otherwise make the
     # platform's port scan time out and fail the deploy.
+    async def _keep_alive() -> None:
+        """Self-ping every 10 minutes to prevent Render free instance from spinning down due to inactivity."""
+        await asyncio.sleep(60)  # Wait 1 minute after boot
+        import httpx
+        url = "http://127.0.0.1:8000/api/health"
+        while True:
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    await client.get(url)
+                    logger.debug("Keep-alive self-ping sent to %s", url)
+            except Exception as exc:
+                logger.warning("Keep-alive self-ping failed: %s", exc)
+            await asyncio.sleep(600)  # Ping every 10 minutes
+
     async def _warmup() -> None:
         await asyncio.to_thread(_seed_accounts_best_effort)
         app.state.background_tasks.append(asyncio.create_task(run_midnight_finalizer()))
+        app.state.background_tasks.append(asyncio.create_task(_keep_alive()))
 
     app.state.background_tasks.append(asyncio.create_task(_warmup()))
     logger.info("Startup complete.")
@@ -113,6 +128,7 @@ async def lifespan(app: FastAPI):
     for task in app.state.background_tasks:
         with contextlib.suppress(asyncio.CancelledError, Exception):
             await task
+
 
 
 app = FastAPI(title="CITIMART Daily Operations", lifespan=lifespan)
