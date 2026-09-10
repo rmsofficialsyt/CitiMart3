@@ -231,3 +231,41 @@ export interface SaveEntryResult extends DailyKpis {
   date: string;
   reason: string | null;
 }
+
+export interface HistoryDateSummary {
+  date: string;
+  day_name: string;
+  store: string;
+  net_sales: number;
+  footfall: number;
+  bill_quantity: number;
+  nob: number;
+  sales_target?: number | null;
+  achievement_pct?: number | null;
+  atv?: number | null;
+  conversion_pct?: number | null;
+}
+
+export interface TimeSlotSummary {
+  time_slot: string;
+  net_sales: number;
+  bill_quantity: number;
+  bill_count: number;
+  footfall: number;
+  nob: number;
+  atv: number;
+  rpv: number;
+  basket_size: number;
+  conversion_pct: number;
+}
+
+export interface HistoryDetailsResponse {
+  store: string;
+  date: string;
+  day_name: string;
+  kpis: DailyKpis;
+  timeslot_breakdown: TimeSlotSummary[];
+  bill_logs: (BillEntry & { store?: string })[];
+  footfall_logs: (FootfallEntry & { store?: string })[];
+  nob_logs: (NobEntry & { store?: string })[];
+}

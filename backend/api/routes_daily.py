@@ -486,3 +486,35 @@ def get_daily_report(
         media_type=RENDERERS[format].content_type,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/history/dates")
+def get_history_dates(
+    store: str = Query("ALL", description="Store code e.g. NM, HB, CHW, or ALL"),
+    db: Database = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """List all available historical dates for a store (or ALL stores for admin),
+    sorted descending with summary stats."""
+    if store == "ALL":
+        require_admin(user)
+    else:
+        _guard(store, user)
+    return daily_dashboard_store.list_all_history_dates(db, store)
+
+
+@router.get("/history/details")
+def get_history_details(
+    store: str = Query(..., description="Store code e.g. NM, HB, CHW, or ALL"),
+    date: str = Query(..., description="YYYY-MM-DD"),
+    db: Database = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Detailed time-slot wise logs (footfall, billing details, sales/NOB) for
+    a specific date and store."""
+    if store == "ALL":
+        require_admin(user)
+    else:
+        _guard(store, user)
+    target_date = _parse_iso_date(date)
+    return daily_dashboard_store.get_history_details(db, store, target_date)

@@ -109,7 +109,7 @@ export function TopBar({
           <img src={citimartLogo} alt="CitiMart" className="h-8 w-auto shrink-0 rounded bg-white/95 p-1 sm:h-10" />
           <div className="min-w-0">
             <h1 className="truncate text-base leading-tight font-bold sm:text-lg lg:text-xl">
-              <span className="text-blue-300">CITIMART™</span>
+              <span className="text-blue-300">CITIMART</span>
               {/* The full title doesn't fit beside the action icons on a 360px
                   screen -- shorten it there rather than truncating mid-word. */}
               <span className="hidden sm:inline"> SALES KPI DASHBOARD REPORT</span>

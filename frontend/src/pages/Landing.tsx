@@ -2,7 +2,6 @@ import { motion } from "framer-motion";
 import { ArrowRight, BarChart3, LineChart, ShieldCheck, Store, TrendingUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-import { useAuth } from "@/auth/AuthProvider";
 import { AccountPicker } from "@/components/AccountPicker";
 import { Button } from "@/components/ui/button";
 import citimartLogo from "@/assets/citimart-logo.png";
@@ -26,7 +25,6 @@ const fadeUp = {
 
 export function Landing() {
   const navigate = useNavigate();
-  const { user } = useAuth();
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#0b1220] text-slate-100">
@@ -54,13 +52,6 @@ export function Landing() {
           className="flex items-center justify-between"
         >
           <img src={citimartLogo} alt="CITIMART" className="h-9 w-auto rounded bg-white/95 p-1" />
-          <Button
-            variant="ghost"
-            className="text-slate-200 hover:bg-white/10 hover:text-white"
-            onClick={() => navigate(user ? "/app" : "/login")}
-          >
-            {user ? "Open dashboard" : "Sign in"} <ArrowRight className="ml-1.5 h-4 w-4" />
-          </Button>
         </motion.header>
 
         {/* hero */}
@@ -73,7 +64,7 @@ export function Landing() {
               animate="show"
               className="text-3xl leading-tight font-bold sm:text-4xl md:text-5xl"
             >
-              <span className="text-blue-300">CITIMART™</span> Sales KPI
+              <span className="text-blue-300">CITIMART</span> Sales KPI
               <br /> Dashboard Report
             </motion.h1>
             <motion.p
@@ -148,7 +139,7 @@ export function Landing() {
         </section>
 
         <footer className="pt-4 text-center text-xs text-slate-500">
-          CITIMART™ Sales KPI Dashboard — internal analytics workspace.
+          CITIMART Sales KPI Dashboard — internal analytics workspace.
         </footer>
       </div>
     </div>

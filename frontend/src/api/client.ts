@@ -10,6 +10,8 @@ import type {
   FilterState,
   FootfallEntry,
   FootfallLogResponse,
+  HistoryDateSummary,
+  HistoryDetailsResponse,
   KpiOverrideResult,
   KpiThresholdsResponse,
   NobEntry,
@@ -198,4 +200,10 @@ export const api = {
     deleteJSON<{ store: string; date: string; cleared: boolean }>(
       `/api/targets?${new URLSearchParams({ store, date })}`,
     ),
+
+  historyDates: (store: string = "ALL") =>
+    getJSON<HistoryDateSummary[]>(`/api/daily/history/dates?${new URLSearchParams({ store })}`),
+
+  historyDetails: (store: string, date: string) =>
+    getJSON<HistoryDetailsResponse>(`/api/daily/history/details?${new URLSearchParams({ store, date })}`),
 };

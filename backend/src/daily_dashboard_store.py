@@ -546,3 +546,141 @@ def save_target_entry(db: Database, store: str, target_date: date, reason: str |
     kpis["reason"] = reason
     kpis.pop("overridden", None)
     return kpis
+
+
+def list_all_history_dates(db: Database, store: str) -> list[dict]:
+    """Retrieves all recorded dates across BILLS, FOOTFALL, NOB, and TARGETS
+    for the given store (or across all stores if store == 'ALL'). Returns a list
+    sorted descending (newest date first) with daily summary statistics for each date."""
+    query = {} if store == "ALL" else {"store_code": store}
+    seen_dates: set[str] = set()
+    for coll in (BILLS, FOOTFALL, NOB, TARGETS):
+        for doc in db[coll].find(query, {"entry_date": 1}):
+            iso = doc.get("entry_date")
+            if iso:
+                seen_dates.add(iso)
+
+    if not seen_dates:
+        seen_dates.add(date.today().isoformat())
+
+    results = []
+    for iso in sorted(seen_dates, reverse=True):
+        d = date.fromisoformat(iso)
+        if store == "ALL":
+            combined_res = compute_live_kpis_all_stores(db, d)
+            kpis = combined_res["combined"]
+        else:
+            kpis = compute_live_kpis(db, store, d)
+
+        results.append({
+            "date": iso,
+            "day_name": d.strftime("%A"),
+            "store": store,
+            "net_sales": kpis.get("net_sales", 0.0),
+            "footfall": kpis.get("footfall", 0.0),
+            "bill_quantity": kpis.get("bill_quantity", 0.0),
+            "nob": kpis.get("nob", 0.0),
+            "sales_target": kpis.get("sales_target"),
+            "achievement_pct": kpis.get("achievement_pct"),
+            "atv": kpis.get("atv"),
+            "conversion_pct": kpis.get("conversion_pct"),
+        })
+    return results
+
+
+def get_history_details(db: Database, store: str, target_date: date) -> dict:
+    """Returns comprehensive time-slot-wise history details and individual logs
+    for a specific date and store (or ALL stores)."""
+    iso_date = target_date.isoformat()
+    stores_to_fetch = list(STORE_CODE_TO_NAME.keys()) if store == "ALL" else [store]
+
+    bill_logs: list[dict] = []
+    footfall_logs: list[dict] = []
+    nob_logs: list[dict] = []
+
+    for s in stores_to_fetch:
+        for b in list_bill_entries(db, s, target_date):
+            item = dict(b)
+            if store == "ALL":
+                item["store"] = s
+            bill_logs.append(item)
+        for f in list_footfall_entries(db, s, target_date):
+            item = dict(f)
+            if store == "ALL":
+                item["store"] = s
+            footfall_logs.append(item)
+        for n in list_nob_entries(db, s, target_date):
+            item = dict(n)
+            if store == "ALL":
+                item["store"] = s
+            nob_logs.append(item)
+
+    bill_logs.sort(key=lambda x: x.get("bill_time", ""))
+    footfall_logs.sort(key=lambda x: x.get("time", ""))
+    nob_logs.sort(key=lambda x: x.get("time", ""))
+
+    if store == "ALL":
+        all_kpis = compute_live_kpis_all_stores(db, target_date)
+        kpis = all_kpis["combined"]
+    else:
+        kpis = compute_live_kpis(db, store, target_date)
+
+    timeslot_summary: dict[str, dict[str, float]] = {
+        slot: {
+            "time_slot": slot,
+            "net_sales": 0.0,
+            "bill_quantity": 0.0,
+            "bill_count": 0,
+            "footfall": 0.0,
+            "nob": 0.0,
+            "atv": 0.0,
+            "rpv": 0.0,
+            "basket_size": 0.0,
+            "conversion_pct": 0.0,
+        }
+        for slot in TIME_SLOT_ORDER
+    }
+
+    for b in bill_logs:
+        slot = b.get("time_slot")
+        if slot in timeslot_summary:
+            timeslot_summary[slot]["net_sales"] += b.get("net_amount", 0.0) or 0.0
+            timeslot_summary[slot]["bill_quantity"] += b.get("bill_quantity", 0.0) or 0.0
+            timeslot_summary[slot]["bill_count"] += 1
+
+    for f in footfall_logs:
+        slot = f.get("time_slot")
+        if slot in timeslot_summary:
+            timeslot_summary[slot]["footfall"] += f.get("footfall", 0.0) or 0.0
+
+    for n in nob_logs:
+        slot = n.get("time_slot")
+        if slot in timeslot_summary:
+            timeslot_summary[slot]["nob"] += n.get("nob", 0.0) or 0.0
+
+    timeslot_list = []
+    for slot in TIME_SLOT_ORDER:
+        cell = timeslot_summary[slot]
+        ns = cell["net_sales"]
+        bq = cell["bill_quantity"]
+        ff = cell["footfall"]
+        nob = cell["nob"]
+        bc = cell["bill_count"]
+
+        cell["atv"] = round(ns / bc, 2) if bc > 0 else 0.0
+        cell["rpv"] = round(ns / ff, 2) if ff > 0 else 0.0
+        cell["basket_size"] = round(bq / bc, 2) if bc > 0 else 0.0
+        cell["conversion_pct"] = round((nob / ff) * 100, 2) if ff > 0 else 0.0
+
+        timeslot_list.append(cell)
+
+    return {
+        "store": store,
+        "date": iso_date,
+        "day_name": target_date.strftime("%A"),
+        "kpis": {k: _clean(v) for k, v in kpis.items() if k not in ("reason", "overridden")},
+        "timeslot_breakdown": timeslot_list,
+        "bill_logs": bill_logs,
+        "footfall_logs": footfall_logs,
+        "nob_logs": nob_logs,
+    }
