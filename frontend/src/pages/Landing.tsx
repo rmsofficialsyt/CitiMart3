@@ -1,10 +1,12 @@
-import { motion } from "framer-motion";
+import { useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity,
   ArrowRight,
   BarChart3,
   CheckCircle2,
   Clock,
+  Flame,
   Layers,
   LineChart,
   LogIn,
@@ -19,44 +21,165 @@ import {
   Store,
   TrendingUp,
   Users,
+  Zap,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
+import { STORE_NAME_BY_CODE } from "@/lib/authUsers";
 import citimartLogo from "@/assets/citimart-logo.png";
+
+type StoreKey = "all" | "NM" | "HB" | "CHW";
+
+interface StoreTelemetry {
+  name: string;
+  subtitle: string;
+  sales: string;
+  salesGrowth: string;
+  footfall: string;
+  conversion: string;
+  atv: string;
+  basket: string;
+  peakRush: string;
+  hourlyBars: { label: string; heightPct: number; isPeak?: boolean }[];
+  categories: { name: string; icon: any; growth: string }[];
+}
+
+const TELEMETRY_DATA: Record<StoreKey, StoreTelemetry> = {
+  all: {
+    name: "Consolidated (All 3 Stores)",
+    subtitle: "Real-time network aggregate feed",
+    sales: "₹4,86,250",
+    salesGrowth: "+8.4% vs target",
+    footfall: "3,420",
+    conversion: "36.2%",
+    atv: "₹1,240",
+    basket: "3.8 units",
+    peakRush: "05:00 PM – 08:30 PM",
+    hourlyBars: [
+      { label: "11am", heightPct: 35 },
+      { label: "1pm", heightPct: 62 },
+      { label: "3pm", heightPct: 48 },
+      { label: "5pm", heightPct: 86, isPeak: true },
+      { label: "7pm", heightPct: 100, isPeak: true },
+      { label: "9pm", heightPct: 68 },
+      { label: "11pm", heightPct: 28 },
+    ],
+    categories: [
+      { name: "Apparel & Fashion", icon: ShoppingBag, growth: "+14.2%" },
+      { name: "FMCG & Groceries", icon: ShoppingCart, growth: "+18.6%" },
+      { name: "Personal Care", icon: PackageCheck, growth: "+9.8%" },
+      { name: "Home Essentials", icon: Layers, growth: "+11.4%" },
+    ],
+  },
+  NM: {
+    name: "New Market (Flagship)",
+    subtitle: "Lindsay Street · Central Kolkata",
+    sales: "₹2,18,400",
+    salesGrowth: "+11.2% vs target",
+    footfall: "1,490",
+    conversion: "38.5%",
+    atv: "₹1,380",
+    basket: "4.1 units",
+    peakRush: "04:30 PM – 08:00 PM",
+    hourlyBars: [
+      { label: "11am", heightPct: 40 },
+      { label: "1pm", heightPct: 68 },
+      { label: "3pm", heightPct: 54 },
+      { label: "5pm", heightPct: 92, isPeak: true },
+      { label: "7pm", heightPct: 100, isPeak: true },
+      { label: "9pm", heightPct: 74 },
+      { label: "11pm", heightPct: 32 },
+    ],
+    categories: [
+      { name: "Apparel & Fashion", icon: ShoppingBag, growth: "+16.8%" },
+      { name: "FMCG & Groceries", icon: ShoppingCart, growth: "+19.4%" },
+      { name: "Personal Care", icon: PackageCheck, growth: "+12.1%" },
+      { name: "Home Essentials", icon: Layers, growth: "+13.5%" },
+    ],
+  },
+  HB: {
+    name: "Hatibagan (North Hub)",
+    subtitle: "Bidhan Sarani · North Kolkata",
+    sales: "₹1,42,600",
+    salesGrowth: "+6.8% vs target",
+    footfall: "1,080",
+    conversion: "34.1%",
+    atv: "₹1,120",
+    basket: "3.5 units",
+    peakRush: "05:30 PM – 09:00 PM",
+    hourlyBars: [
+      { label: "11am", heightPct: 30 },
+      { label: "1pm", heightPct: 52 },
+      { label: "3pm", heightPct: 45 },
+      { label: "5pm", heightPct: 80, isPeak: true },
+      { label: "7pm", heightPct: 96, isPeak: true },
+      { label: "9pm", heightPct: 72 },
+      { label: "11pm", heightPct: 24 },
+    ],
+    categories: [
+      { name: "Apparel & Fashion", icon: ShoppingBag, growth: "+11.5%" },
+      { name: "FMCG & Groceries", icon: ShoppingCart, growth: "+17.2%" },
+      { name: "Personal Care", icon: PackageCheck, growth: "+8.4%" },
+      { name: "Home Essentials", icon: Layers, growth: "+10.2%" },
+    ],
+  },
+  CHW: {
+    name: "Chowringhee (Prime Central)",
+    subtitle: "JL Nehru Road · Central Kolkata",
+    sales: "₹1,25,250",
+    salesGrowth: "+7.1% vs target",
+    footfall: "850",
+    conversion: "35.8%",
+    atv: "₹1,210",
+    basket: "3.7 units",
+    peakRush: "01:00 PM – 03:00 PM & 06:00 PM – 08:30 PM",
+    hourlyBars: [
+      { label: "11am", heightPct: 36 },
+      { label: "1pm", heightPct: 74, isPeak: true },
+      { label: "3pm", heightPct: 52 },
+      { label: "5pm", heightPct: 78 },
+      { label: "7pm", heightPct: 92, isPeak: true },
+      { label: "9pm", heightPct: 62 },
+      { label: "11pm", heightPct: 26 },
+    ],
+    categories: [
+      { name: "Apparel & Fashion", icon: ShoppingBag, growth: "+13.0%" },
+      { name: "FMCG & Groceries", icon: ShoppingCart, growth: "+18.1%" },
+      { name: "Personal Care", icon: PackageCheck, growth: "+9.0%" },
+      { name: "Home Essentials", icon: Layers, growth: "+10.8%" },
+    ],
+  },
+};
 
 const STORES = [
   {
-    code: "NM",
+    code: "NM" as const,
     name: "New Market",
     badge: "Flagship Retail",
     location: "Lindsay Street, Central Kolkata",
     counters: "12 POS Counters",
     sqft: "18,500 sq.ft Floor",
+    username: STORE_NAME_BY_CODE.NM,
   },
   {
-    code: "HB",
+    code: "HB" as const,
     name: "Hatibagan",
     badge: "North Hub",
     location: "Bidhan Sarani, North Kolkata",
     counters: "8 POS Counters",
     sqft: "14,200 sq.ft Floor",
+    username: STORE_NAME_BY_CODE.HB,
   },
   {
-    code: "CHW",
+    code: "CHW" as const,
     name: "Chowringhee",
     badge: "Prime Central",
     location: "JL Nehru Road, Central Kolkata",
     counters: "10 POS Counters",
     sqft: "16,000 sq.ft Floor",
+    username: STORE_NAME_BY_CODE.CHW,
   },
-];
-
-const FMCG_CATEGORIES = [
-  { name: "Apparel & Fashion", icon: ShoppingBag, growth: "+14.2%" },
-  { name: "FMCG & Groceries", icon: ShoppingCart, growth: "+18.6%" },
-  { name: "Personal Care", icon: PackageCheck, growth: "+9.8%" },
-  { name: "Home Essentials", icon: Layers, growth: "+11.4%" },
 ];
 
 const RETAIL_CAPABILITIES = [
@@ -93,6 +216,8 @@ const fadeUp = {
 
 export function Landing() {
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<StoreKey>("all");
+  const data = TELEMETRY_DATA[activeTab];
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#0a0f1d] text-slate-100 selection:bg-blue-600 selection:text-white">
@@ -135,7 +260,7 @@ export function Landing() {
 
             <Button
               size="sm"
-              className="bg-blue-600 font-semibold text-white shadow-md shadow-blue-600/30 hover:bg-blue-500"
+              className="bg-blue-600 font-semibold text-white shadow-md shadow-blue-600/30 hover:bg-blue-500 transition-all hover:scale-[1.02] active:scale-[0.98]"
               onClick={() => navigate("/login")}
             >
               <LogIn className="h-4 w-4 mr-1.5" />
@@ -145,7 +270,7 @@ export function Landing() {
         </motion.header>
 
         {/* Hero Section */}
-        <section className="grid items-center gap-10 lg:grid-cols-[1.1fr_0.9fr]">
+        <section className="grid items-center gap-10 lg:grid-cols-[1.05fr_0.95fr]">
           <div>
             <motion.div
               custom={0}
@@ -210,91 +335,149 @@ export function Landing() {
             >
               <Button
                 size="lg"
-                className="bg-blue-600 px-6 font-semibold text-white shadow-xl shadow-blue-600/30 hover:bg-blue-500"
+                className="bg-blue-600 px-6 font-semibold text-white shadow-xl shadow-blue-600/30 hover:bg-blue-500 transition-all hover:scale-[1.02] active:scale-[0.98]"
                 onClick={() => navigate("/login")}
               >
                 Launch Portal <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
               <p className="text-xs text-slate-400">
-                Internal system for store managers & admin
+                Internal workspace for store managers & admin
               </p>
             </motion.div>
           </div>
 
-          {/* Retail & FMCG Telemetry Showcase Card */}
+          {/* Interactive Retail & FMCG Telemetry Showcase Card */}
           <motion.div
             custom={2}
             variants={fadeUp}
             initial="hidden"
             animate="show"
-            className="relative overflow-hidden rounded-2xl border border-white/15 bg-gradient-to-br from-slate-900/90 via-slate-900/60 to-blue-950/40 p-6 backdrop-blur-xl shadow-2xl"
+            className="relative overflow-hidden rounded-2xl border border-white/15 bg-gradient-to-br from-slate-900/90 via-slate-900/60 to-blue-950/40 p-5 sm:p-6 backdrop-blur-xl shadow-2xl"
           >
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <div className="flex items-center gap-2">
-                <div className="rounded-lg bg-emerald-500/20 p-1.5 text-emerald-400">
-                  <Activity className="h-4 w-4 animate-pulse" />
-                </div>
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200">
-                    Live Retail Telemetry
-                  </h3>
-                  <p className="text-[11px] text-slate-400">Kolkata Store Network Live Feed</p>
-                </div>
+            {/* Store Tab Switcher with smooth layout transition */}
+            <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-4">
+              <div className="flex items-center gap-1.5 rounded-lg bg-white/5 p-1 border border-white/10">
+                {(
+                  [
+                    { id: "all", label: "All Stores" },
+                    { id: "NM", label: "New Market" },
+                    { id: "HB", label: "Hatibagan" },
+                    { id: "CHW", label: "Chowringhee" },
+                  ] as const
+                ).map((tab) => {
+                  const active = activeTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`relative rounded-md px-2.5 py-1 text-xs font-semibold transition-all duration-150 ${
+                        active
+                          ? "text-white shadow-xs"
+                          : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                      }`}
+                    >
+                      {active && (
+                        <motion.span
+                          layoutId="activeStoreTab"
+                          className="absolute inset-0 rounded-md bg-blue-600 shadow-md shadow-blue-600/40"
+                          transition={{ type: "spring", stiffness: 450, damping: 30 }}
+                        />
+                      )}
+                      <span className="relative z-10">{tab.label}</span>
+                    </button>
+                  );
+                })}
               </div>
-              <span className="rounded-md bg-blue-500/20 px-2.5 py-1 text-[11px] font-semibold text-blue-300">
-                Today's Operations
+
+              <span className="hidden sm:inline-flex items-center gap-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+                <Activity className="h-3 w-3 animate-pulse" /> Live
               </span>
             </div>
 
-            {/* KPI grid showcase */}
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              <div className="rounded-xl border border-white/10 bg-white/5 p-3.5">
-                <p className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
-                  <Receipt className="h-3.5 w-3.5 text-emerald-400" /> POS Net Sales
-                </p>
-                <p className="mt-1 text-lg font-extrabold text-emerald-300">₹4,86,250</p>
-                <p className="mt-0.5 text-[10px] text-emerald-400 font-semibold">+8.4% vs target</p>
+            {/* Sub-header info */}
+            <div className="mt-3 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-slate-200">{data.name}</p>
+                <p className="text-[11px] text-slate-400">{data.subtitle}</p>
               </div>
-
-              <div className="rounded-xl border border-white/10 bg-white/5 p-3.5">
-                <p className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
-                  <Users className="h-3.5 w-3.5 text-indigo-400" /> Store Footfall
-                </p>
-                <p className="mt-1 text-lg font-extrabold text-indigo-200">3,420</p>
-                <p className="mt-0.5 text-[10px] text-slate-400">Visitors logged</p>
-              </div>
-
-              <div className="rounded-xl border border-white/10 bg-white/5 p-3.5">
-                <p className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
-                  <Percent className="h-3.5 w-3.5 text-blue-400" /> Conversion Rate
-                </p>
-                <p className="mt-1 text-lg font-extrabold text-blue-300">36.2%</p>
-                <p className="mt-0.5 text-[10px] text-emerald-400 font-semibold">Healthy Yield</p>
-              </div>
-
-              <div className="rounded-xl border border-white/10 bg-white/5 p-3.5">
-                <p className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
-                  <ShoppingBag className="h-3.5 w-3.5 text-amber-400" /> Average Bill (ATV)
-                </p>
-                <p className="mt-1 text-lg font-extrabold text-amber-200">₹1,240</p>
-                <p className="mt-0.5 text-[10px] text-slate-400">Basket: 3.8 units</p>
+              <div className="flex items-center gap-1 text-[11px] text-amber-300 font-medium bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md">
+                <Flame className="h-3 w-3 text-amber-400 shrink-0" />
+                <span>Peak: {data.peakRush}</span>
               </div>
             </div>
 
-            {/* FMCG Department breakdown mini-bar */}
-            <div className="mt-5 rounded-xl border border-white/10 bg-black/20 p-3.5">
-              <div className="flex items-center justify-between text-xs font-semibold text-slate-300 mb-2">
-                <span>Departmental Contribution</span>
-                <span className="text-[11px] text-emerald-400">Live Mix</span>
+            {/* Animated KPI grid showcase */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.2 }}
+                className="mt-4 grid grid-cols-2 gap-3"
+              >
+                <div className="rounded-xl border border-white/10 bg-white/5 p-3.5 transition-colors hover:border-emerald-500/30 hover:bg-white/[0.07]">
+                  <p className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
+                    <Receipt className="h-3.5 w-3.5 text-emerald-400" /> POS Net Sales
+                  </p>
+                  <p className="mt-1 text-lg font-extrabold text-emerald-300">{data.sales}</p>
+                  <p className="mt-0.5 text-[10px] text-emerald-400 font-semibold">{data.salesGrowth}</p>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/5 p-3.5 transition-colors hover:border-indigo-500/30 hover:bg-white/[0.07]">
+                  <p className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
+                    <Users className="h-3.5 w-3.5 text-indigo-400" /> Store Footfall
+                  </p>
+                  <p className="mt-1 text-lg font-extrabold text-indigo-200">{data.footfall}</p>
+                  <p className="mt-0.5 text-[10px] text-slate-400">Visitors today</p>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/5 p-3.5 transition-colors hover:border-blue-500/30 hover:bg-white/[0.07]">
+                  <p className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
+                    <Percent className="h-3.5 w-3.5 text-blue-400" /> Conversion Rate
+                  </p>
+                  <p className="mt-1 text-lg font-extrabold text-blue-300">{data.conversion}</p>
+                  <p className="mt-0.5 text-[10px] text-emerald-400 font-semibold">High floor efficiency</p>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/5 p-3.5 transition-colors hover:border-amber-500/30 hover:bg-white/[0.07]">
+                  <p className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
+                    <ShoppingBag className="h-3.5 w-3.5 text-amber-400" /> Average Bill (ATV)
+                  </p>
+                  <p className="mt-1 text-lg font-extrabold text-amber-200">{data.atv}</p>
+                  <p className="mt-0.5 text-[10px] text-slate-400">Basket: {data.basket}</p>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+
+            {/* Hourly Retail Velocity Mini Sparkline Graph */}
+            <div className="mt-4 rounded-xl border border-white/10 bg-black/25 p-3.5">
+              <div className="flex items-center justify-between text-[11px] font-semibold text-slate-300 mb-2.5">
+                <span className="flex items-center gap-1.5">
+                  <Zap className="h-3 w-3 text-amber-400" /> Hourly Billing Velocity
+                </span>
+                <span className="text-[10px] text-slate-400">10:30 AM – 11:59 PM</span>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                {FMCG_CATEGORIES.map((cat) => (
-                  <div key={cat.name} className="flex items-center justify-between text-[11px] text-slate-400">
-                    <span className="flex items-center gap-1.5">
-                      <cat.icon className="h-3 w-3 text-blue-300" />
-                      <span className="truncate">{cat.name}</span>
+
+              <div className="flex items-end justify-between gap-1.5 h-14 pt-2">
+                {data.hourlyBars.map((bar) => (
+                  <div key={bar.label} className="flex-1 flex flex-col items-center gap-1 h-full justify-end group">
+                    <div className="w-full relative flex items-end justify-center h-full">
+                      <motion.div
+                        initial={{ height: 0 }}
+                        animate={{ height: `${bar.heightPct}%` }}
+                        transition={{ duration: 0.4 }}
+                        className={`w-full max-w-[18px] rounded-t-sm transition-colors ${
+                          bar.isPeak
+                            ? "bg-gradient-to-t from-blue-500 to-emerald-400 group-hover:from-blue-400 group-hover:to-emerald-300 shadow-xs shadow-emerald-500/30"
+                            : "bg-blue-600/50 group-hover:bg-blue-500/80"
+                        }`}
+                      />
+                    </div>
+                    <span className="text-[9px] text-slate-400 group-hover:text-slate-200">
+                      {bar.label}
                     </span>
-                    <span className="font-semibold text-emerald-400">{cat.growth}</span>
                   </div>
                 ))}
               </div>
@@ -318,17 +501,19 @@ export function Landing() {
 
           <div className="grid gap-4 sm:grid-cols-3">
             {STORES.map((s, i) => (
-              <motion.div
+              <motion.button
                 key={s.name}
+                type="button"
                 custom={i}
                 variants={fadeUp}
                 initial="hidden"
                 whileInView="show"
                 viewport={{ once: true }}
-                className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 p-5 transition-all duration-200 hover:border-blue-400/40 hover:bg-white/[0.07]"
+                onClick={() => navigate(`/login?account=${encodeURIComponent(s.username)}`)}
+                className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 p-5 text-left transition-all duration-200 hover:border-blue-400/50 hover:bg-white/[0.08] hover:shadow-xl hover:shadow-blue-500/10 active:scale-[0.99]"
               >
                 <div className="flex items-start justify-between">
-                  <div className="rounded-lg bg-blue-500/10 p-2 text-blue-400">
+                  <div className="rounded-lg bg-blue-500/10 p-2 text-blue-400 group-hover:bg-blue-500/20 transition-colors">
                     <Store className="h-5 w-5" />
                   </div>
                   <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[10px] font-semibold text-blue-300">
@@ -336,7 +521,7 @@ export function Landing() {
                   </span>
                 </div>
 
-                <h3 className="mt-4 font-bold text-slate-100 text-base">
+                <h3 className="mt-4 font-bold text-slate-100 text-base group-hover:text-blue-300 transition-colors">
                   CITIMART — {s.name}
                 </h3>
                 <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-400">
@@ -348,7 +533,12 @@ export function Landing() {
                   <span>{s.counters}</span>
                   <span className="text-slate-400">{s.sqft}</span>
                 </div>
-              </motion.div>
+
+                <div className="mt-3 flex items-center justify-between text-xs font-semibold text-blue-400 opacity-80 group-hover:opacity-100 transition-opacity">
+                  <span>Open Store Manager Login</span>
+                  <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+                </div>
+              </motion.button>
             ))}
           </div>
         </section>
@@ -374,7 +564,7 @@ export function Landing() {
                 initial="hidden"
                 whileInView="show"
                 viewport={{ once: true }}
-                className="rounded-xl border border-white/10 bg-white/5 p-5 flex flex-col justify-between hover:border-white/20 transition"
+                className="rounded-xl border border-white/10 bg-white/5 p-5 flex flex-col justify-between hover:border-white/20 transition-all hover:bg-white/[0.07]"
               >
                 <div>
                   <div className="flex items-center justify-between mb-3">
@@ -403,7 +593,7 @@ export function Landing() {
           initial="hidden"
           whileInView="show"
           viewport={{ once: true }}
-          className="rounded-2xl border border-blue-500/30 bg-gradient-to-r from-blue-900/40 via-slate-900/60 to-indigo-900/40 p-6 sm:p-8 backdrop-blur text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-6"
+          className="rounded-2xl border border-blue-500/30 bg-gradient-to-r from-blue-900/40 via-slate-900/60 to-indigo-900/40 p-6 sm:p-8 backdrop-blur text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-6 shadow-xl"
         >
           <div>
             <h3 className="text-xl font-bold text-white">Ready to access your store's dashboard?</h3>
@@ -413,7 +603,7 @@ export function Landing() {
           </div>
           <Button
             size="lg"
-            className="bg-blue-600 font-semibold text-white shadow-lg shadow-blue-600/30 hover:bg-blue-500 shrink-0"
+            className="bg-blue-600 font-semibold text-white shadow-lg shadow-blue-600/30 hover:bg-blue-500 shrink-0 transition-all hover:scale-[1.02] active:scale-[0.98]"
             onClick={() => navigate("/login")}
           >
             Enter CITIMART Portal <ArrowRight className="ml-2 h-4 w-4" />
@@ -429,4 +619,5 @@ export function Landing() {
     </div>
   );
 }
+
 
