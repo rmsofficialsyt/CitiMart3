@@ -31,19 +31,34 @@ A step-by-step guide designed for store managers to easily understand how to log
 Enter your sales counter data in this section:
 - **Net Amount (₹)**:
   The total money collected from the bills in Rupees (e.g., `14500`).
-- **Bill Quantity**:
+- **Bill Quantity (units sold)**:
   The total number of physical articles or items sold in those bills (e.g., `9`).
 - **NOB (Number of Bills / Buyers)**:
   The number of customer receipts/transactions generated (e.g., `3`). Every bill represents 1 paying customer/buyer.
 - **How to Log**:
   1. Set the **Time Stamp**.
-  2. Enter **Net Amount**, **Bill Quantity**, and **NOB**.
+  2. Enter **Net Amount**, **Bill Quantity (units sold)**, and **NOB**.
   3. Click **"Update Bills & NOB"**.
   4. The dashboard updates your Net Sales, Conversion %, ATV (Average Transaction Value), and Basket Size instantly.
 
 ---
 
-## 4. Remarks & Daily Observations
+## 4. Understanding "Reset" (Clearing Inputs Safely)
+Each input section includes a **Reset** button to help you clear entered text before submitting:
+
+- **Reset Footfall**: Clears only the *Footfall (visitors)* text box.
+- **Reset Bills & NOB**: Clears the *Net Amount*, *Bill Quantity (units sold)*, and *NOB* text boxes.
+- **Reset All (Bottom)**: Clears all un-submitted input fields across all sections including *Remarks*.
+
+> [!IMPORTANT]
+> **Safety Guarantee — Reset Does Not Delete Logged Data**:
+> Clicking **Reset** ONLY clears the current, un-saved text boxes so you can re-type fresh numbers. It will **NEVER delete, modify, or erase any entries you have already saved or logged** in the database.
+> 
+> If you need to edit or remove an already saved entry, use the **Edit** or **Delete** buttons in the *Logged Footfall* and *Logged Bills & NOB* tables.
+
+---
+
+## 5. Remarks & Daily Observations
 - **What are Remarks?**
   A brief note explaining any special factor that affected store performance that day.
   - Examples: *"Heavy rain from 3 PM to 5 PM"*, *"Festival shopping rush"*, *"Weekend discount promotion"*, *"AC malfunction for 1 hour"*.
@@ -51,7 +66,7 @@ Enter your sales counter data in this section:
 
 ---
 
-## 5. "Update" vs "Final Submission"
+## 6. "Update" vs "Final Submission"
 | Button | When to Use | What Happens |
 | :--- | :--- | :--- |
 | **Update** (Footfall / Bills & NOB) | Throughout the day as shifts progress | Saves that section's entries so the live Dashboard shows up-to-the-minute figures. You can add more data anytime. |
@@ -63,7 +78,7 @@ Enter your sales counter data in this section:
 
 ---
 
-## 6. Reviewing and Correcting Mistakes
+## 7. Reviewing and Correcting Mistakes
 If you made a typo in time, amount, or count:
 1. Switch to the **Dashboard** tab.
 2. Scroll down to **"Logged Footfall"** and **"Logged Bills & NOB"**.

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Section } from "@/components/Section";
 import { Textarea } from "@/components/ui/textarea";
+import { TimePicker12Hour } from "@/components/TimePicker12Hour";
 import { fmtCurrencyOrZero, fmtDateIndian, fmtNumberOrZero, nowTimeHHMM, todayLocalDate } from "@/lib/format";
 import { timeSlotForHHMM } from "@/lib/timeSlot";
 
@@ -355,36 +356,33 @@ function ManualEntry({ store }: { store: string }) {
       <ManagerUserGuide />
 
       <Section title="Date & Time Stamp" className="mb-4">
-        <div className="grid max-w-lg grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid max-w-4xl grid-cols-1 gap-5 md:grid-cols-3">
           <div>
-            <Label className="text-muted-foreground mb-1 text-xs font-semibold tracking-wide uppercase">Date</Label>
-            <div className="border-input bg-muted/50 text-foreground w-full rounded-md border px-2 py-1.5 text-sm">
+            <Label className="text-muted-foreground mb-1.5 text-xs font-semibold tracking-wide uppercase">Date</Label>
+            <div className="border-input bg-muted/50 text-foreground flex h-9 w-full items-center rounded-md border px-3 text-sm font-semibold shadow-xs">
               {fmtDateIndian(entryDate)}
             </div>
           </div>
           <div>
-            <Label className="text-muted-foreground mb-1 text-xs font-semibold tracking-wide uppercase">Time Stamp</Label>
-            <input
-              type="time"
-              min="10:30"
-              max="23:59"
-              className="border-input bg-background w-full rounded-md border px-2 py-1.5 text-sm"
+            <Label className="text-muted-foreground mb-1.5 text-xs font-semibold tracking-wide uppercase">Time Stamp (12-Hour)</Label>
+            <TimePicker12Hour
               value={entryTime}
-              onChange={(e) => setEntryTime(e.target.value)}
+              onChange={setEntryTime}
+              disabled={saveMutation.isPending}
             />
           </div>
           <div>
-            <Label className="text-muted-foreground mb-1 text-xs font-semibold tracking-wide uppercase">Time Slot</Label>
+            <Label className="text-muted-foreground mb-1.5 text-xs font-semibold tracking-wide uppercase">Time Slot</Label>
             <div
-              className="border-input bg-muted/50 text-foreground w-full rounded-md border px-2 py-1.5 text-sm"
+              className="border-input bg-muted/50 text-foreground flex h-9 w-full items-center rounded-md border px-3 text-xs font-semibold shadow-xs text-primary"
               title="System-generated from Time Stamp -- not editable"
             >
               {previewSlot ?? "Outside store hours (10:30 AM - 11:59 PM)"}
             </div>
           </div>
         </div>
-        <p className="text-muted-foreground mt-2 text-xs">
-          Applies to Footfall, Bill Details and NOB below. Time Slot is generated automatically from the Time Stamp (10:30 AM – 11:59 PM) and saved with each entry.
+        <p className="text-muted-foreground mt-2.5 text-xs">
+          Applies to Footfall, Bill Details and NOB below. Operational hours: <strong>10.30 am</strong> to <strong>11.59 pm</strong>.
         </p>
       </Section>
 

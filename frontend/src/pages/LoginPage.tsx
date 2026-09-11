@@ -60,7 +60,9 @@ export function LoginPage() {
         transition={{ duration: 0.4 }}
         className="relative w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur sm:p-7"
       >
-        <img src={citimartLogo} alt="CITIMART" className="h-9 w-auto rounded bg-white/95 p-1" />
+        <div className="inline-flex items-center rounded-xl bg-white px-3 py-1.5 shadow-md border border-slate-200/50">
+          <img src={citimartLogo} alt="CITIMART - Value for Money Re-defined" className="h-11 w-auto sm:h-12 object-contain" />
+        </div>
         <h1 className="mt-3 text-xl font-bold">Sign in</h1>
         <p className="mt-1 text-sm text-slate-400">Sales KPI Dashboard Report</p>
 

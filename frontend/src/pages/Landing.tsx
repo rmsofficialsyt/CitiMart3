@@ -51,7 +51,9 @@ export function Landing() {
           transition={{ duration: 0.4 }}
           className="flex items-center justify-between"
         >
-          <img src={citimartLogo} alt="CITIMART" className="h-9 w-auto rounded bg-white/95 p-1" />
+          <div className="inline-flex items-center rounded-xl bg-white px-3 py-1.5 shadow-md border border-slate-200/50">
+            <img src={citimartLogo} alt="CITIMART - Value for Money Re-defined" className="h-10 w-auto sm:h-12 object-contain" />
+          </div>
         </motion.header>
 
         {/* hero */}

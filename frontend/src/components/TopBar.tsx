@@ -6,16 +6,20 @@ import {
   Moon,
   PanelRightClose,
   PanelRightOpen,
+  Settings,
   Sparkles,
   SlidersHorizontal,
   Sun,
   UserRound,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useIsMobile } from "@/hooks/useMediaQuery";
+import { SIGN_IN_OPTIONS } from "@/lib/authUsers";
 import citimartLogo from "@/assets/citimart-logo.png";
 
 interface TopBarProps {
@@ -32,40 +36,166 @@ interface TopBarProps {
   onSignOut?: () => void;
 }
 
-// Light -> Dark -> Neon -> Light. Uses `theme` (the explicit choice), not
-// `resolvedTheme`, so cycling is deterministic; falls back to "light" for the
-// unresolved / "system" state.
-const THEME_CYCLE = ["light", "dark", "neon"] as const;
-const THEME_META: Record<(typeof THEME_CYCLE)[number], { label: string; Icon: typeof Sun }> = {
-  light: { label: "Light", Icon: Sun },
-  dark: { label: "Dark", Icon: Moon },
-  neon: { label: "Neon", Icon: Sparkles },
-};
+const ICON_BTN = "size-9 shrink-0 text-slate-300 hover:bg-white/10 hover:text-white";
 
-function ThemeToggle() {
+function SettingsMenu({
+  username,
+  roleLabel,
+  onSignOut,
+}: {
+  username?: string;
+  roleLabel?: string;
+  onSignOut?: () => void;
+}) {
   const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
 
-  const current = (THEME_CYCLE as readonly string[]).includes(theme ?? "") ? (theme as (typeof THEME_CYCLE)[number]) : "light";
-  const next = THEME_CYCLE[(THEME_CYCLE.indexOf(current) + 1) % THEME_CYCLE.length];
-  const { Icon } = THEME_META[current];
+  const themes = [
+    { id: "light", label: "Light", Icon: Sun },
+    { id: "dark", label: "Dark", Icon: Moon },
+    { id: "neon", label: "Neon", Icon: Sparkles },
+  ] as const;
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      aria-label={`Theme: ${THEME_META[current].label} — switch to ${THEME_META[next].label}`}
-      title={`Theme: ${THEME_META[current].label} — switch to ${THEME_META[next].label}`}
-      className="size-9 text-slate-300 hover:bg-white/10 hover:text-white"
-      onClick={() => setTheme(next)}
-    >
-      {mounted ? <Icon className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-    </Button>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Settings"
+          title="Settings (Accounts, Theme, Sign Out)"
+          className={ICON_BTN}
+        >
+          <Settings className="h-4 w-4 text-slate-200" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        sideOffset={8}
+        className="w-80 rounded-xl border border-slate-700 bg-slate-900 p-0 text-slate-100 shadow-2xl backdrop-blur-md"
+      >
+        <div className="border-b border-slate-800 p-3.5 bg-slate-950/40 rounded-t-xl">
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-2 text-sm font-bold text-white">
+              <Settings className="h-4 w-4 text-blue-400" />
+              Settings & Preferences
+            </span>
+          </div>
+        </div>
+
+        <div className="p-3 space-y-4">
+          {/* Account & Profile */}
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              Account
+            </span>
+            {username ? (
+              <div className="mt-1.5 flex items-center justify-between rounded-lg bg-slate-800/80 p-2.5 border border-slate-700/60">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500/20 text-blue-300">
+                    <UserRound className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-semibold text-white">{username}</p>
+                    <p className="truncate text-[11px] text-slate-400">{roleLabel || "User"}</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-1.5 flex items-center justify-between rounded-lg bg-slate-800/80 p-2.5">
+                <span className="text-xs text-slate-400">Not signed in</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => {
+                    setOpen(false);
+                    navigate("/login");
+                  }}
+                >
+                  Sign In
+                </Button>
+              </div>
+            )}
+
+            {/* Switch Account */}
+            <div className="mt-2.5">
+              <span className="text-[11px] text-slate-400 font-medium">Switch Account:</span>
+              <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                {SIGN_IN_OPTIONS.map((opt) => {
+                  const isActive = opt.username === username;
+                  return (
+                    <button
+                      key={opt.username}
+                      type="button"
+                      onClick={() => {
+                        setOpen(false);
+                        navigate(`/login?account=${encodeURIComponent(opt.username)}`);
+                      }}
+                      className={`flex flex-col items-start rounded-md px-2 py-1.5 text-left text-xs transition border ${
+                        isActive
+                          ? "border-blue-500 bg-blue-500/15 text-blue-200"
+                          : "border-slate-800 bg-slate-800/40 text-slate-300 hover:bg-slate-800 hover:text-white"
+                      }`}
+                    >
+                      <span className="truncate w-full font-medium">{opt.title.replace("CITIMART — ", "")}</span>
+                      <span className="text-[10px] text-slate-400">{opt.sub.split("·")[0]}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Theme Switcher */}
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              Theme / Appearance
+            </span>
+            <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+              {themes.map(({ id, label, Icon }) => {
+                const isSelected = theme === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setTheme(id)}
+                    className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition border ${
+                      isSelected
+                        ? "border-blue-400 bg-blue-600/30 text-white shadow-sm"
+                        : "border-slate-800 bg-slate-800/40 text-slate-300 hover:bg-slate-800 hover:text-white"
+                    }`}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    <span>{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Log Out */}
+          {onSignOut && username && (
+            <div className="pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  onSignOut();
+                }}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/20 py-2 text-xs font-semibold transition"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                Sign Out ({username})
+              </button>
+            </div>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
-
-const ICON_BTN = "size-9 shrink-0 text-slate-300 hover:bg-white/10 hover:text-white";
 
 export function TopBar({
   activeStores,
@@ -81,10 +211,6 @@ export function TopBar({
   onSignOut,
 }: TopBarProps) {
   const isMobile = useIsMobile();
-  // The meta strip (stores / reporting period / last refresh) is three lines of
-  // text on a phone and would push the whole dashboard below the fold, so on
-  // small screens it collapses behind the chevron and only the Live pill stays
-  // visible. From `md` up it's always shown and the chevron disappears.
   const [metaOpen, setMetaOpen] = useState(false);
 
   const liveDot = (
@@ -105,16 +231,21 @@ export function TopBar({
       className="topbar bg-[#0f172a] px-3 py-3.5 text-white sm:px-6"
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-          <img src={citimartLogo} alt="CitiMart" className="h-8 w-auto shrink-0 rounded bg-white/95 p-1 sm:h-10" />
+        <div className="flex min-w-0 items-center gap-2.5 sm:gap-4">
+          <div className="shrink-0 rounded-lg bg-white p-1 sm:p-1.5 shadow-sm border border-slate-100 flex items-center justify-center">
+            <img src={citimartLogo} alt="CITIMART - Value for Money Re-defined" className="h-10 sm:h-12 w-auto object-contain" />
+          </div>
           <div className="min-w-0">
-            <h1 className="truncate text-base leading-tight font-bold sm:text-lg lg:text-xl">
-              <span className="text-blue-300">CITIMART</span>
-              {/* The full title doesn't fit beside the action icons on a 360px
-                  screen -- shorten it there rather than truncating mid-word. */}
-              <span className="hidden sm:inline"> SALES KPI DASHBOARD REPORT</span>
-              <span className="sm:hidden"> KPI</span>
-            </h1>
+            <div className="flex flex-wrap items-baseline gap-x-2">
+              <h1 className="truncate text-base leading-tight font-extrabold sm:text-lg lg:text-xl tracking-tight">
+                <span className="text-white">CITIMART</span>
+                <span className="hidden sm:inline text-blue-300"> DAILY OPERATIONS DASHBOARD</span>
+                <span className="sm:hidden text-blue-300"> OPERATIONS</span>
+              </h1>
+            </div>
+            <div className="text-[11px] sm:text-xs font-semibold text-amber-300/95 tracking-wide uppercase mt-0.5">
+              Value for Money Re-defined
+            </div>
 
             {/* Mobile: the Live pill + the expand chevron on one short line. */}
             <button
@@ -145,7 +276,7 @@ export function TopBar({
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
           {showReportButton && (
             <Button
               variant="ghost"
@@ -167,9 +298,6 @@ export function TopBar({
               className={ICON_BTN}
               onClick={onTogglePanel}
             >
-              {/* On mobile the panel is a drawer, not a docked sidebar, so the
-                  panel-collapse chevrons would be misleading -- use the plain
-                  "filters" affordance there instead. */}
               {isMobile ? (
                 <SlidersHorizontal className="h-4 w-4" />
               ) : panelOpen ? (
@@ -179,27 +307,13 @@ export function TopBar({
               )}
             </Button>
           )}
-          <ThemeToggle />
 
-          {username && (
-            <div className="ml-1 flex items-center gap-1 border-l border-white/15 pl-1.5 sm:ml-2 sm:gap-2 sm:pl-3">
-              <span className="hidden items-center gap-1.5 text-xs text-slate-300 lg:flex">
-                <UserRound className="h-3.5 w-3.5" />
-                <span className="font-medium text-white">{username}</span>
-                {roleLabel && <span className="text-slate-400">· {roleLabel}</span>}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Sign out"
-                title={username ? `Sign out (${username})` : "Sign out"}
-                className={ICON_BTN}
-                onClick={onSignOut}
-              >
-                <LogOut className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
+          {/* Unified Settings Button (Accounts, Themes, Sign Out) */}
+          <SettingsMenu
+            username={username}
+            roleLabel={roleLabel}
+            onSignOut={onSignOut}
+          />
         </div>
       </div>
     </motion.header>

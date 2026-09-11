@@ -249,6 +249,9 @@ export interface HistoryDateSummary {
 export interface TimeSlotSummary {
   time_slot: string;
   net_sales: number;
+  remaining?: number | null;
+  achievement_pct?: number | null;
+  remaining_pct?: number | null;
   bill_quantity: number;
   bill_count: number;
   footfall: number;

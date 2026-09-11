@@ -7,7 +7,8 @@ import { Section } from "@/components/Section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fmtCurrencyOrZero, fmtNumberOrZero, nowTimeHHMM } from "@/lib/format";
+import { TimePicker12Hour } from "@/components/TimePicker12Hour";
+import { fmtCurrencyOrZero, fmtNumberOrZero, fmtTime12Hour, nowTimeHHMM } from "@/lib/format";
 import { timeSlotForHHMM } from "@/lib/timeSlot";
 import type { BillEntry, NobEntry } from "@/lib/types";
 
@@ -132,13 +133,10 @@ function TimedEntryTable({
             editingRow === entry.row ? (
               <TableRow key={entry.row}>
                 <TableCell>
-                  <input
-                    type="time"
-                    min="10:30"
-                    max="23:59"
-                    className="border-input bg-background w-full rounded-md border px-2 py-1 text-sm"
+                  <TimePicker12Hour
+                    size="sm"
                     value={editTime}
-                    onChange={(e) => setEditTime(e.target.value)}
+                    onChange={setEditTime}
                   />
                 </TableCell>
                 <TableCell>
@@ -166,7 +164,7 @@ function TimedEntryTable({
               </TableRow>
             ) : (
               <TableRow key={entry.row}>
-                <TableCell>{entry.time ?? "—"}</TableCell>
+                <TableCell className="font-medium">{fmtTime12Hour(entry.time)}</TableCell>
                 <TableCell>{fmtNumberOrZero(entry.value)}</TableCell>
                 <TableCell>{entry.time_slot ?? <span className="text-muted-foreground">—</span>}</TableCell>
                 <TableCell>
@@ -394,16 +392,13 @@ export function LoggedDailyEntries({ store, date }: { store: string; date: strin
                     <TableRow key={row.key}>
                       <TableCell>
                         {isEditing ? (
-                          <input
-                            type="time"
-                            min="10:30"
-                            max="23:59"
-                            className="border-input bg-background w-full rounded-md border px-2 py-1 text-sm"
+                          <TimePicker12Hour
+                            size="sm"
                             value={editTime}
-                            onChange={(e) => setEditTime(e.target.value)}
+                            onChange={setEditTime}
                           />
                         ) : (
-                          (row.time ?? "—")
+                          <span className="font-medium">{fmtTime12Hour(row.time)}</span>
                         )}
                       </TableCell>
                       <TableCell>

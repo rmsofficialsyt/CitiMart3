@@ -45,6 +45,20 @@ export function fmtDateIndian(isoDate: string): string {
   return INDIAN_DATE_DISPLAY.format(new Date(`${isoDate}T00:00:00Z`));
 }
 
+/** Formats HH:MM (24-hr) or ISO time strings into standardized 12-hour format: e.g. "10.30 am", "2.00 pm", "11.59 pm" */
+export function fmtTime12Hour(timeStr: string | null | undefined): string {
+  if (!timeStr) return "—";
+  const trimmed = timeStr.trim();
+  const match = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(trimmed);
+  if (!match) return trimmed;
+  let hours = parseInt(match[1], 10);
+  const minutes = match[2];
+  const ampm = hours >= 12 ? "pm" : "am";
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  return `${hours}.${minutes} ${ampm}`;
+}
+
 // All KPI/table figures are rounded to whole numbers for display (the
 // underlying computed values retain full precision -- only presentation
 // rounds off, via Math.round semantics through maximumFractionDigits: 0).
@@ -71,6 +85,13 @@ export function fmtPercent(v: number | null | undefined): string {
 export const fmtCurrencyOrZero = (v: number | null | undefined) => fmtCurrency(v ?? 0);
 export const fmtNumberOrZero = (v: number | null | undefined) => fmtNumber(v ?? 0);
 export const fmtPercentOrZero = (v: number | null | undefined) => fmtPercent(v ?? 0);
+export const fmtDecimalOrZero = (v: number | null | undefined, decimals = 2) => {
+  if (v === null || v === undefined || Number.isNaN(v)) return "0.00";
+  return v.toLocaleString("en-IN", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+};
 
 // Generic table-cell formatter: same column-name heuristic the old app.js
 // used for regular data tables (top products/brands, store scorecard, ...).

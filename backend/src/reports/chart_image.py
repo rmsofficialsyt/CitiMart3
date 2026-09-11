@@ -70,22 +70,22 @@ def gauge_spec_to_figure(spec: dict) -> go.Figure:
         go.Indicator(
             mode="gauge+number+delta",
             value=value,
-            number={"suffix": suffix, "prefix": prefix, "font": {"size": 42, "family": CHART_MONO_FONT_FAMILY, "color": "#0f172a"}},
-            delta={"reference": target, "font": {"size": 16, "family": CHART_MONO_FONT_FAMILY}} if target is not None else None,
+            number={"suffix": suffix, "prefix": prefix, "font": {"size": 34, "family": CHART_MONO_FONT_FAMILY, "color": "#0f172a"}},
+            delta={"reference": target, "font": {"size": 14, "family": CHART_MONO_FONT_FAMILY}} if target is not None else None,
             gauge={
-                "axis": {"range": [axis_min, axis_max], "tickfont": {"size": 12}, "tickcolor": _GAUGE_BEZEL, "tickwidth": 2},
+                "axis": {"range": [axis_min, axis_max], "tickfont": {"size": 11, "color": "#475569"}, "tickcolor": _GAUGE_BEZEL, "tickwidth": 2},
                 "bar": {"color": "rgba(0,0,0,0)"},
-                "bgcolor": "white",
+                "bgcolor": "#ffffff",
                 "bordercolor": _GAUGE_BEZEL,
-                "borderwidth": 4,
+                "borderwidth": 3,
                 "steps": steps,
-                "threshold": {"line": {"color": _GAUGE_NEEDLE, "width": 6}, "thickness": 0.9, "value": value},
+                "threshold": {"line": {"color": "#dc2626", "width": 5}, "thickness": 0.88, "value": value},
             },
-            title={"text": title, "font": {"size": 17, "family": CHART_FONT_FAMILY}},
+            title={"text": f"<b>{title}</b>", "font": {"size": 15, "family": CHART_FONT_FAMILY, "color": "#1e3a8a"}},
         )
     )
-    _size(fig, GAUGE_HEIGHT, margin={"l": 30, "r": 30, "t": 70, "b": 20})
-    fig.update_layout(title_text="")
+    _size(fig, GAUGE_HEIGHT, margin={"l": 25, "r": 25, "t": 50, "b": 15})
+    fig.update_layout(title_text="", paper_bgcolor="#ffffff", plot_bgcolor="#ffffff")
     return fig
 
 

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { fmtCurrencyOrZero, fmtNumberOrZero, fmtPercentOrZero } from "@/lib/format";
+import { fmtCurrencyOrZero, fmtNumberOrZero, fmtPercentOrZero, fmtTime12Hour } from "@/lib/format";
 import { STORE_NAME_BY_CODE } from "@/lib/authUsers";
 
 interface HistoryPageProps {
@@ -235,37 +235,118 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                   <TableRow>
                     <TableHead className="font-semibold">Time Slot</TableHead>
                     <TableHead className="text-right font-semibold">Net Sales (₹)</TableHead>
-                    <TableHead className="text-right font-semibold">Bill Qty (units sold)</TableHead>
+                    <TableHead className="text-right font-semibold">Remaining (₹)</TableHead>
+                    <TableHead className="text-right font-semibold">Achievement %</TableHead>
+                    <TableHead className="text-right font-semibold">Remaining %</TableHead>
+                    <TableHead className="text-right font-semibold">Bill Quantity (units sold)</TableHead>
                     <TableHead className="text-right font-semibold">Footfall</TableHead>
                     <TableHead className="text-right font-semibold">NOB (Buyers)</TableHead>
+                    <TableHead className="text-right font-semibold">Basket Size</TableHead>
                     <TableHead className="text-right font-semibold">ATV (₹)</TableHead>
                     <TableHead className="text-right font-semibold">RPV (₹)</TableHead>
                     <TableHead className="text-right font-semibold">Conversion %</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {timeslots.map((t) => (
-                    <TableRow key={t.time_slot} className="hover:bg-muted/30">
-                      <TableCell className="font-medium text-foreground">{t.time_slot}</TableCell>
-                      <TableCell className="text-right font-semibold text-emerald-400">
-                        {fmtCurrencyOrZero(t.net_sales)}
-                      </TableCell>
-                      <TableCell className="text-right">{fmtNumberOrZero(t.bill_quantity)}</TableCell>
-                      <TableCell className="text-right">{fmtNumberOrZero(t.footfall)}</TableCell>
-                      <TableCell className="text-right">{fmtNumberOrZero(t.nob)}</TableCell>
-                      <TableCell className="text-right">{fmtCurrencyOrZero(t.atv)}</TableCell>
-                      <TableCell className="text-right">{fmtCurrencyOrZero(t.rpv)}</TableCell>
-                      <TableCell className="text-right font-semibold text-blue-400">
-                        {fmtPercentOrZero(t.conversion_pct)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {timeslots.length === 0 && (
+                  {timeslots.map((t) => {
+                    const rowBasketSize = (t.nob && t.nob > 0) ? (t.bill_quantity / t.nob) : 0;
+                    const rowAtv = (t.nob && t.nob > 0) ? (t.net_sales / t.nob) : 0;
+                    const rowRpv = (t.footfall && t.footfall > 0) ? (t.net_sales / t.footfall) : 0;
+                    const rowConvPct = (t.footfall && t.footfall > 0) ? ((t.nob / t.footfall) * 100) : 0;
+
+                    return (
+                      <TableRow key={t.time_slot} className="hover:bg-muted/30">
+                        <TableCell className="font-medium text-foreground">{t.time_slot}</TableCell>
+                        <TableCell className="text-right font-semibold text-emerald-400">
+                          {fmtCurrencyOrZero(t.net_sales)}
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {fmtCurrencyOrZero(t.remaining)}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold text-indigo-300">
+                          {fmtPercentOrZero(t.achievement_pct)}
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {fmtPercentOrZero(t.remaining_pct)}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {fmtNumberOrZero(t.bill_quantity)}
+                        </TableCell>
+                        <TableCell className="text-right">{fmtNumberOrZero(t.footfall)}</TableCell>
+                        <TableCell className="text-right">{fmtNumberOrZero(t.nob)}</TableCell>
+                        <TableCell className="text-right font-semibold text-amber-300">
+                          {fmtNumberOrZero(rowBasketSize)}
+                        </TableCell>
+                        <TableCell className="text-right">{fmtCurrencyOrZero(rowAtv)}</TableCell>
+                        <TableCell className="text-right">{fmtCurrencyOrZero(rowRpv)}</TableCell>
+                        <TableCell className="text-right font-semibold text-blue-400">
+                          {fmtPercentOrZero(rowConvPct)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {timeslots.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={12} className="h-24 text-center text-muted-foreground">
                         No time slot data recorded for this date.
                       </TableCell>
                     </TableRow>
+                  ) : (
+                    (() => {
+                      const totalNetSales = timeslots.reduce((acc, t) => acc + (t.net_sales || 0), 0);
+                      const totalBillQty = timeslots.reduce((acc, t) => acc + (t.bill_quantity || 0), 0);
+                      const totalFootfall = timeslots.reduce((acc, t) => acc + (t.footfall || 0), 0);
+                      const totalNob = timeslots.reduce((acc, t) => acc + (t.nob || 0), 0);
+                      const dailyTarget = kpis?.sales_target ?? null;
+                      const totalRemaining = dailyTarget !== null ? Math.max(0, dailyTarget - totalNetSales) : null;
+                      const totalAchievementPct = dailyTarget && dailyTarget > 0 ? (totalNetSales / dailyTarget) * 100 : null;
+                      const totalRemainingPct = dailyTarget && dailyTarget > 0 ? (totalRemaining !== null ? (totalRemaining / dailyTarget) * 100 : null) : null;
+                      const totalBasketSize = totalNob > 0 ? (totalBillQty / totalNob) : 0;
+                      const totalAtv = totalNob > 0 ? (totalNetSales / totalNob) : 0;
+                      const totalRpv = totalFootfall > 0 ? (totalNetSales / totalFootfall) : 0;
+                      const totalConvPct = totalFootfall > 0 ? (totalNob / totalFootfall) * 100 : 0;
+
+                      return (
+                        <TableRow className="bg-muted/70 font-bold border-t-2 border-border/80">
+                          <TableCell className="font-extrabold text-foreground uppercase tracking-wide text-xs">
+                            Total / Day Summary
+                          </TableCell>
+                          <TableCell className="text-right text-emerald-400 font-bold">
+                            {fmtCurrencyOrZero(totalNetSales)}
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground font-bold">
+                            {fmtCurrencyOrZero(totalRemaining)}
+                          </TableCell>
+                          <TableCell className="text-right text-indigo-300 font-bold">
+                            {fmtPercentOrZero(totalAchievementPct)}
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground font-bold">
+                            {fmtPercentOrZero(totalRemainingPct)}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-foreground">
+                            {fmtNumberOrZero(totalBillQty)}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-foreground">
+                            {fmtNumberOrZero(totalFootfall)}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-foreground">
+                            {fmtNumberOrZero(totalNob)}
+                          </TableCell>
+                          <TableCell className="text-right text-amber-300 font-bold">
+                            {fmtNumberOrZero(totalBasketSize)}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-foreground">
+                            {fmtCurrencyOrZero(totalAtv)}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-foreground">
+                            {fmtCurrencyOrZero(totalRpv)}
+                          </TableCell>
+                          <TableCell className="text-right text-blue-400 font-bold">
+                            {fmtPercentOrZero(totalConvPct)}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })()
                   )}
                 </TableBody>
               </Table>
@@ -333,7 +414,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                               {(STORE_NAME_BY_CODE as Record<string, string>)[b.store ?? ""] || b.store}
                             </TableCell>
                           )}
-                          <TableCell className="font-medium text-foreground">{b.bill_time ?? "—"}</TableCell>
+                          <TableCell className="font-medium text-foreground">{fmtTime12Hour(b.bill_time)}</TableCell>
                           <TableCell className="text-right font-semibold text-emerald-400">
                             {fmtCurrencyOrZero(b.net_amount)}
                           </TableCell>
@@ -375,7 +456,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                               {(STORE_NAME_BY_CODE as Record<string, string>)[f.store ?? ""] || f.store}
                             </TableCell>
                           )}
-                          <TableCell className="font-medium text-foreground">{f.time ?? "—"}</TableCell>
+                          <TableCell className="font-medium text-foreground">{fmtTime12Hour(f.time)}</TableCell>
                           <TableCell className="text-right font-semibold text-indigo-300">
                             {fmtNumberOrZero(f.footfall)}
                           </TableCell>
@@ -416,7 +497,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                               {(STORE_NAME_BY_CODE as Record<string, string>)[n.store ?? ""] || n.store}
                             </TableCell>
                           )}
-                          <TableCell className="font-medium text-foreground">{n.time ?? "—"}</TableCell>
+                          <TableCell className="font-medium text-foreground">{fmtTime12Hour(n.time)}</TableCell>
                           <TableCell className="text-right font-semibold text-blue-400">
                             {fmtNumberOrZero(n.nob)}
                           </TableCell>

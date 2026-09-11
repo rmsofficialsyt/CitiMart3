@@ -665,6 +665,7 @@ def get_history_details(db: Database, store: str, target_date: date) -> dict:
             timeslot_summary[slot]["nob"] += n.get("nob", 0.0) or 0.0
 
     timeslot_list = []
+    sales_target = kpis.get("sales_target")
     for slot in TIME_SLOT_ORDER:
         cell = timeslot_summary[slot]
         ns = cell["net_sales"]
@@ -673,9 +674,13 @@ def get_history_details(db: Database, store: str, target_date: date) -> dict:
         nob = cell["nob"]
         bc = cell["bill_count"]
 
-        cell["atv"] = round(ns / bc, 2) if bc > 0 else 0.0
+        cell["sales_target"] = sales_target
+        cell["remaining"] = round(sales_target - ns, 2) if sales_target is not None else None
+        cell["achievement_pct"] = round((ns / sales_target) * 100, 2) if (sales_target and sales_target > 0) else 0.0
+        cell["remaining_pct"] = round(((sales_target - ns) / sales_target) * 100, 2) if (sales_target and sales_target > 0) else 0.0
+        cell["atv"] = round(ns / nob, 2) if nob > 0 else 0.0
         cell["rpv"] = round(ns / ff, 2) if ff > 0 else 0.0
-        cell["basket_size"] = round(bq / bc, 2) if bc > 0 else 0.0
+        cell["basket_size"] = round(bq / nob, 2) if nob > 0 else 0.0
         cell["conversion_pct"] = round((nob / ff) * 100, 2) if ff > 0 else 0.0
 
         timeslot_list.append(cell)
