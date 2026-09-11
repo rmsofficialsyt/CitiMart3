@@ -588,6 +588,12 @@ def list_all_history_dates(db: Database, store: str) -> list[dict]:
     return results
 
 
+def _clean(value):
+    if isinstance(value, float) and value != value:  # NaN
+        return None
+    return value
+
+
 def get_history_details(db: Database, store: str, target_date: date) -> dict:
     """Returns comprehensive time-slot-wise history details and individual logs
     for a specific date and store (or ALL stores)."""

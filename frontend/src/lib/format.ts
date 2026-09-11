@@ -133,7 +133,7 @@ export const DAILY_KPI_LABELS: Record<DailyKpiKey, string> = {
   sales_target: "Total Sales Target",
   net_sales: "Net Sales",
   remaining: "Remaining",
-  bill_quantity: "Bill Quantity",
+  bill_quantity: "Bill Quantity (units sold)",
   footfall: "Footfall",
   nob: "Transactions (NOB)",
   atv: "ATV",

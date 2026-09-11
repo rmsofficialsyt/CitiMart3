@@ -52,9 +52,9 @@ TIME_SLOT_ORDER = [
 ]
 
 # (label, start-minute-of-day inclusive, end-minute-of-day exclusive) for
-# each TIME_SLOT_ORDER band, e.g. 11:00 AM = 660, 2:00 PM = 840.
+# each TIME_SLOT_ORDER band, e.g. 10:30 AM = 630, 2:00 PM = 840.
 _TIME_SLOT_BANDS = [
-    (TIME_SLOT_ORDER[0], 11 * 60, 14 * 60),
+    (TIME_SLOT_ORDER[0], 10 * 60 + 30, 14 * 60),
     (TIME_SLOT_ORDER[1], 14 * 60, 17 * 60),
     (TIME_SLOT_ORDER[2], 17 * 60, 20 * 60),
     (TIME_SLOT_ORDER[3], 20 * 60, 24 * 60),
@@ -66,7 +66,7 @@ def time_slot_for_time(value: time) -> str | None:
     src/daily_dashboard_store.py to compute a system-generated, non-editable
     Time Slot for each bill/footfall/NOB entry at write time, since the live
     daily log only has a raw clock time per entry. Returns None for a time
-    outside all 4 bands (before 11 AM) rather than guessing/clamping to the
+    outside all 4 bands (before 10:30 AM) rather than guessing/clamping to the
     nearest one, matching this project's don't-fabricate rule -- an
     early-morning entry genuinely has no time slot rather than a wrong one."""
     minutes = value.hour * 60 + value.minute

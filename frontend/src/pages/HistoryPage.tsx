@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Calendar, Clock, DollarSign, Users, ShoppingBag, Filter } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthProvider";
@@ -26,25 +26,47 @@ const STORE_OPTIONS = [
 export function HistoryPage({ storeCode }: HistoryPageProps) {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
-  const initialStore = storeCode || user?.storeCode || "ALL";
+  const initialStore = (!isAdmin && user?.storeCode) ? user.storeCode : (storeCode || user?.storeCode || "ALL");
 
   const [selectedStore, setSelectedStore] = useState<string>(initialStore);
-  const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toISOString().split("T")[0]);
+  const [selectedDate, setSelectedDate] = useState<string>("");
   const [timeSlotFilter, setTimeSlotFilter] = useState<string>("ALL");
+
+  // Sync selectedStore if prop changes (e.g. admin switching store tabs in App.tsx)
+  useEffect(() => {
+    if (!isAdmin && user?.storeCode) {
+      setSelectedStore(user.storeCode);
+    } else if (storeCode) {
+      setSelectedStore(storeCode);
+    }
+  }, [storeCode, isAdmin, user?.storeCode]);
+
+  const effectiveStore = (!isAdmin && user?.storeCode) ? user.storeCode : (selectedStore || "ALL");
 
   // Fetch available dates
   const { data: datesList, isLoading: datesLoading } = useQuery({
-    queryKey: ["history-dates", selectedStore],
-    queryFn: () => api.historyDates(selectedStore),
+    queryKey: ["history-dates", effectiveStore],
+    queryFn: () => api.historyDates(effectiveStore),
   });
+
+  // Default selected date to today if present, or the latest available date
+  useEffect(() => {
+    if (datesList && datesList.length > 0) {
+      const today = new Date().toISOString().split("T")[0];
+      const hasToday = datesList.some((d) => d.date === today);
+      if (!selectedDate || (!hasToday && !datesList.some((d) => d.date === selectedDate))) {
+        setSelectedDate(hasToday ? today : datesList[0].date);
+      }
+    }
+  }, [datesList, selectedDate]);
 
   // Effective date: if selectedDate is not set or first load, fallback to first available date or today
   const activeDate = selectedDate || (datesList && datesList.length > 0 ? datesList[0].date : new Date().toISOString().split("T")[0]);
 
   // Fetch details for active store & date
   const { data: details, isLoading: detailsLoading } = useQuery({
-    queryKey: ["history-details", selectedStore, activeDate],
-    queryFn: () => api.historyDetails(selectedStore, activeDate),
+    queryKey: ["history-details", effectiveStore, activeDate],
+    queryFn: () => api.historyDetails(effectiveStore, activeDate),
     enabled: Boolean(activeDate),
   });
 
@@ -198,7 +220,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                 {details?.day_name ?? ""}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Store: <span className="font-semibold text-foreground">{selectedStore === "ALL" ? "All Stores" : (STORE_NAME_BY_CODE as Record<string, string>)[selectedStore] || selectedStore}</span>
+                Store: <span className="font-semibold text-foreground">{effectiveStore === "ALL" ? "All Stores" : (STORE_NAME_BY_CODE as Record<string, string>)[effectiveStore] || effectiveStore}</span>
               </p>
             </div>
           </div>
@@ -213,8 +235,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                   <TableRow>
                     <TableHead className="font-semibold">Time Slot</TableHead>
                     <TableHead className="text-right font-semibold">Net Sales (₹)</TableHead>
-                    <TableHead className="text-right font-semibold">Bill Qty</TableHead>
-                    <TableHead className="text-right font-semibold">Bills Count</TableHead>
+                    <TableHead className="text-right font-semibold">Bill Qty (units sold)</TableHead>
                     <TableHead className="text-right font-semibold">Footfall</TableHead>
                     <TableHead className="text-right font-semibold">NOB (Buyers)</TableHead>
                     <TableHead className="text-right font-semibold">ATV (₹)</TableHead>
@@ -230,7 +251,6 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                         {fmtCurrencyOrZero(t.net_sales)}
                       </TableCell>
                       <TableCell className="text-right">{fmtNumberOrZero(t.bill_quantity)}</TableCell>
-                      <TableCell className="text-right">{t.bill_count}</TableCell>
                       <TableCell className="text-right">{fmtNumberOrZero(t.footfall)}</TableCell>
                       <TableCell className="text-right">{fmtNumberOrZero(t.nob)}</TableCell>
                       <TableCell className="text-right">{fmtCurrencyOrZero(t.atv)}</TableCell>
@@ -242,7 +262,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                   ))}
                   {timeslots.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                         No time slot data recorded for this date.
                       </TableCell>
                     </TableRow>
@@ -297,18 +317,18 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                     <TableHeader className="bg-muted/50">
                       <TableRow>
                         <TableHead className="w-16">Row #</TableHead>
-                        {selectedStore === "ALL" && <TableHead>Store</TableHead>}
+                        {effectiveStore === "ALL" && <TableHead>Store</TableHead>}
                         <TableHead>Bill Time</TableHead>
                         <TableHead className="text-right">Net Sales Amount (₹)</TableHead>
-                        <TableHead className="text-right">Bill Quantity</TableHead>
+                        <TableHead className="text-right">Bill Quantity (units sold)</TableHead>
                         <TableHead className="text-right">Time Slot</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredBills.map((b) => (
-                        <TableRow key={`${b.store ?? selectedStore}-${b.row}`} className="hover:bg-muted/30">
+                        <TableRow key={`${b.store ?? effectiveStore}-${b.row}`} className="hover:bg-muted/30">
                           <TableCell className="font-mono text-xs text-muted-foreground">{b.row}</TableCell>
-                          {selectedStore === "ALL" && (
+                          {effectiveStore === "ALL" && (
                             <TableCell className="font-semibold text-xs text-blue-300">
                               {(STORE_NAME_BY_CODE as Record<string, string>)[b.store ?? ""] || b.store}
                             </TableCell>
@@ -323,7 +343,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                       ))}
                       {filteredBills.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={selectedStore === "ALL" ? 6 : 5} className="h-20 text-center text-muted-foreground text-xs">
+                          <TableCell colSpan={effectiveStore === "ALL" ? 6 : 5} className="h-20 text-center text-muted-foreground text-xs">
                             No billing entries logged for this date / filter.
                           </TableCell>
                         </TableRow>
@@ -340,7 +360,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                     <TableHeader className="bg-muted/50">
                       <TableRow>
                         <TableHead className="w-16">Row #</TableHead>
-                        {selectedStore === "ALL" && <TableHead>Store</TableHead>}
+                        {effectiveStore === "ALL" && <TableHead>Store</TableHead>}
                         <TableHead>Entry Time</TableHead>
                         <TableHead className="text-right">Footfall Count</TableHead>
                         <TableHead className="text-right">Time Slot</TableHead>
@@ -348,9 +368,9 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                     </TableHeader>
                     <TableBody>
                       {filteredFootfall.map((f) => (
-                        <TableRow key={`${f.store ?? selectedStore}-${f.row}`} className="hover:bg-muted/30">
+                        <TableRow key={`${f.store ?? effectiveStore}-${f.row}`} className="hover:bg-muted/30">
                           <TableCell className="font-mono text-xs text-muted-foreground">{f.row}</TableCell>
-                          {selectedStore === "ALL" && (
+                          {effectiveStore === "ALL" && (
                             <TableCell className="font-semibold text-xs text-blue-300">
                               {(STORE_NAME_BY_CODE as Record<string, string>)[f.store ?? ""] || f.store}
                             </TableCell>
@@ -364,7 +384,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                       ))}
                       {filteredFootfall.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={selectedStore === "ALL" ? 5 : 4} className="h-20 text-center text-muted-foreground text-xs">
+                          <TableCell colSpan={effectiveStore === "ALL" ? 5 : 4} className="h-20 text-center text-muted-foreground text-xs">
                             No footfall entries logged for this date / filter.
                           </TableCell>
                         </TableRow>
@@ -381,7 +401,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                     <TableHeader className="bg-muted/50">
                       <TableRow>
                         <TableHead className="w-16">Row #</TableHead>
-                        {selectedStore === "ALL" && <TableHead>Store</TableHead>}
+                        {effectiveStore === "ALL" && <TableHead>Store</TableHead>}
                         <TableHead>Entry Time</TableHead>
                         <TableHead className="text-right">NOB (Buyers) Count</TableHead>
                         <TableHead className="text-right">Time Slot</TableHead>
@@ -389,9 +409,9 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                     </TableHeader>
                     <TableBody>
                       {filteredNob.map((n) => (
-                        <TableRow key={`${n.store ?? selectedStore}-${n.row}`} className="hover:bg-muted/30">
+                        <TableRow key={`${n.store ?? effectiveStore}-${n.row}`} className="hover:bg-muted/30">
                           <TableCell className="font-mono text-xs text-muted-foreground">{n.row}</TableCell>
-                          {selectedStore === "ALL" && (
+                          {effectiveStore === "ALL" && (
                             <TableCell className="font-semibold text-xs text-blue-300">
                               {(STORE_NAME_BY_CODE as Record<string, string>)[n.store ?? ""] || n.store}
                             </TableCell>
@@ -405,7 +425,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                       ))}
                       {filteredNob.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={selectedStore === "ALL" ? 5 : 4} className="h-20 text-center text-muted-foreground text-xs">
+                          <TableCell colSpan={effectiveStore === "ALL" ? 5 : 4} className="h-20 text-center text-muted-foreground text-xs">
                             No NOB / sales buyer entries logged for this date / filter.
                           </TableCell>
                         </TableRow>

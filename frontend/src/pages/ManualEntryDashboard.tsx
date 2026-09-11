@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { BookOpen, CheckCircle2, ChevronDown, ChevronUp, Clock, Receipt, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -11,10 +12,124 @@ import { Textarea } from "@/components/ui/textarea";
 import { fmtCurrencyOrZero, fmtDateIndian, fmtNumberOrZero, nowTimeHHMM, todayLocalDate } from "@/lib/format";
 import { timeSlotForHHMM } from "@/lib/timeSlot";
 
+/** Clamps the current clock time between store opening (10:30 AM) and closing (11:59 PM). */
+function getInitialOperatingTime(): string {
+  const t = nowTimeHHMM();
+  if (t < "10:30") return "10:30";
+  if (t > "23:59") return "23:59";
+  return t;
+}
+
 /** Which fields a save touches: "footfall" = the Footfall section's own
  * Update button, "bill-nob" = the Bill Details & NOB section's own Update
  * button, "all" = the shared Final Submission (Footfall + Bill + NOB + Remarks). */
 type SaveScope = "footfall" | "bill-nob" | "all";
+
+/** Easily understandable user guide for managers explaining how to log footfall,
+ * bills, NOB, and remarks, as well as the difference between Update and Final Submission. */
+function ManagerUserGuide() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mb-4 overflow-hidden rounded-xl border border-blue-500/30 bg-blue-500/5 transition-all">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-blue-500/10 sm:px-5"
+      >
+        <div className="flex items-center gap-2.5">
+          <BookOpen className="h-5 w-5 text-blue-400" />
+          <div>
+            <h3 className="text-sm font-semibold text-foreground sm:text-base">
+              Manager's User Guide: How to use Manual Data Entry
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Simple step-by-step instructions for logging Footfall, Billing details, NOB, and Remarks.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs font-medium text-blue-400">
+          <span>{open ? "Hide Guide" : "View Guide"}</span>
+          {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </div>
+      </button>
+
+      {open && (
+        <div className="border-t border-border/60 p-4 pt-3 sm:p-5 sm:pt-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Step 1 */}
+            <div className="rounded-lg border border-border/60 bg-card/60 p-3 shadow-sm">
+              <div className="mb-1.5 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-400">
+                <Clock className="h-4 w-4" />
+                <span>1. Time Stamp</span>
+              </div>
+              <p className="text-xs font-medium text-foreground">Store hours: 10:30 AM – 11:59 PM</p>
+              <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                Choose the clock time of your entry. The system automatically assigns it to the matching 3-hour Time Slot (e.g., 11:00 AM – 01:59 PM).
+              </p>
+            </div>
+
+            {/* Step 2 */}
+            <div className="rounded-lg border border-border/60 bg-card/60 p-3 shadow-sm">
+              <div className="mb-1.5 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-indigo-400">
+                <Users className="h-4 w-4" />
+                <span>2. Footfall Entry</span>
+              </div>
+              <p className="text-xs font-medium text-foreground">Customer Walk-ins</p>
+              <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                Count the visitors entering your store during the time-slot. Enter the number and click <strong className="text-foreground">"Update Footfall"</strong>.
+              </p>
+            </div>
+
+            {/* Step 3 */}
+            <div className="rounded-lg border border-border/60 bg-card/60 p-3 shadow-sm">
+              <div className="mb-1.5 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-400">
+                <Receipt className="h-4 w-4" />
+                <span>3. Billing & NOB</span>
+              </div>
+              <p className="text-xs font-medium text-foreground">Sales & Item Quantities</p>
+              <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground leading-relaxed">
+                <li>• <strong>Net Amount (₹)</strong>: Total money collected from customers.</li>
+                <li>• <strong>Bill Qty (units sold)</strong>: Total physical pieces/articles sold.</li>
+                <li>• <strong>NOB (Buyers)</strong>: Number of purchasing bills (receipts).</li>
+              </ul>
+              <p className="mt-1 text-xs text-muted-foreground">Click <strong className="text-foreground">"Update Bills & NOB"</strong>.</p>
+            </div>
+
+            {/* Step 4 */}
+            <div className="rounded-lg border border-border/60 bg-card/60 p-3 shadow-sm">
+              <div className="mb-1.5 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-400">
+                <CheckCircle2 className="h-4 w-4" />
+                <span>4. Day Closing</span>
+              </div>
+              <p className="text-xs font-medium text-foreground">Remarks & Final Submission</p>
+              <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                Add optional Remarks (rain, festive rush, offers). At night closing, review totals and click <strong className="text-foreground">"Final Submission"</strong>.
+              </p>
+              <p className="mt-1.5 rounded bg-emerald-500/10 p-1 text-[11px] text-emerald-400">
+                🛡️ <strong>Safety Net</strong>: If you forget to submit before leaving, the system automatically finalizes your day at 00:00 midnight!
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-col gap-2 rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">
+            <div className="flex items-start gap-2">
+              <span className="font-semibold text-foreground">🔄 What does the "Reset" button do?</span>
+              <span>
+                Clicking <strong>Reset</strong> only clears the input boxes in that section if you made a typing mistake before saving, and resets the Time Stamp to current time. <strong>Reset will NEVER delete saved database records</strong>.
+              </span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="font-semibold text-foreground">💡 How to correct saved entries:</span>
+              <span>
+                To edit or delete an entry you already saved, scroll down to the <strong>Logged Footfall</strong> or <strong>Logged Bills & NOB</strong> tables below and click <strong>Edit</strong> or <strong>Delete</strong>.
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** One store's Manual Daily Entry -- paired in the nav with that same store's
  * read-only Daily Dashboard (StoreDailyDashboard.tsx). One page, top to bottom:
@@ -59,8 +174,8 @@ function ManualEntry({ store }: { store: string }) {
     queryFn: () => api.dailyLive(store, entryDate),
   });
 
-  // One shared Time Stamp for whatever gets logged next (IST -- nowTimeHHMM).
-  const [entryTime, setEntryTime] = useState(nowTimeHHMM);
+  // One shared Time Stamp for whatever gets logged next (IST, clamped 10:30 - 23:59).
+  const [entryTime, setEntryTime] = useState(getInitialOperatingTime);
   const [footfallValue, setFootfallValue] = useState("");
   const [netAmount, setNetAmount] = useState("");
   const [billQuantity, setBillQuantity] = useState("");
@@ -103,43 +218,51 @@ function ManualEntry({ store }: { store: string }) {
       }
       if (nobIntent) {
         await api.addNobEntry({ store, date: entryDate, time: entryTime, nob: Number(nobValue) });
-        logged.push("NOB");
+        logged.push("nob");
       }
       try {
-        // Only Final Submission ("all") writes Remarks; a section-scoped Update
-        // passes reason: null so it refreshes the day snapshot without
-        // clobbering a previously-saved Remarks note.
-        await api.saveTargetEntry({ store, date: entryDate, reason: scope === "all" ? reason.trim() || null : null });
+        // Final Submission always writes Remarks (even when empty, to clear
+        // it); section-scoped Updates pass null to preserve whatever reason is
+        // already saved for today.
+        const remarksPayload = scope === "all" ? reason.trim() : null;
+        await api.saveTargetEntry({ store, date: entryDate, reason: remarksPayload });
       } catch (error) {
         if (logged.length > 0) {
           throw new Error(`${logged.join(", ")} logged, but the day summary failed to save: ${(error as Error).message}`);
         }
         throw error;
       }
-      return scope;
+      return { logged, scope };
     },
-    onSuccess: (scope) => {
-      toast.success(scope === "all" ? "Final submission recorded." : "Entry updated.");
-      setEntryTime(nowTimeHHMM());
-      if (scope !== "bill-nob") {
-        setFootfallValue("");
+    onSuccess: ({ logged, scope }) => {
+      if (scope === "all") {
+        toast.success("Final entry submitted for today.");
+      } else {
+        const labels: Record<string, string> = { footfall: "Footfall", bill: "Bill", nob: "NOB" };
+        const saved = logged.map((k) => labels[k] ?? k).join(" + ");
+        toast.success(saved ? `${saved} entry updated.` : "Today's entry updated.");
       }
-      if (scope !== "footfall") {
+
+      setEntryTime(getInitialOperatingTime());
+      if (scope === "footfall" || scope === "all") {
+        setFootfallValue("");
+        invalidateFootfallLog();
+      }
+      if (scope === "bill-nob" || scope === "all") {
         setNetAmount("");
         setBillQuantity("");
         setNobValue("");
+        invalidateBillLog();
+        invalidateNobLog();
       }
-      invalidateFootfallLog();
-      invalidateBillLog();
-      invalidateNobLog();
       invalidateLive();
     },
-    onError: (error, scope) => toast.error(`${scope === "all" ? "Final Submission" : "Update"} failed: ${error.message}`),
+    onError: (error: Error, scope) => toast.error(`${scope === "all" ? "Final Submission" : "Update"} failed: ${error.message}`),
   });
 
   function resetFootfall() {
     setFootfallValue("");
-    setEntryTime(nowTimeHHMM());
+    setEntryTime(getInitialOperatingTime());
     toast.info("Footfall field cleared.");
   }
 
@@ -147,7 +270,7 @@ function ManualEntry({ store }: { store: string }) {
     setNetAmount("");
     setBillQuantity("");
     setNobValue("");
-    setEntryTime(nowTimeHHMM());
+    setEntryTime(getInitialOperatingTime());
     toast.info("Bill Details & NOB fields cleared.");
   }
 
@@ -178,9 +301,15 @@ function ManualEntry({ store }: { store: string }) {
       toast.error("Nothing to submit -- enter a Footfall count, a bill, NOB, or Remarks.");
       return;
     }
-    if ((footfallFilled || billIntent || nobIntent) && !entryTime) {
-      toast.error("Time Stamp is required.");
-      return;
+    if (footfallFilled || billIntent || nobIntent) {
+      if (!entryTime) {
+        toast.error("Time Stamp is required.");
+        return;
+      }
+      if (entryTime < "10:30" || entryTime > "23:59") {
+        toast.error("Time Stamp must be between 10:30 AM and 11:59 PM (store operating hours).");
+        return;
+      }
     }
     if (footfallFilled) {
       const f = Number(footfallValue);
@@ -223,6 +352,8 @@ function ManualEntry({ store }: { store: string }) {
 
   return (
     <div>
+      <ManagerUserGuide />
+
       <Section title="Date & Time Stamp" className="mb-4">
         <div className="grid max-w-lg grid-cols-1 gap-3 sm:grid-cols-3">
           <div>
@@ -235,6 +366,8 @@ function ManualEntry({ store }: { store: string }) {
             <Label className="text-muted-foreground mb-1 text-xs font-semibold tracking-wide uppercase">Time Stamp</Label>
             <input
               type="time"
+              min="10:30"
+              max="23:59"
               className="border-input bg-background w-full rounded-md border px-2 py-1.5 text-sm"
               value={entryTime}
               onChange={(e) => setEntryTime(e.target.value)}
@@ -246,13 +379,12 @@ function ManualEntry({ store }: { store: string }) {
               className="border-input bg-muted/50 text-foreground w-full rounded-md border px-2 py-1.5 text-sm"
               title="System-generated from Time Stamp -- not editable"
             >
-              {previewSlot ?? "Before 11:00 AM — no slot"}
+              {previewSlot ?? "Outside store hours (10:30 AM - 11:59 PM)"}
             </div>
           </div>
         </div>
         <p className="text-muted-foreground mt-2 text-xs">
-          Applies to Footfall, Bill Details and NOB below. Time Slot is generated from the Time Stamp (IST) and saved
-          automatically with each entry; entries before 11:00 AM have no slot.
+          Applies to Footfall, Bill Details and NOB below. Time Slot is generated automatically from the Time Stamp (10:30 AM – 11:59 PM) and saved with each entry.
         </p>
       </Section>
 
@@ -300,7 +432,7 @@ function ManualEntry({ store }: { store: string }) {
               <Input type="number" min={0} step="any" inputMode="decimal" value={netAmount} onChange={(e) => setNetAmount(e.target.value)} />
             </div>
             <div>
-              <Label className="text-muted-foreground mb-1 text-xs font-semibold tracking-wide uppercase">Bill Quantity</Label>
+              <Label className="text-muted-foreground mb-1 text-xs font-semibold tracking-wide uppercase">Bill Quantity (units sold)</Label>
               <Input type="number" min={0} step="any" inputMode="decimal" value={billQuantity} onChange={(e) => setBillQuantity(e.target.value)} />
             </div>
             <div>

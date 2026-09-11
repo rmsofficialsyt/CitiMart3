@@ -8,14 +8,14 @@
 export const TIME_SLOT_ORDER = ["11.00 AM - 01.59 PM", "02.00 PM - 04.59 PM", "05.00 PM - 07.59 PM", "08.00 PM - 11.59 PM"] as const;
 
 const TIME_SLOT_BANDS: { label: string; startMin: number; endMin: number }[] = [
-  { label: TIME_SLOT_ORDER[0], startMin: 11 * 60, endMin: 14 * 60 },
+  { label: TIME_SLOT_ORDER[0], startMin: 10 * 60 + 30, endMin: 14 * 60 },
   { label: TIME_SLOT_ORDER[1], startMin: 14 * 60, endMin: 17 * 60 },
   { label: TIME_SLOT_ORDER[2], startMin: 17 * 60, endMin: 20 * 60 },
   { label: TIME_SLOT_ORDER[3], startMin: 20 * 60, endMin: 24 * 60 },
 ];
 
 /** `hhmm` is an HH:MM (24-hour) string, as produced by an `<input type="time">`.
- * Returns null outside all 4 bands (before 11 AM) or for an incomplete/invalid
+ * Returns null outside all 4 bands (before 10:30 AM) or for an incomplete/invalid
  * value, matching the server's don't-fabricate rule -- no slot is shown rather
  * than a guessed one. */
 export function timeSlotForHHMM(hhmm: string): string | null {

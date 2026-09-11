@@ -7,6 +7,8 @@ workbook" footer on every page.
 from __future__ import annotations
 
 import io
+import logging
+from concurrent.futures import ThreadPoolExecutor
 from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
@@ -29,6 +31,8 @@ from src.reports.models import (
     TextBlock,
     TitleBlock,
 )
+
+logger = logging.getLogger(__name__)
 
 _LOGO_PATH = PROJECT_ROOT / "img" / "logo" / "CitiMart_logo_2.png"
 
@@ -63,11 +67,24 @@ def _page_decoration(payload: ReportPayload):
         canvas.saveState()
         canvas.setFont("Helvetica", 8)
         canvas.setFillColor(colors.HexColor("#64748b"))
-        canvas.drawString(2 * cm, 1.2 * cm, payload.meta.workbook_note)
+        note = f"{payload.meta.workbook_note} | CITIMART © All Rights Reserved."
+        canvas.drawString(2 * cm, 1.2 * cm, note)
         canvas.drawRightString(A4[0] - 2 * cm, 1.2 * cm, f"Page {doc.page}")
         canvas.restoreState()
 
     return _draw
+
+
+def _rasterize_visual_block(block: ChartBlock | GaugeBlock) -> bytes | None:
+    try:
+        if isinstance(block, ChartBlock):
+            return fig_dict_to_png(block.figure, width=1000, height=500)
+        if isinstance(block, GaugeBlock):
+            return gauge_spec_to_png(block.spec, width=700, height=500)
+    except Exception as exc:
+        logger.warning("Visual rasterization failed for block: %s", exc)
+        return None
+    return None
 
 
 def render(payload: ReportPayload) -> bytes:
@@ -78,6 +95,19 @@ def render(payload: ReportPayload) -> bytes:
         title=payload.meta.title,
     )
 
+    # Pre-render visuals concurrently so 7 images take ~4s instead of 40s
+    visual_blocks = [(i, b) for i, b in enumerate(payload.blocks) if isinstance(b, (ChartBlock, GaugeBlock))]
+    rendered_images: dict[int, bytes | None] = {}
+    if visual_blocks:
+        with ThreadPoolExecutor(max_workers=min(len(visual_blocks), 7)) as pool:
+            futures = {pool.submit(_rasterize_visual_block, b): idx for idx, b in visual_blocks}
+            for fut in futures:
+                idx = futures[fut]
+                try:
+                    rendered_images[idx] = fut.result()
+                except Exception:
+                    rendered_images[idx] = None
+
     story = []
     if _LOGO_PATH.exists():
         story.append(Image(str(_LOGO_PATH), width=4 * cm, height=4 * cm * 0.4))
@@ -87,7 +117,7 @@ def render(payload: ReportPayload) -> bytes:
     story.append(Paragraph(f"Filters: {payload.meta.filters_summary_text}", _ITALIC))
     story.append(Spacer(1, 0.6 * cm))
 
-    for block in payload.blocks:
+    for idx, block in enumerate(payload.blocks):
         if isinstance(block, TitleBlock):
             continue
         if isinstance(block, TextBlock):
@@ -103,13 +133,23 @@ def render(payload: ReportPayload) -> bytes:
             story.append(_data_table(["KPI", "Value"], [{"KPI": i.label, "Value": i.value} for i in block.items]))
         elif isinstance(block, ChartBlock):
             story.append(Paragraph(block.title, _H2))
-            png = fig_dict_to_png(block.figure, width=1000, height=500)
-            story.append(Image(io.BytesIO(png), width=16 * cm, height=8 * cm))
+            png = rendered_images.get(idx)
+            if png:
+                story.append(Image(io.BytesIO(png), width=16 * cm, height=8 * cm))
+            else:
+                story.append(Paragraph("<i>(Chart visual omitted — full tabular data detailed below)</i>", _ITALIC))
         elif isinstance(block, GaugeBlock):
             title = str(block.spec.get("title", "Gauge"))
             story.append(Paragraph(title, _H2))
-            png = gauge_spec_to_png(block.spec, width=700, height=500)
-            story.append(Image(io.BytesIO(png), width=10 * cm, height=7.1 * cm))
+            png = rendered_images.get(idx)
+            if png:
+                story.append(Image(io.BytesIO(png), width=10 * cm, height=7.1 * cm))
+            else:
+                val = block.spec.get("value")
+                val_str = f"{block.spec.get('prefix', '')}{val if val is not None else 'N/A'}{block.spec.get('suffix', '')}"
+                target = block.spec.get("target")
+                target_str = f"{block.spec.get('prefix', '')}{target}{block.spec.get('suffix', '')}" if target is not None else "None"
+                story.append(_data_table(["Metric", "Current Value", "Target"], [{"Metric": title, "Current Value": val_str, "Target": target_str}]))
         elif isinstance(block, TableBlock):
             story.append(Paragraph(block.title, _H2))
             story.append(_data_table(block.columns, block.rows))

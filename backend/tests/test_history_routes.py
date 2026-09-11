@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from config.settings import DEFAULT_PASSWORDS
+from config.auth_users import DEFAULT_PASSWORDS
 from db.models import BILLS, FOOTFALL, NOB, TARGETS, next_id
 
 

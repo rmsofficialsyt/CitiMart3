@@ -126,6 +126,10 @@ export function LoginPage() {
             </Button>
           </form>
         )}
+
+        <p className="mt-6 text-center text-xs text-slate-500">
+          &copy; {new Date().getFullYear()} CITIMART Operations. All Rights Reserved.
+        </p>
       </motion.div>
     </div>
   );

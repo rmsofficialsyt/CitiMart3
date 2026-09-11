@@ -51,7 +51,7 @@ export default function App() {
     (isAdmin && dailyView === "manual") || (!isAdmin && dailyView === "target") ? "dashboard" : dailyView;
 
   const storeEntry = isOverall ? undefined : DAILY_STORES.find((s) => s.id === effectiveStore);
-  const targetStoreCode = isOverall ? "ALL" : storeEntry?.code ?? "ALL";
+  const targetStoreCode = isManager && user?.storeCode ? user.storeCode : isOverall ? "ALL" : storeEntry?.code ?? "ALL";
 
   const renderActivePage = () => {
     if (effectiveView === "history") {
@@ -133,6 +133,10 @@ export default function App() {
               {renderActivePage()}
             </motion.div>
           </AnimatePresence>
+
+          <footer className="mt-8 border-t border-border/40 py-4 text-center text-xs text-muted-foreground">
+            CITIMART Sales KPI Dashboard &copy; {new Date().getFullYear()} CITIMART Operations. All Rights Reserved.
+          </footer>
         </main>
       </div>
 

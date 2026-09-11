@@ -29,6 +29,7 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from config.settings import STORE_CODE_TO_NAME
+from db.models import BILLS, FOOTFALL, NOB
 from db.session import session_scope
 from src import daily_dashboard_store
 
@@ -50,12 +51,18 @@ def finalize_day(target_date: date) -> None:
     # No per-request `Depends(get_db)` is available here (this isn't a
     # FastAPI request) -- session_scope() is db/session.py's equivalent for
     # exactly this kind of background-task/script caller.
+    iso_date = target_date.isoformat()
     for store in STORE_CODE_TO_NAME:
         try:
             with session_scope() as db:
-                if daily_dashboard_store.read_store_target(db, store, target_date) is None:
-                    # No admin-set target for this store/date -- nothing to
-                    # finalize against, and no estimate is ever invented here.
+                has_target = daily_dashboard_store.read_store_target(db, store, target_date) is not None
+                has_entries = (
+                    db[BILLS].count_documents({"store_code": store, "entry_date": iso_date}, limit=1) > 0
+                    or db[FOOTFALL].count_documents({"store_code": store, "entry_date": iso_date}, limit=1) > 0
+                    or db[NOB].count_documents({"store_code": store, "entry_date": iso_date}, limit=1) > 0
+                )
+                if not has_target and not has_entries:
+                    # Neither an admin target nor any manager-logged entry for this store/date -- skip
                     continue
                 daily_dashboard_store.save_target_entry(db, store, target_date, None)
             logger.info("Midnight auto-finalize: %s %s done.", store, target_date)

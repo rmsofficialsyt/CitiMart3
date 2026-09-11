@@ -14,16 +14,19 @@ This sub-project powers live per-store KPI tracking, manual timestamped data ent
 - **Overall Blended View**: Admin summary blending live operations across all 3 stores simultaneously.
 
 ### 2. Manual Data Entry & Log Sync
+- **Operating Hours & Time Slot Alignment**: Operating hours are strictly set from **10:30 AM to 23:59 PM**, perfectly aligning with CITIMART Kolkata store opening hours. Time slot bands start from 10:30 AM.
 - **Timestamped Billing Logs**: Add, update, or remove individual bill logs (`bill_time`, `net_amount`, `bill_quantity`, `time_slot`).
 - **Footfall & NOB Logs**: Time-stamped footfall visitor count and buyer (NOB) entries.
+- **Unified Row Management**: "Logged Bills & NOB" displays a single consolidated **Edit** and **Delete** action per merged time-stamp row (rather than separate duplicate actions).
 - **Manager KPI Overrides**: Store managers can overlay hand-entered ratio values (ATV, RPV, Conversion %, etc.) when needed.
-- **Remarks & Final Submission**: Save daily summary notes and lock daily totals.
+- **In-App Layman's User Guide**: Expandable step-by-step manager guide for Footfall, Billing Details, and Remarks with clear dos and don'ts (also documented in [`MANUAL_DATA_ENTRY_GUIDE.md`](./MANUAL_DATA_ENTRY_GUIDE.md)).
+- **Automatic Midnight Finalization**: Automated 00:00 night job automatically sets final submission if managers logged entries or targets but did not press the manual final button.
 
 ### 3. Historical Operations & Time-Slot Logs ("History")
-- **Recorded Dates Archive**: Browse all past operational dates with instant summary metrics.
-- **Time-Slot Aggregation**: View performance grouped by operational time slots (e.g., 11:00 AM - 01:00 PM, 01:00 PM - 03:00 PM, 03:00 PM - 06:00 PM, 06:00 PM - 09:00 PM).
+- **Recorded Dates Archive**: Browse all past operational dates with instant summary metrics (defaults to the latest recorded operations date).
+- **Time-Slot Aggregation**: View performance grouped by operational time slots (e.g., 10:30 AM - 01:00 PM, 01:00 PM - 03:00 PM, 03:00 PM - 06:00 PM, 06:00 PM - 09:00 PM, 09:00 PM - 11:59 PM).
 - **Detailed Log Inspection**: Time-slot filtered views of every individual footfall, billing transaction, and NOB record.
-- **Dual Access**: Available for both Administrators (all stores) and Store Managers (store-scoped).
+- **Dual Access**: Fully available for both Administrators (all stores / store-switchable) and Store Managers (strictly store-scoped).
 
 ### 4. Sales Target Management
 - Monthly/daily sales target configuration per store.
@@ -31,6 +34,8 @@ This sub-project powers live per-store KPI tracking, manual timestamped data ent
 
 ### 5. Multi-Format Report Exports
 - Export per-store daily operations logs in **Excel (`.xlsx`)** or **PDF (`.pdf`)** formats for single days or custom date ranges.
+- **Resilient PDF Engine**: Parallel chart rasterization with graceful table fallbacks prevents timeouts and crashes.
+- **All Rights Reserved**: Legal copyright condition embedded in PDF footers and across web portal pages.
 
 ---
 

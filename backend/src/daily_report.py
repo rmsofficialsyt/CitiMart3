@@ -48,12 +48,12 @@ from src.reports.models import (
 )
 
 _TIMESLOT_COLUMNS = [
-    "Date", "Time Slot", "Net Sales", "Remaining", "Bill Quantity", "Footfall",
+    "Date", "Time Slot", "Net Sales", "Remaining", "Bill Quantity (units sold)", "Footfall",
     "Transactions (NOB)", "ATV", "RPV", "Basket Size", "Conversion %",
     "Achievement %", "Remaining %",
 ]
 _DATEWISE_COLUMNS = [
-    "Date", "Sales Target", "Net Sales", "Remaining", "Bill Quantity", "Footfall",
+    "Date", "Sales Target", "Net Sales", "Remaining", "Bill Quantity (units sold)", "Footfall",
     "Transactions (NOB)", "ATV", "RPV", "Basket Size", "Conversion %",
     "Achievement %", "Remaining %", "Remarks",
 ]
@@ -120,7 +120,7 @@ def build_timeslot_rows(db: Database, store: str, dates: list[str]) -> list[dict
                 "Time Slot": slot,
                 "Net Sales": _round(net_sales),
                 "Remaining": _round(target - net_sales) if target is not None else None,
-                "Bill Quantity": _round(bill_quantity),
+                "Bill Quantity (units sold)": _round(bill_quantity),
                 "Footfall": _round(footfall),
                 "Transactions (NOB)": _round(nob),
                 "ATV": _round(safe_divide(net_sales, nob)),
@@ -142,7 +142,7 @@ def build_datewise_rows(db: Database, store: str, dates: list[str]) -> list[dict
             "Sales Target": _round(k["sales_target"]),
             "Net Sales": _round(k["net_sales"]),
             "Remaining": _round(k["remaining"]),
-            "Bill Quantity": _round(k["bill_quantity"]),
+            "Bill Quantity (units sold)": _round(k["bill_quantity"]),
             "Footfall": _round(k["footfall"]),
             "Transactions (NOB)": _round(k["nob"]),
             "ATV": _round(k["atv"]),
@@ -183,7 +183,7 @@ def build_overall_summary(db: Database, store: str, dates: list[str]) -> list[Kp
         KpiItem(label="Total Sales Target", value=_fmt_currency(total_target)),
         KpiItem(label="Total Net Sales", value=_fmt_currency(total_net)),
         KpiItem(label="Overall Achievement %", value=_fmt_pct(achievement_pct)),
-        KpiItem(label="Total Bill Quantity", value=_fmt_number(total_qty)),
+        KpiItem(label="Total Bill Quantity (units sold)", value=_fmt_number(total_qty)),
         KpiItem(label="Total Footfall", value=_fmt_number(total_footfall)),
         KpiItem(label="Total Transactions (NOB)", value=_fmt_number(total_nob)),
         KpiItem(label="Blended ATV", value=_fmt_currency(safe_divide(total_net, total_nob))),

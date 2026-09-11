@@ -471,13 +471,24 @@ def get_daily_report(
     if start_date is not None and end_date is not None and start_date > end_date:
         raise HTTPException(status_code=400, detail="start date must not be after end date.")
 
-    payload = build_daily_report_payload(
-        db, store, include_visuals=(format == "pdf"), start=start_date, end=end_date
-    )
     try:
+        payload = build_daily_report_payload(
+            db, store, include_visuals=(format == "pdf"), start=start_date, end=end_date
+        )
         content = RENDERERS[format].render(payload)
-    except ChartRenderError as error:
-        raise HTTPException(status_code=503, detail=str(error))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as error:
+        if format == "pdf":
+            try:
+                fallback_payload = build_daily_report_payload(
+                    db, store, include_visuals=False, start=start_date, end=end_date
+                )
+                content = RENDERERS["pdf"].render(fallback_payload)
+            except Exception:
+                raise HTTPException(status_code=500, detail=f"Failed to generate PDF report: {error}")
+        else:
+            raise HTTPException(status_code=500, detail=str(error))
 
     safe_title = "".join(c if c.isalnum() or c in "-_ " else "_" for c in payload.meta.title).strip() or "daily-report"
     filename = f"{safe_title}-{datetime.now().strftime('%Y%m%d-%H%M%S')}.{RENDERERS[format].extension}"

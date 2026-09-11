@@ -139,7 +139,7 @@ export function Landing() {
         </section>
 
         <footer className="pt-4 text-center text-xs text-slate-500">
-          CITIMART Sales KPI Dashboard — internal analytics workspace.
+          CITIMART Sales KPI Dashboard — internal analytics workspace. &copy; {new Date().getFullYear()} CITIMART. All Rights Reserved.
         </footer>
       </div>
     </div>

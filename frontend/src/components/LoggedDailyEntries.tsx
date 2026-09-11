@@ -95,6 +95,10 @@ function TimedEntryTable({
       toast.error("Time Stamp is required.");
       return;
     }
+    if (editTime < "10:30" || editTime > "23:59") {
+      toast.error("Operating hours are between 10:30 AM and 23:59 PM.");
+      return;
+    }
     const v = Number(editValue);
     if (Number.isNaN(v) || v < 0) {
       toast.error(`${valueLabel} must be a non-negative number.`);
@@ -130,6 +134,8 @@ function TimedEntryTable({
                 <TableCell>
                   <input
                     type="time"
+                    min="10:30"
+                    max="23:59"
                     className="border-input bg-background w-full rounded-md border px-2 py-1 text-sm"
                     value={editTime}
                     onChange={(e) => setEditTime(e.target.value)}
@@ -216,15 +222,13 @@ export function LoggedDailyEntries({ store, date }: { store: string; date: strin
   const nobLogQuery = useQuery({ queryKey: ["nob-log", store, date], queryFn: () => api.nobLog(store, date) });
   const nobEntries = nobLogQuery.data?.entries ?? [];
 
-  // A bill row and a NOB row can share the same underlying `row` number
-  // (different collections), so the edited row is tracked as "bill-<row>" /
-  // "nob-<row>", not a bare number.
-  const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [editBillTime, setEditBillTime] = useState("");
+  const [editingRowKey, setEditingRowKey] = useState<string | null>(null);
+  const [editTime, setEditTime] = useState("");
   const [editNetAmount, setEditNetAmount] = useState("");
   const [editBillQuantity, setEditBillQuantity] = useState("");
-  const [editNobTime, setEditNobTime] = useState("");
   const [editNobValue, setEditNobValue] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const updateFootfallMutation = useMutation({
     mutationFn: (payload: { row: number; time: string; footfall: number }) => api.updateFootfallEntry({ store, ...payload }),
@@ -245,89 +249,109 @@ export function LoggedDailyEntries({ store, date }: { store: string; date: strin
     onError: (error: Error) => toast.error(`Failed to delete footfall entry: ${error.message}`),
   });
 
-  const updateBillMutation = useMutation({
-    mutationFn: (payload: { row: number; bill_time: string; net_amount: number; bill_quantity: number }) =>
-      api.updateBillEntry({ store, ...payload }),
-    onSuccess: () => {
-      toast.success("Bill entry updated.");
-      setEditingKey(null);
-      invalidateBillLog();
-      invalidateLive();
-    },
-    onError: (error: Error) => toast.error(`Failed to update bill entry: ${error.message}`),
-  });
-  const deleteBillMutation = useMutation({
-    mutationFn: (row: number) => api.deleteBillEntry(store, row),
-    onSuccess: () => {
-      toast.success("Bill entry deleted.");
-      invalidateBillLog();
-      invalidateLive();
-    },
-    onError: (error: Error) => toast.error(`Failed to delete bill entry: ${error.message}`),
-  });
+  function startEditRow(row: MergedRow) {
+    setEditingRowKey(row.key);
+    setEditTime(row.time ?? nowTimeHHMM());
+    setEditNetAmount(row.bill?.net_amount != null ? String(row.bill.net_amount) : "");
+    setEditBillQuantity(row.bill?.bill_quantity != null ? String(row.bill.bill_quantity) : "");
+    setEditNobValue(row.nob?.nob != null ? String(row.nob.nob) : "");
+  }
 
-  const updateNobMutation = useMutation({
-    mutationFn: (payload: { row: number; time: string; nob: number }) => api.updateNobEntry({ store, ...payload }),
-    onSuccess: () => {
-      toast.success("NOB entry updated.");
-      setEditingKey(null);
+  async function saveEditRow(row: MergedRow) {
+    if (!editTime) {
+      toast.error("Time Stamp is required.");
+      return;
+    }
+    if (editTime < "10:30" || editTime > "23:59") {
+      toast.error("Operating hours are between 10:30 AM and 23:59 PM.");
+      return;
+    }
+
+    let net = 0;
+    let qty = 0;
+    if (row.bill) {
+      net = Number(editNetAmount);
+      qty = Number(editBillQuantity);
+      if (Number.isNaN(net) || net < 0) {
+        toast.error("Net Amount must be a non-negative number.");
+        return;
+      }
+      if (Number.isNaN(qty) || qty < 0) {
+        toast.error("Bill Quantity must be a non-negative number.");
+        return;
+      }
+    }
+
+    let nobVal = 0;
+    if (row.nob) {
+      nobVal = Number(editNobValue);
+      if (Number.isNaN(nobVal) || nobVal < 0) {
+        toast.error("NOB must be a non-negative number.");
+        return;
+      }
+    }
+
+    try {
+      setIsSaving(true);
+      const promises: Promise<unknown>[] = [];
+      if (row.bill) {
+        promises.push(
+          api.updateBillEntry({
+            store,
+            row: row.bill.row,
+            bill_time: editTime,
+            net_amount: net,
+            bill_quantity: qty,
+          }),
+        );
+      }
+      if (row.nob) {
+        promises.push(
+          api.updateNobEntry({
+            store,
+            row: row.nob.row,
+            time: editTime,
+            nob: nobVal,
+          }),
+        );
+      }
+      await Promise.all(promises);
+      toast.success("Entry updated successfully.");
+      setEditingRowKey(null);
+      invalidateBillLog();
       invalidateNobLog();
       invalidateLive();
-    },
-    onError: (error: Error) => toast.error(`Failed to update NOB entry: ${error.message}`),
-  });
-  const deleteNobMutation = useMutation({
-    mutationFn: (row: number) => api.deleteNobEntry(store, row),
-    onSuccess: () => {
-      toast.success("NOB entry deleted.");
+    } catch (error: any) {
+      toast.error(`Failed to update entry: ${error.message || error}`);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function deleteRow(row: MergedRow) {
+    const label = row.bill && row.nob ? "bill and NOB entry" : row.bill ? "bill entry" : "NOB entry";
+    if (!window.confirm(`Delete this ${label}? This cannot be undone.`)) {
+      return;
+    }
+    try {
+      setIsDeleting(true);
+      const promises: Promise<unknown>[] = [];
+      if (row.bill) {
+        promises.push(api.deleteBillEntry(store, row.bill.row));
+      }
+      if (row.nob) {
+        promises.push(api.deleteNobEntry(store, row.nob.row));
+      }
+      await Promise.all(promises);
+      toast.success("Entry deleted successfully.");
+      invalidateBillLog();
       invalidateNobLog();
       invalidateLive();
-    },
-    onError: (error: Error) => toast.error(`Failed to delete NOB entry: ${error.message}`),
-  });
-
-  function startEditBill(entry: BillEntry) {
-    setEditingKey(`bill-${entry.row}`);
-    setEditBillTime(entry.bill_time ?? nowTimeHHMM());
-    setEditNetAmount(entry.net_amount != null ? String(entry.net_amount) : "");
-    setEditBillQuantity(entry.bill_quantity != null ? String(entry.bill_quantity) : "");
-  }
-
-  function saveEditBill(row: number) {
-    const net = Number(editNetAmount);
-    const qty = Number(editBillQuantity);
-    if (!editBillTime) {
-      toast.error("Bill Time Stamp is required.");
-      return;
+    } catch (error: any) {
+      toast.error(`Failed to delete entry: ${error.message || error}`);
+    } finally {
+      setIsDeleting(false);
     }
-    if (Number.isNaN(net) || net < 0) {
-      toast.error("Net Amount must be a non-negative number.");
-      return;
-    }
-    if (Number.isNaN(qty) || qty < 0) {
-      toast.error("Bill Quantity must be a non-negative number.");
-      return;
-    }
-    updateBillMutation.mutate({ row, bill_time: editBillTime, net_amount: net, bill_quantity: qty });
-  }
-
-  function startEditNob(entry: NobEntry) {
-    setEditingKey(`nob-${entry.row}`);
-    setEditNobTime(entry.time ?? nowTimeHHMM());
-    setEditNobValue(entry.nob != null ? String(entry.nob) : "");
-  }
-
-  function saveEditNob(row: number) {
-    const nob = Number(editNobValue);
-    if (!editNobTime) {
-      toast.error("NOB Time Stamp is required.");
-      return;
-    }
-    if (Number.isNaN(nob) || nob < 0) {
-      toast.error("NOB must be a non-negative number.");
-      return;
-    }
-    updateNobMutation.mutate({ row, time: editNobTime, nob });
   }
 
   const mergedRows = buildMergedRows(entries, nobEntries);
@@ -355,7 +379,7 @@ export function LoggedDailyEntries({ store, date }: { store: string; date: strin
                 <TableRow>
                   <TableHead>Time Stamp</TableHead>
                   <TableHead>Net Amount</TableHead>
-                  <TableHead>Bill Quantity</TableHead>
+                  <TableHead>Bill Quantity (units sold)</TableHead>
                   <TableHead>NOB</TableHead>
                   <TableHead>Time Slot</TableHead>
                   <TableHead>Actions</TableHead>
@@ -363,36 +387,27 @@ export function LoggedDailyEntries({ store, date }: { store: string; date: strin
               </TableHeader>
               <TableBody>
                 {mergedRows.map((row) => {
-                  const billKey = row.bill ? `bill-${row.bill.row}` : null;
-                  const nobKey = row.nob ? `nob-${row.nob.row}` : null;
-                  const editingBill = billKey !== null && editingKey === billKey;
-                  const editingNob = nobKey !== null && editingKey === nobKey;
+                  const isEditing = editingRowKey === row.key;
                   const timeSlot = row.bill?.time_slot ?? row.nob?.time_slot ?? null;
-                  const showBothLabels = row.bill !== null && row.nob !== null;
 
                   return (
                     <TableRow key={row.key}>
                       <TableCell>
-                        {editingBill ? (
+                        {isEditing ? (
                           <input
                             type="time"
+                            min="10:30"
+                            max="23:59"
                             className="border-input bg-background w-full rounded-md border px-2 py-1 text-sm"
-                            value={editBillTime}
-                            onChange={(e) => setEditBillTime(e.target.value)}
-                          />
-                        ) : editingNob ? (
-                          <input
-                            type="time"
-                            className="border-input bg-background w-full rounded-md border px-2 py-1 text-sm"
-                            value={editNobTime}
-                            onChange={(e) => setEditNobTime(e.target.value)}
+                            value={editTime}
+                            onChange={(e) => setEditTime(e.target.value)}
                           />
                         ) : (
                           (row.time ?? "—")
                         )}
                       </TableCell>
                       <TableCell>
-                        {editingBill ? (
+                        {isEditing && row.bill ? (
                           <Input
                             type="number"
                             min={0}
@@ -409,7 +424,7 @@ export function LoggedDailyEntries({ store, date }: { store: string; date: strin
                         )}
                       </TableCell>
                       <TableCell>
-                        {editingBill ? (
+                        {isEditing && row.bill ? (
                           <Input
                             type="number"
                             min={0}
@@ -426,7 +441,7 @@ export function LoggedDailyEntries({ store, date }: { store: string; date: strin
                         )}
                       </TableCell>
                       <TableCell>
-                        {editingNob ? (
+                        {isEditing && row.nob ? (
                           <Input
                             type="number"
                             min={0}
@@ -443,73 +458,33 @@ export function LoggedDailyEntries({ store, date }: { store: string; date: strin
                         )}
                       </TableCell>
                       <TableCell>
-                        {editingBill
-                          ? (timeSlotForHHMM(editBillTime) ?? <span className="text-muted-foreground">—</span>)
-                          : editingNob
-                            ? (timeSlotForHHMM(editNobTime) ?? <span className="text-muted-foreground">—</span>)
-                            : (timeSlot ?? <span className="text-muted-foreground">—</span>)}
+                        {isEditing
+                          ? (timeSlotForHHMM(editTime) ?? <span className="text-muted-foreground">—</span>)
+                          : (timeSlot ?? <span className="text-muted-foreground">—</span>)}
                       </TableCell>
                       <TableCell>
-                        {editingBill ? (
+                        {isEditing ? (
                           <div className="flex gap-2">
-                            <Button size="xs" disabled={updateBillMutation.isPending} onClick={() => saveEditBill(row.bill!.row)}>
-                              {updateBillMutation.isPending ? "Saving..." : "Save"}
+                            <Button size="xs" disabled={isSaving} onClick={() => saveEditRow(row)}>
+                              {isSaving ? "Saving..." : "Save"}
                             </Button>
-                            <Button variant="outline" size="xs" disabled={updateBillMutation.isPending} onClick={() => setEditingKey(null)}>
-                              Cancel
-                            </Button>
-                          </div>
-                        ) : editingNob ? (
-                          <div className="flex gap-2">
-                            <Button size="xs" disabled={updateNobMutation.isPending} onClick={() => saveEditNob(row.nob!.row)}>
-                              {updateNobMutation.isPending ? "Saving..." : "Save"}
-                            </Button>
-                            <Button variant="outline" size="xs" disabled={updateNobMutation.isPending} onClick={() => setEditingKey(null)}>
+                            <Button variant="outline" size="xs" disabled={isSaving} onClick={() => setEditingRowKey(null)}>
                               Cancel
                             </Button>
                           </div>
                         ) : (
-                          <div className="flex flex-col gap-1.5">
-                            {row.bill && (
-                              <div className="flex items-center gap-1.5">
-                                {showBothLabels && <span className="text-muted-foreground w-8 text-xs">Bill</span>}
-                                <Button variant="outline" size="xs" onClick={() => startEditBill(row.bill!)}>
-                                  Edit
-                                </Button>
-                                <Button
-                                  variant="destructive"
-                                  size="xs"
-                                  disabled={deleteBillMutation.isPending}
-                                  onClick={() => {
-                                    if (window.confirm("Delete this bill entry? This cannot be undone.")) {
-                                      deleteBillMutation.mutate(row.bill!.row);
-                                    }
-                                  }}
-                                >
-                                  Delete
-                                </Button>
-                              </div>
-                            )}
-                            {row.nob && (
-                              <div className="flex items-center gap-1.5">
-                                {showBothLabels && <span className="text-muted-foreground w-8 text-xs">NOB</span>}
-                                <Button variant="outline" size="xs" onClick={() => startEditNob(row.nob!)}>
-                                  Edit
-                                </Button>
-                                <Button
-                                  variant="destructive"
-                                  size="xs"
-                                  disabled={deleteNobMutation.isPending}
-                                  onClick={() => {
-                                    if (window.confirm("Delete this NOB entry? This cannot be undone.")) {
-                                      deleteNobMutation.mutate(row.nob!.row);
-                                    }
-                                  }}
-                                >
-                                  Delete
-                                </Button>
-                              </div>
-                            )}
+                          <div className="flex gap-2">
+                            <Button variant="outline" size="xs" onClick={() => startEditRow(row)}>
+                              Edit
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="xs"
+                              disabled={isDeleting}
+                              onClick={() => deleteRow(row)}
+                            >
+                              Delete
+                            </Button>
                           </div>
                         )}
                       </TableCell>

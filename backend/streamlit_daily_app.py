@@ -98,7 +98,7 @@ def _kpi_row(kpis: dict) -> None:
         ("Sales Target", format_currency_or_zero(kpis["sales_target"]), None),
         ("Net Sales", format_currency_or_zero(kpis["net_sales"]), None),
         ("Remaining", format_currency_or_zero(kpis["remaining"]), None),
-        ("Bill Quantity", format_number_or_zero(kpis["bill_quantity"]), None),
+        ("Bill Quantity (units sold)", format_number_or_zero(kpis["bill_quantity"]), None),
         ("Footfall", format_number_or_zero(kpis["footfall"]), None),
         ("Transactions (NOB)", format_number_or_zero(kpis["nob"]), None),
         ("ATV", format_currency_or_zero(kpis["atv"]), atv_status(kpis["atv"])),
