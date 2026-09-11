@@ -21,7 +21,6 @@ import {
   Store,
   TrendingUp,
   Users,
-  Zap,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -30,6 +29,13 @@ import { STORE_NAME_BY_CODE } from "@/lib/authUsers";
 import citimartLogo from "@/assets/citimart-logo.png";
 
 type StoreKey = "all" | "NM" | "HB" | "CHW";
+
+interface HourlyPoint {
+  time: string;
+  value: number; // percentage 0 - 100
+  amount: string; // e.g. "₹84,500"
+  isPeak?: boolean;
+}
 
 interface StoreTelemetry {
   name: string;
@@ -41,7 +47,9 @@ interface StoreTelemetry {
   atv: string;
   basket: string;
   peakRush: string;
-  hourlyBars: { label: string; heightPct: number; isPeak?: boolean }[];
+  hourlyPoints: HourlyPoint[];
+  linePath: string;
+  areaPath: string;
   categories: { name: string; icon: any; growth: string }[];
 }
 
@@ -56,15 +64,17 @@ const TELEMETRY_DATA: Record<StoreKey, StoreTelemetry> = {
     atv: "₹1,240",
     basket: "3.8 units",
     peakRush: "05:00 PM – 08:30 PM",
-    hourlyBars: [
-      { label: "11am", heightPct: 35 },
-      { label: "1pm", heightPct: 62 },
-      { label: "3pm", heightPct: 48 },
-      { label: "5pm", heightPct: 86, isPeak: true },
-      { label: "7pm", heightPct: 100, isPeak: true },
-      { label: "9pm", heightPct: 68 },
-      { label: "11pm", heightPct: 28 },
+    hourlyPoints: [
+      { time: "11 AM", value: 35, amount: "₹38,200" },
+      { time: "01 PM", value: 62, amount: "₹68,500" },
+      { time: "03 PM", value: 48, amount: "₹52,000" },
+      { time: "05 PM", value: 86, amount: "₹94,800", isPeak: true },
+      { time: "07 PM", value: 100, amount: "₹1,12,400", isPeak: true },
+      { time: "09 PM", value: 68, amount: "₹76,100" },
+      { time: "11 PM", value: 28, amount: "₹31,000" },
     ],
+    linePath: "M 20 85 C 50 85, 60 58, 80 58 C 110 58, 120 72, 140 72 C 170 72, 180 34, 200 34 C 230 34, 240 20, 260 20 C 290 20, 300 52, 320 52 C 350 52, 360 92, 380 92",
+    areaPath: "M 20 85 C 50 85, 60 58, 80 58 C 110 58, 120 72, 140 72 C 170 72, 180 34, 200 34 C 230 34, 240 20, 260 20 C 290 20, 300 52, 320 52 C 350 52, 360 92, 380 92 L 380 115 L 20 115 Z",
     categories: [
       { name: "Apparel & Fashion", icon: ShoppingBag, growth: "+14.2%" },
       { name: "FMCG & Groceries", icon: ShoppingCart, growth: "+18.6%" },
@@ -82,15 +92,17 @@ const TELEMETRY_DATA: Record<StoreKey, StoreTelemetry> = {
     atv: "₹1,380",
     basket: "4.1 units",
     peakRush: "04:30 PM – 08:00 PM",
-    hourlyBars: [
-      { label: "11am", heightPct: 40 },
-      { label: "1pm", heightPct: 68 },
-      { label: "3pm", heightPct: 54 },
-      { label: "5pm", heightPct: 92, isPeak: true },
-      { label: "7pm", heightPct: 100, isPeak: true },
-      { label: "9pm", heightPct: 74 },
-      { label: "11pm", heightPct: 32 },
+    hourlyPoints: [
+      { time: "11 AM", value: 40, amount: "₹18,500" },
+      { time: "01 PM", value: 68, amount: "₹32,400" },
+      { time: "03 PM", value: 54, amount: "₹25,800" },
+      { time: "05 PM", value: 92, amount: "₹45,200", isPeak: true },
+      { time: "07 PM", value: 100, amount: "₹51,600", isPeak: true },
+      { time: "09 PM", value: 74, amount: "₹36,100" },
+      { time: "11 PM", value: 32, amount: "₹15,200" },
     ],
+    linePath: "M 20 80 C 50 80, 60 52, 80 52 C 110 52, 120 66, 140 66 C 170 66, 180 28, 200 28 C 230 28, 240 20, 260 20 C 290 20, 300 46, 320 46 C 350 46, 360 88, 380 88",
+    areaPath: "M 20 80 C 50 80, 60 52, 80 52 C 110 52, 120 66, 140 66 C 170 66, 180 28, 200 28 C 230 28, 240 20, 260 20 C 290 20, 300 46, 320 46 C 350 46, 360 88, 380 88 L 380 115 L 20 115 Z",
     categories: [
       { name: "Apparel & Fashion", icon: ShoppingBag, growth: "+16.8%" },
       { name: "FMCG & Groceries", icon: ShoppingCart, growth: "+19.4%" },
@@ -108,15 +120,17 @@ const TELEMETRY_DATA: Record<StoreKey, StoreTelemetry> = {
     atv: "₹1,120",
     basket: "3.5 units",
     peakRush: "05:30 PM – 09:00 PM",
-    hourlyBars: [
-      { label: "11am", heightPct: 30 },
-      { label: "1pm", heightPct: 52 },
-      { label: "3pm", heightPct: 45 },
-      { label: "5pm", heightPct: 80, isPeak: true },
-      { label: "7pm", heightPct: 96, isPeak: true },
-      { label: "9pm", heightPct: 72 },
-      { label: "11pm", heightPct: 24 },
+    hourlyPoints: [
+      { time: "11 AM", value: 30, amount: "₹11,400" },
+      { time: "01 PM", value: 52, amount: "₹19,800" },
+      { time: "03 PM", value: 45, amount: "₹17,200" },
+      { time: "05 PM", value: 80, amount: "₹30,500", isPeak: true },
+      { time: "07 PM", value: 96, amount: "₹36,800", isPeak: true },
+      { time: "09 PM", value: 72, amount: "₹27,600" },
+      { time: "11 PM", value: 24, amount: "₹9,200" },
     ],
+    linePath: "M 20 90 C 50 90, 60 68, 80 68 C 110 68, 120 75, 140 75 C 170 75, 180 40, 200 40 C 230 40, 240 24, 260 24 C 290 24, 300 48, 320 48 C 350 48, 360 96, 380 96",
+    areaPath: "M 20 90 C 50 90, 60 68, 80 68 C 110 68, 120 75, 140 75 C 170 75, 180 40, 200 40 C 230 40, 240 24, 260 24 C 290 24, 300 48, 320 48 C 350 48, 360 96, 380 96 L 380 115 L 20 115 Z",
     categories: [
       { name: "Apparel & Fashion", icon: ShoppingBag, growth: "+11.5%" },
       { name: "FMCG & Groceries", icon: ShoppingCart, growth: "+17.2%" },
@@ -134,15 +148,17 @@ const TELEMETRY_DATA: Record<StoreKey, StoreTelemetry> = {
     atv: "₹1,210",
     basket: "3.7 units",
     peakRush: "01:00 PM – 03:00 PM & 06:00 PM – 08:30 PM",
-    hourlyBars: [
-      { label: "11am", heightPct: 36 },
-      { label: "1pm", heightPct: 74, isPeak: true },
-      { label: "3pm", heightPct: 52 },
-      { label: "5pm", heightPct: 78 },
-      { label: "7pm", heightPct: 92, isPeak: true },
-      { label: "9pm", heightPct: 62 },
-      { label: "11pm", heightPct: 26 },
+    hourlyPoints: [
+      { time: "11 AM", value: 36, amount: "₹10,200" },
+      { time: "01 PM", value: 74, amount: "₹21,100", isPeak: true },
+      { time: "03 PM", value: 52, amount: "₹14,800" },
+      { time: "05 PM", value: 78, amount: "₹22,300" },
+      { time: "07 PM", value: 92, amount: "₹26,400", isPeak: true },
+      { time: "09 PM", value: 62, amount: "₹17,700" },
+      { time: "11 PM", value: 26, amount: "₹7,500" },
     ],
+    linePath: "M 20 84 C 50 84, 60 46, 80 46 C 110 46, 120 68, 140 68 C 170 68, 180 42, 200 42 C 230 42, 240 28, 260 28 C 290 28, 300 58, 320 58 C 350 58, 360 94, 380 94",
+    areaPath: "M 20 84 C 50 84, 60 46, 80 46 C 110 46, 120 68, 140 68 C 170 68, 180 42, 200 42 C 230 42, 240 28, 260 28 C 290 28, 300 58, 320 58 C 350 58, 360 94, 380 94 L 380 115 L 20 115 Z",
     categories: [
       { name: "Apparel & Fashion", icon: ShoppingBag, growth: "+13.0%" },
       { name: "FMCG & Groceries", icon: ShoppingCart, growth: "+18.1%" },
@@ -235,12 +251,109 @@ const itemVariants: Variants = {
 export function Landing() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<StoreKey>("all");
+  const [hoveredPoint, setHoveredPoint] = useState<HourlyPoint | null>(null);
   const data = TELEMETRY_DATA[activeTab];
+
+  // Map 7 points to x-coordinates: 20, 80, 140, 200, 260, 320, 380
+  const xCoords = [20, 80, 140, 200, 260, 320, 380];
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#090e1a] text-slate-100 selection:bg-blue-600 selection:text-white">
-      {/* Dynamic Animated Gradient Mesh & Glowing Ambient Orbs */}
+      {/* Background Animated SVG Financial Line Graph & Ambient Glow Orbs */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        {/* Large sweeping background Line Chart Graphic */}
+        <svg
+          className="absolute top-0 left-0 w-full h-[650px] opacity-25"
+          viewBox="0 0 1440 600"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          preserveAspectRatio="none"
+        >
+          <defs>
+            <linearGradient id="bgLineGradPrimary" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" />
+              <stop offset="35%" stopColor="#06b6d4" stopOpacity="0.8" />
+              <stop offset="70%" stopColor="#10b981" stopOpacity="0.9" />
+              <stop offset="100%" stopColor="#6366f1" stopOpacity="0.3" />
+            </linearGradient>
+            <linearGradient id="bgAreaGradPrimary" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.15" />
+              <stop offset="50%" stopColor="#10b981" stopOpacity="0.05" />
+              <stop offset="100%" stopColor="#090e1a" stopOpacity="0" />
+            </linearGradient>
+            <linearGradient id="bgLineGradSecondary" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#6366f1" stopOpacity="0.1" />
+              <stop offset="50%" stopColor="#8b5cf6" stopOpacity="0.5" />
+              <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.2" />
+            </linearGradient>
+          </defs>
+
+          {/* Horizontal Grid lines */}
+          <line x1="0" y1="120" x2="1440" y2="120" stroke="rgba(255,255,255,0.03)" strokeDasharray="6 6" />
+          <line x1="0" y1="240" x2="1440" y2="240" stroke="rgba(255,255,255,0.03)" strokeDasharray="6 6" />
+          <line x1="0" y1="360" x2="1440" y2="360" stroke="rgba(255,255,255,0.03)" strokeDasharray="6 6" />
+          <line x1="0" y1="480" x2="1440" y2="480" stroke="rgba(255,255,255,0.03)" strokeDasharray="6 6" />
+
+          {/* Secondary Revenue Line */}
+          <motion.path
+            initial={{ pathLength: 0, opacity: 0 }}
+            animate={{ pathLength: 1, opacity: 0.6 }}
+            transition={{ duration: 2.2, ease: "easeInOut" }}
+            d="M 0,380 C 180,340 320,420 480,310 C 640,200 800,280 960,180 C 1120,80 1280,190 1440,110"
+            stroke="url(#bgLineGradSecondary)"
+            strokeWidth="2"
+            strokeDasharray="4 4"
+            fill="none"
+          />
+
+          {/* Primary Main Line Graph Area */}
+          <motion.path
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 1.8, delay: 0.5 }}
+            d="M 0,320 C 160,280 280,350 440,220 C 600,90 760,190 920,110 C 1080,30 1240,120 1440,40 L 1440,600 L 0,600 Z"
+            fill="url(#bgAreaGradPrimary)"
+          />
+
+          {/* Primary Main Stroke Line */}
+          <motion.path
+            initial={{ pathLength: 0, opacity: 0 }}
+            animate={{ pathLength: 1, opacity: 1 }}
+            transition={{ duration: 2.5, ease: "easeInOut" }}
+            d="M 0,320 C 160,280 280,350 440,220 C 600,90 760,190 920,110 C 1080,30 1240,120 1440,40"
+            stroke="url(#bgLineGradPrimary)"
+            strokeWidth="3.5"
+            fill="none"
+          />
+
+          {/* Animated Glowing Peak Nodes */}
+          <motion.circle
+            cx="440"
+            cy="220"
+            r="5"
+            fill="#06b6d4"
+            animate={{ r: [4, 7, 4], opacity: [0.7, 1, 0.7] }}
+            transition={{ duration: 3, repeat: Infinity }}
+          />
+          <motion.circle
+            cx="920"
+            cy="110"
+            r="6"
+            fill="#10b981"
+            animate={{ r: [5, 8, 5], opacity: [0.8, 1, 0.8] }}
+            transition={{ duration: 2.5, repeat: Infinity, delay: 0.5 }}
+          />
+          <motion.circle
+            cx="1440"
+            cy="40"
+            r="6"
+            fill="#3b82f6"
+            animate={{ r: [5, 9, 5], opacity: [0.8, 1, 0.8] }}
+            transition={{ duration: 2.8, repeat: Infinity, delay: 1 }}
+          />
+        </svg>
+
+        {/* Ambient Glowing Orbs */}
         <motion.div
           aria-hidden
           className="absolute -top-[20%] left-[5%] h-[42rem] w-[42rem] rounded-full bg-blue-600/20 blur-[120px]"
@@ -260,16 +373,6 @@ export function Landing() {
             scale: [1, 1.15, 1],
           }}
           transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <motion.div
-          aria-hidden
-          className="absolute -bottom-[15%] left-[30%] h-[40rem] w-[40rem] rounded-full bg-indigo-600/20 blur-[140px]"
-          animate={{
-            x: [0, 35, 0],
-            y: [0, -35, 0],
-            scale: [1, 1.08, 1],
-          }}
-          transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
         />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#090e1a_75%)]" />
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
@@ -386,14 +489,14 @@ export function Landing() {
             </div>
           </motion.div>
 
-          {/* Interactive Retail & FMCG Telemetry Showcase Card */}
+          {/* Interactive Retail & FMCG Telemetry Showcase Card with Smooth SVG Line Graph */}
           <motion.div
             variants={itemVariants}
             whileHover={{ y: -3 }}
             transition={{ type: "spring", stiffness: 350, damping: 25 }}
             className="relative overflow-hidden rounded-2xl border border-white/15 bg-gradient-to-br from-slate-900/90 via-slate-900/70 to-blue-950/50 p-5 sm:p-6 backdrop-blur-xl shadow-2xl transition-shadow hover:shadow-blue-500/10"
           >
-            {/* Store Tab Switcher with spring layoutId */}
+            {/* Store Tab Switcher */}
             <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-4">
               <div className="flex items-center gap-1.5 rounded-lg bg-white/5 p-1 border border-white/10">
                 {(
@@ -507,38 +610,145 @@ export function Landing() {
               </motion.div>
             </AnimatePresence>
 
-            {/* Hourly Retail Velocity Mini Sparkline Graph */}
-            <div className="mt-4 rounded-xl border border-white/10 bg-black/25 p-3.5">
-              <div className="flex items-center justify-between text-[11px] font-semibold text-slate-300 mb-2.5">
+            {/* Smooth Animated SVG Line Graph Card */}
+            <div className="mt-4 rounded-xl border border-white/10 bg-black/30 p-3.5">
+              <div className="flex items-center justify-between text-[11px] font-semibold text-slate-300 mb-1.5">
                 <span className="flex items-center gap-1.5">
-                  <Zap className="h-3 w-3 text-amber-400 animate-pulse" /> Hourly Billing Velocity
+                  <LineChart className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>Hourly Sales Trajectory Curve</span>
                 </span>
-                <span className="text-[10px] text-slate-400">10:30 AM – 11:59 PM</span>
+                <span className="text-[10px] text-emerald-400 font-medium">
+                  {hoveredPoint ? `${hoveredPoint.time}: ${hoveredPoint.amount}` : "Hover point for value"}
+                </span>
               </div>
 
-              <div className="flex items-end justify-between gap-1.5 h-14 pt-2">
-                {data.hourlyBars.map((bar, idx) => (
-                  <div key={`${activeTab}-${bar.label}`} className="flex-1 flex flex-col items-center gap-1 h-full justify-end group">
-                    <div className="w-full relative flex items-end justify-center h-full">
-                      <motion.div
-                        initial={{ height: 0 }}
-                        animate={{ height: `${bar.heightPct}%` }}
-                        transition={{
-                          duration: 0.45,
-                          delay: idx * 0.04,
-                          ease: "easeOut",
-                        }}
-                        className={`w-full max-w-[18px] rounded-t-sm transition-colors ${
-                          bar.isPeak
-                            ? "bg-gradient-to-t from-blue-500 to-emerald-400 group-hover:from-blue-400 group-hover:to-emerald-300 shadow-xs shadow-emerald-500/40"
-                            : "bg-blue-600/50 group-hover:bg-blue-500/80"
-                        }`}
-                      />
-                    </div>
-                    <span className="text-[9px] text-slate-400 group-hover:text-slate-200 transition-colors">
-                      {bar.label}
-                    </span>
-                  </div>
+              {/* Line Graph SVG Container */}
+              <div className="relative h-28 w-full pt-1">
+                <svg
+                  className="w-full h-full overflow-visible"
+                  viewBox="0 0 400 120"
+                  preserveAspectRatio="none"
+                >
+                  <defs>
+                    <linearGradient id="cardLineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#3b82f6" />
+                      <stop offset="50%" stopColor="#06b6d4" />
+                      <stop offset="100%" stopColor="#10b981" />
+                    </linearGradient>
+                    <linearGradient id="cardAreaGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.35" />
+                      <stop offset="80%" stopColor="#3b82f6" stopOpacity="0.05" />
+                      <stop offset="100%" stopColor="#000000" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+
+                  {/* Horizontal Guide Lines */}
+                  <line x1="20" y1="20" x2="380" y2="20" stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
+                  <line x1="20" y1="60" x2="380" y2="60" stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
+                  <line x1="20" y1="100" x2="380" y2="100" stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
+
+                  {/* Area Gradient Fill */}
+                  <AnimatePresence mode="wait">
+                    <motion.path
+                      key={`area-${activeTab}`}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                      d={data.areaPath}
+                      fill="url(#cardAreaGrad)"
+                    />
+                  </AnimatePresence>
+
+                  {/* Smooth Line Stroke */}
+                  <AnimatePresence mode="wait">
+                    <motion.path
+                      key={`line-${activeTab}`}
+                      initial={{ pathLength: 0, opacity: 0 }}
+                      animate={{ pathLength: 1, opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.6, ease: "easeOut" }}
+                      d={data.linePath}
+                      stroke="url(#cardLineGrad)"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      fill="none"
+                    />
+                  </AnimatePresence>
+
+                  {/* Data Points on Line Graph */}
+                  {data.hourlyPoints.map((pt, index) => {
+                    const cx = xCoords[index];
+                    // Y calculation: 110 - (pt.value / 100) * 90
+                    const cy = 110 - (pt.value / 100) * 90;
+                    const isHovered = hoveredPoint?.time === pt.time;
+
+                    return (
+                      <g
+                        key={`${activeTab}-${pt.time}`}
+                        className="cursor-pointer"
+                        onMouseEnter={() => setHoveredPoint(pt)}
+                        onMouseLeave={() => setHoveredPoint(null)}
+                      >
+                        {/* Hover Ring */}
+                        {isHovered && (
+                          <circle
+                            cx={cx}
+                            cy={cy}
+                            r="8"
+                            fill="none"
+                            stroke="#38bdf8"
+                            strokeWidth="2"
+                            className="animate-pulse"
+                          />
+                        )}
+
+                        {/* Peak indicator ring */}
+                        {pt.isPeak && !isHovered && (
+                          <circle
+                            cx={cx}
+                            cy={cy}
+                            r="6"
+                            fill="none"
+                            stroke="#10b981"
+                            strokeWidth="1.5"
+                            opacity="0.6"
+                          />
+                        )}
+
+                        {/* Solid point center */}
+                        <motion.circle
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ delay: 0.1 * index }}
+                          cx={cx}
+                          cy={cy}
+                          r={pt.isPeak ? 4.5 : 3.5}
+                          fill={pt.isPeak ? "#34d399" : "#38bdf8"}
+                          stroke="#0f172a"
+                          strokeWidth="1.5"
+                        />
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+
+              {/* X-axis Labels */}
+              <div className="flex items-center justify-between text-[9px] text-slate-400 font-medium px-1 mt-1">
+                {data.hourlyPoints.map((pt) => (
+                  <span
+                    key={pt.time}
+                    className={`transition-colors ${
+                      pt.isPeak
+                        ? "text-emerald-400 font-bold"
+                        : hoveredPoint?.time === pt.time
+                        ? "text-sky-300 font-semibold"
+                        : "text-slate-400"
+                    }`}
+                  >
+                    {pt.time}
+                  </span>
                 ))}
               </div>
             </div>
