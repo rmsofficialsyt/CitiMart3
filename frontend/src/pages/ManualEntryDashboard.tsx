@@ -5,6 +5,14 @@ import { toast } from "sonner";
 
 import { api } from "@/api/client";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Section } from "@/components/Section";
@@ -182,6 +190,7 @@ function ManualEntry({ store }: { store: string }) {
   const [billQuantity, setBillQuantity] = useState("");
   const [nobValue, setNobValue] = useState("");
   const [reason, setReason] = useState("");
+  const [showFinalSubmitConfirm, setShowFinalSubmitConfirm] = useState(false);
 
   // Prefill Remarks from the last saved value -- otherwise reopening a day
   // that already has an update on it would show a blank textarea.
@@ -343,7 +352,8 @@ function ManualEntry({ store }: { store: string }) {
       }
     }
 
-    if (isFinal && !window.confirm("Submit this as your final entry for today? You can still click Update afterward if more bills come in.")) {
+    if (isFinal) {
+      setShowFinalSubmitConfirm(true);
       return;
     }
     saveMutation.mutate(scope);
@@ -471,6 +481,45 @@ function ManualEntry({ store }: { store: string }) {
           </Button>
         </div>
       </Section>
+
+      {/* Confirmation Dialog for Final Submission */}
+      <Dialog open={showFinalSubmitConfirm} onOpenChange={setShowFinalSubmitConfirm}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-blue-500">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle>Confirm Final Submission</DialogTitle>
+                <DialogDescription className="mt-1">
+                  Are you sure to Submit data?
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            This will record today's final entries and snapshot for your store. You can still update later if more bills arrive.
+          </p>
+          <DialogFooter className="gap-2 pt-2 sm:justify-end">
+            <Button
+              variant="outline"
+              onClick={() => setShowFinalSubmitConfirm(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={saveMutation.isPending}
+              onClick={() => {
+                setShowFinalSubmitConfirm(false);
+                saveMutation.mutate("all");
+              }}
+            >
+              {saveMutation.isPending && saveMutation.variables === "all" ? "Submitting..." : "Yes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
