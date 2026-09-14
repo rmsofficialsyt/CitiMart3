@@ -62,6 +62,7 @@ NOB = "nob"
 TARGETS = "targets"
 COUNTERS = "counters"
 USERS = "users"
+DIRECTIVES = "directives"
 
 
 def ensure_indexes(db: Database) -> None:
@@ -74,6 +75,8 @@ def ensure_indexes(db: Database) -> None:
     db[NOB].create_index([("store_code", 1), ("entry_date", 1)])
     db[TARGETS].create_index([("store_code", 1), ("entry_date", 1)], unique=True)
     db[USERS].create_index([("username", 1)], unique=True)
+    db[DIRECTIVES].create_index([("created_at", -1)])
+    db[DIRECTIVES].create_index([("active", 1)])
 
 
 def next_id(db: Database, collection_name: str) -> int:

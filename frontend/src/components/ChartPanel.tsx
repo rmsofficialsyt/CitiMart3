@@ -57,8 +57,13 @@ function zeroTraceValue(trace: PlotData): PlotData {
   return isGauge(trace) ? ({ ...trace, value: 0 } as PlotData) : trace;
 }
 
+import { BarChart3, LineChart, PieChart, TrendingUp } from "lucide-react";
+
+export type ChartVisualFormat = "column" | "line" | "area" | "pie";
+
 export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPanelProps) {
   const [showTable, setShowTable] = useState(false);
+  const [chartFormat, setChartFormat] = useState<ChartVisualFormat>("column");
   const { theme } = useTheme();
   // The "neon" theme recolours the server-rendered figure (`src/theme.py`);
   // any other theme leaves `?theme` off so the figure is byte-identical to
@@ -103,13 +108,92 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
     return () => window.clearTimeout(id);
   }, []);
 
+  const isTimeslotChart = chartId === "daily_timeslot_breakdown" || chartId === "daily_footfall_nob";
+
   const plotData = useMemo(() => {
     if (!traces) return traces;
     if (hasAnimatableValues && !revealed) {
       return traces.map(zeroTraceValue);
     }
+    if (!isTimeslotChart || chartFormat === "column") {
+      return traces;
+    }
+
+    // Format transformation for Line, Area, Pie/Donut
+    if (chartFormat === "line") {
+      return traces.map((t) => ({
+        ...t,
+        type: "scatter" as any,
+        mode: "lines+markers" as any,
+        line: { shape: "spline", width: 3 },
+        marker: { size: 8 },
+      }));
+    }
+
+    if (chartFormat === "area") {
+      return traces.map((t) => ({
+        ...t,
+        type: "scatter" as any,
+        mode: "lines+markers" as any,
+        fill: "tozeroy" as any,
+        line: { shape: "spline", width: 2.5 },
+        marker: { size: 6 },
+      }));
+    }
+
+    if (chartFormat === "pie") {
+      // Create pie / donut trace
+      if (traces.length === 1) {
+        const t = traces[0] as any;
+        return [
+          {
+            type: "pie" as any,
+            hole: 0.45,
+            labels: t.x,
+            values: t.y,
+            textinfo: "label+percent",
+            hoverinfo: "label+value+percent",
+            marker: { colors: ["#3b82f6", "#6366f1", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981"] },
+          },
+        ] as unknown as PlotData[];
+      }
+      if (traces.length > 1) {
+        // Multi-trace pie (sum totals per trace category)
+        const labels = traces.map((t: any) => t.name || "Series");
+        const values = traces.map((t: any) =>
+          Array.isArray(t.y) ? t.y.reduce((acc: number, v: any) => acc + (Number(v) || 0), 0) : 0,
+        );
+        return [
+          {
+            type: "pie" as any,
+            hole: 0.45,
+            labels,
+            values,
+            textinfo: "label+percent",
+            hoverinfo: "label+value+percent",
+            marker: { colors: ["#94a3b8", "#2563eb", "#10b981", "#f59e0b"] },
+          },
+        ] as unknown as PlotData[];
+      }
+    }
+
     return traces;
-  }, [traces, hasAnimatableValues, revealed]);
+  }, [traces, hasAnimatableValues, revealed, chartFormat, isTimeslotChart]);
+
+  // Dynamic layout tweaks for pie/donut
+  const plotLayout = useMemo(() => {
+    if (!figure) return undefined;
+    const base = { ...(figure.layout as Partial<Layout>), autosize: true };
+    if (chartFormat === "pie" && isTimeslotChart) {
+      return touchLayout({
+        ...base,
+        xaxis: { visible: false },
+        yaxis: { visible: false },
+        showlegend: true,
+      });
+    }
+    return touchLayout(base);
+  }, [figure, chartFormat, isTimeslotChart]);
 
   // Fires once Plotly has actually painted the zeroed first frame (the
   // graphDiv it hands back is fully drawn at this point -- see onInitialized
@@ -156,6 +240,67 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
 
   return (
     <div>
+      {isTimeslotChart && (
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1 rounded-lg border bg-muted/30 p-0.5">
+            <button
+              type="button"
+              onClick={() => setChartFormat("column")}
+              className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                chartFormat === "column"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <BarChart3 className="h-3.5 w-3.5" />
+              <span>Column</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setChartFormat("line")}
+              className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                chartFormat === "line"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <LineChart className="h-3.5 w-3.5" />
+              <span>Line</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setChartFormat("area")}
+              className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                chartFormat === "area"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <TrendingUp className="h-3.5 w-3.5" />
+              <span>Area</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setChartFormat("pie")}
+              className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                chartFormat === "pie"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <PieChart className="h-3.5 w-3.5" />
+              <span>Donut/Pie</span>
+            </button>
+          </div>
+
+          {table && table.rows.length > 0 && (
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setShowTable((o) => !o)}>
+              {showTable ? "Hide" : "View"} Data Table
+            </Button>
+          )}
+        </div>
+      )}
+
       <motion.div
         initial={{ opacity: 0, y: 16, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -165,7 +310,7 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
       >
         <Plot
           data={plotData as PlotData[]}
-          layout={touchLayout({ ...(figure!.layout as Partial<Layout>), autosize: true })}
+          layout={plotLayout!}
           useResizeHandler
           style={{ width: "100%", height: "100%" }}
           config={touchConfig({ responsive: true, displaylogo: false })}
@@ -173,51 +318,49 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
         />
       </motion.div>
 
-      {table && table.rows.length > 0 && (
-        <>
-          <div className="mt-2 flex justify-end">
-            <Button variant="outline" size="sm" onClick={() => setShowTable((o) => !o)}>
-              {showTable ? "Hide" : "View"} Table
-            </Button>
-          </div>
-          <AnimatePresence initial={false}>
-            {showTable && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <div className="mt-2 max-h-80 overflow-auto rounded-lg border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        {table.columns.map((col) => (
-                          <TableHead key={col} className="whitespace-nowrap">
-                            {col}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {table.rows.map((row, i) => (
-                        <TableRow key={i}>
-                          {table.columns.map((col) => (
-                            <TableCell key={col} className="whitespace-nowrap">
-                              {formatCell(row[col])}
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </>
+      {!isTimeslotChart && table && table.rows.length > 0 && (
+        <div className="mt-2 flex justify-end">
+          <Button variant="outline" size="sm" onClick={() => setShowTable((o) => !o)}>
+            {showTable ? "Hide" : "View"} Table
+          </Button>
+        </div>
       )}
+      <AnimatePresence initial={false}>
+        {showTable && table && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="mt-2 max-h-80 overflow-auto rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    {table.columns.map((col) => (
+                      <TableHead key={col} className="whitespace-nowrap">
+                        {col}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {table.rows.map((row, i) => (
+                    <TableRow key={i}>
+                      {table.columns.map((col) => (
+                        <TableCell key={col} className="whitespace-nowrap">
+                          {formatCell(row[col])}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

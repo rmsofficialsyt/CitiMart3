@@ -15,6 +15,7 @@ import {
 import { useTheme } from "next-themes";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Languages } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +30,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { SIGN_IN_OPTIONS } from "@/lib/authUsers";
 import citimartLogo from "@/assets/citimart-logo.png";
+import { BossAvatarButton } from "@/components/BossAvatarButton";
+import { useLanguage } from "@/context/LanguageContext";
+import type { Language } from "@/lib/translations";
 
 interface TopBarProps {
   activeStores: string[];
@@ -56,6 +60,7 @@ function SettingsMenu({
   onSignOut?: () => void;
 }) {
   const { theme, setTheme } = useTheme();
+  const { language, setLanguage, t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const navigate = useNavigate();
@@ -66,6 +71,12 @@ function SettingsMenu({
     { id: "neon", label: "Neon", Icon: Sparkles },
   ] as const;
 
+  const languages: { id: Language; label: string; sub: string }[] = [
+    { id: "en", label: "English", sub: "EN" },
+    { id: "hi", label: "हिंदी", sub: "HI" },
+    { id: "bn", label: "বাংলা", sub: "BN" },
+  ];
+
   return (
     <>
       <Popover open={open} onOpenChange={setOpen}>
@@ -74,7 +85,7 @@ function SettingsMenu({
             variant="ghost"
             size="icon"
             aria-label="Settings"
-            title="Settings (Accounts, Theme, Sign Out)"
+            title="Settings (Language, Accounts, Theme, Sign Out)"
             className={ICON_BTN}
           >
             <Settings className="h-4 w-4 text-slate-200" />
@@ -89,16 +100,16 @@ function SettingsMenu({
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-2 text-sm font-bold text-white">
                 <Settings className="h-4 w-4 text-blue-400" />
-                Settings & Preferences
+                {t.settingsTitle}
               </span>
             </div>
           </div>
 
-          <div className="p-3 space-y-4">
+          <div className="p-3 space-y-4 max-h-[85vh] overflow-y-auto">
             {/* Account & Profile */}
             <div>
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                Account
+                {t.account}
               </span>
               {username ? (
                 <div className="mt-1.5 flex items-center justify-between rounded-lg bg-slate-800/80 p-2.5 border border-slate-700/60">
@@ -131,7 +142,7 @@ function SettingsMenu({
 
               {/* Switch Account */}
               <div className="mt-2.5">
-                <span className="text-[11px] text-slate-400 font-medium">Switch Account:</span>
+                <span className="text-[11px] text-slate-400 font-medium">{t.switchAccount}</span>
                 <div className="mt-1.5 grid grid-cols-2 gap-1.5">
                   {SIGN_IN_OPTIONS.map((opt) => {
                     const isActive = opt.username === username;
@@ -161,7 +172,7 @@ function SettingsMenu({
             {/* Theme Switcher */}
             <div>
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                Theme / Appearance
+                {t.theme}
               </span>
               <div className="mt-1.5 grid grid-cols-3 gap-1.5">
                 {themes.map(({ id, label, Icon }) => {
@@ -185,6 +196,34 @@ function SettingsMenu({
               </div>
             </div>
 
+            {/* Language Selector (Positioned after Theme) */}
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                <Languages className="h-3.5 w-3.5 text-indigo-400" />
+                {t.language}
+              </span>
+              <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+                {languages.map((item) => {
+                  const isSelected = language === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setLanguage(item.id)}
+                      className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-semibold transition border cursor-pointer ${
+                        isSelected
+                          ? "border-indigo-400 bg-indigo-600/35 text-white shadow-sm ring-1 ring-indigo-400/50"
+                          : "border-slate-800 bg-slate-800/40 text-slate-300 hover:bg-slate-800 hover:text-white"
+                      }`}
+                    >
+                      <span className="font-bold text-xs">{item.label}</span>
+                      <span className="text-[10px] text-slate-400 font-mono mt-0.5">{item.sub}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Log Out */}
             {onSignOut && username && (
               <div className="pt-2 border-t border-slate-800">
@@ -197,7 +236,7 @@ function SettingsMenu({
                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/20 py-2 text-xs font-semibold transition cursor-pointer"
                 >
                   <LogOut className="h-3.5 w-3.5" />
-                  Log Out ({username})
+                  {t.logout} ({username})
                 </button>
               </div>
             )}
@@ -259,6 +298,7 @@ export function TopBar({
 }: TopBarProps) {
   const isMobile = useIsMobile();
   const [metaOpen, setMetaOpen] = useState(false);
+  const { t } = useLanguage();
 
   const liveDot = (
     <span className="inline-flex items-center gap-1.5" title="Dashboard is live on the current workbook">
@@ -266,7 +306,7 @@ export function TopBar({
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
         <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
       </span>
-      <span className="font-semibold text-emerald-300">Live</span>
+      <span className="font-semibold text-emerald-300">{t.live}</span>
     </span>
   );
 
@@ -275,7 +315,7 @@ export function TopBar({
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
-      className="topbar bg-[#0f172a] px-3 py-3.5 text-white sm:px-6"
+      className="topbar sticky top-0 z-50 bg-[#0f172a]/95 backdrop-blur-md border-b border-slate-800/80 px-3 py-3 text-white shadow-md sm:px-6 transition-all"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2.5 sm:gap-4">
@@ -291,7 +331,7 @@ export function TopBar({
               </h1>
             </div>
             <div className="text-[11px] sm:text-xs font-semibold text-amber-300/95 tracking-wide uppercase mt-0.5">
-              Value for Money Re-defined
+              {t.valueForMoney}
             </div>
 
             {/* Mobile: the Live pill + the expand chevron on one short line. */}
@@ -314,11 +354,11 @@ export function TopBar({
             >
               <span className="hidden md:inline-flex">{liveDot}</span>
               <span className="hidden md:inline">&nbsp;|&nbsp;</span>
-              <span>Active stores: {activeStores.join(", ") || "—"}</span>
+              <span>{t.activeStores}: {activeStores.join(", ") || "—"}</span>
               <span className="hidden sm:inline">&nbsp;|&nbsp;</span>
-              <span className="w-full sm:w-auto">Reporting period: {dateRange}</span>
+              <span className="w-full sm:w-auto">{t.reportingPeriod}: {dateRange}</span>
               <span className="hidden sm:inline">&nbsp;|&nbsp;</span>
-              <span className="w-full sm:w-auto">Last workbook refresh: {lastRefresh}</span>
+              <span className="w-full sm:w-auto">{t.lastWorkbookRefresh}: {lastRefresh}</span>
             </p>
           </div>
         </div>
@@ -354,6 +394,9 @@ export function TopBar({
               )}
             </Button>
           )}
+
+          {/* Boss (Raphael Sir) Avatar & Directives Button */}
+          <BossAvatarButton className="mr-0.5 sm:mr-1" />
 
           {/* Unified Settings Button (Accounts, Themes, Sign Out) */}
           <SettingsMenu

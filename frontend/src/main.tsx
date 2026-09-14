@@ -8,6 +8,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import App from "./App.tsx";
 import { AuthProvider } from "@/auth/AuthProvider";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
+import { LanguageProvider } from "@/context/LanguageContext";
 import { Landing } from "@/pages/Landing";
 import { LoginPage } from "@/pages/LoginPage";
 import "./index.css";
@@ -34,16 +35,18 @@ createRoot(document.getElementById("root")!).render(
       >
         <QueryClientProvider client={queryClient}>
           <MotionConfig reducedMotion="user">
-            <AuthProvider>
-              <Routes>
-                <Route path="/" element={<Landing />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route element={<ProtectedRoute />}>
-                  <Route path="/app/*" element={<App />} />
-                </Route>
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </AuthProvider>
+            <LanguageProvider>
+              <AuthProvider>
+                <Routes>
+                  <Route path="/" element={<Landing />} />
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route element={<ProtectedRoute />}>
+                    <Route path="/app/*" element={<App />} />
+                  </Route>
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </AuthProvider>
+            </LanguageProvider>
           </MotionConfig>
         </QueryClientProvider>
       </ThemeProvider>

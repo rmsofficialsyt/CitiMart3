@@ -248,11 +248,41 @@ const itemVariants: Variants = {
   },
 };
 
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/api/client";
+
 export function Landing() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<StoreKey>("all");
   const [hoveredPoint, setHoveredPoint] = useState<HourlyPoint | null>(null);
-  const data = TELEMETRY_DATA[activeTab];
+
+  // Fetch authentic previous day / latest telemetry directly from MongoDB
+  const { data: heroData } = useQuery({
+    queryKey: ["landing-hero"],
+    queryFn: () => api.landingHero(),
+    staleTime: 60_000,
+  });
+
+  const rawFallback = TELEMETRY_DATA[activeTab];
+  const liveStore = heroData?.stores?.[activeTab];
+
+  const data: StoreTelemetry = liveStore
+    ? {
+        ...rawFallback,
+        name: liveStore.name || rawFallback.name,
+        subtitle: liveStore.subtitle || rawFallback.subtitle,
+        sales: liveStore.sales || rawFallback.sales,
+        salesGrowth: liveStore.salesGrowth || rawFallback.salesGrowth,
+        footfall: liveStore.footfall || rawFallback.footfall,
+        conversion: liveStore.conversion || rawFallback.conversion,
+        atv: liveStore.atv || rawFallback.atv,
+        basket: liveStore.basket || rawFallback.basket,
+        hourlyPoints:
+          liveStore.hourlyPoints && liveStore.hourlyPoints.length > 0
+            ? liveStore.hourlyPoints
+            : rawFallback.hourlyPoints,
+      }
+    : rawFallback;
 
   // Map 7 points to x-coordinates: 20, 80, 140, 200, 260, 320, 380
   const xCoords = [20, 80, 140, 200, 260, 320, 380];
@@ -883,9 +913,18 @@ export function Landing() {
         </motion.section>
 
         {/* Footer */}
-        <footer className="border-t border-white/10 pt-6 text-center text-xs text-slate-500 space-y-1 pb-6">
-          <p>CITIMART Sales KPI Dashboard &mdash; Retail Operations Intelligence.</p>
-          <p>&copy; {new Date().getFullYear()} CITIMART. All Rights Reserved. &middot; Kolkata, India</p>
+        <footer className="border-t border-white/10 pt-6 text-center text-xs text-slate-500 space-y-2 pb-6">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 text-slate-400">
+            <div className="shrink-0 rounded bg-white px-1.5 py-0.5 shadow-sm border border-slate-200/40 flex items-center justify-center">
+              <img
+                src={citimartLogo}
+                alt="CITIMART Logo"
+                className="h-6 sm:h-7 w-auto object-contain"
+              />
+            </div>
+            <span>CITIMART Sales KPI Dashboard &mdash; Retail Operations Intelligence.</span>
+          </div>
+          <p>&copy; {new Date().getFullYear()} CITIMART Operations. All Rights Reserved. &middot; Kolkata, India</p>
         </footer>
       </motion.div>
     </div>

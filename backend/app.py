@@ -33,7 +33,9 @@ from fastapi.staticfiles import StaticFiles
 from api.auth import get_current_user, require_admin
 from api.routes_auth import router as auth_router
 from api.routes_charts import router as charts_router
+from api.routes_chat import router as chat_router
 from api.routes_daily import router as daily_router
+from api.routes_directives import router as directives_router
 from api.routes_kpi_thresholds import router as kpi_thresholds_router
 from api.routes_meta import router as meta_router
 from api.routes_targets import router as targets_router
@@ -211,6 +213,8 @@ _admin_only = [Depends(get_current_user), Depends(require_admin)]
 app.include_router(auth_router)  # public: POST /api/auth/login
 
 app.include_router(daily_router, dependencies=_authed)
+app.include_router(chat_router, dependencies=_authed)
+app.include_router(directives_router, dependencies=_authed)
 app.include_router(charts_router, dependencies=_authed)
 app.include_router(meta_router, dependencies=_authed)
 app.include_router(targets_router, dependencies=_admin_only)

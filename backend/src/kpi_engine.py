@@ -15,7 +15,7 @@ zero denominator -- the display layer decides whether that renders as "N/A" or
 """
 from __future__ import annotations
 
-import pandas as pd
+import math
 
 
 def safe_divide(numerator: float | None, denominator: float | None) -> float | None:
@@ -23,9 +23,10 @@ def safe_divide(numerator: float | None, denominator: float | None) -> float | N
         return None
     if denominator == 0:
         return None
-    try:
-        if pd.isna(numerator) or pd.isna(denominator):
-            return None
-    except (TypeError, ValueError):
-        pass
+    for val in (numerator, denominator):
+        try:
+            if math.isnan(val):
+                return None
+        except (TypeError, ValueError):
+            pass
     return numerator / denominator

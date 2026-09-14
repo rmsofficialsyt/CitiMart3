@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Gauge, Sparkles } from "lucide-react";
 
 import { api } from "@/api/client";
 import { ChartPanel } from "@/components/ChartPanel";
@@ -6,9 +7,10 @@ import { KpiCard } from "@/components/KpiCard";
 import { Section } from "@/components/Section";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TargetAdjustmentAlert } from "@/components/TargetAdjustmentAlert";
 import { DAILY_KPI_FORMATTERS, DAILY_KPI_FORMULAS, DAILY_KPI_LABELS, DAILY_KPI_ORDER, todayLocalDate } from "@/lib/format";
 import { emptyFilterState } from "@/lib/filterParams";
-import type { FilterState } from "@/lib/types";
+import type { DailyKpiKey, DailyKpis, FilterState, StatusColor } from "@/lib/types";
 
 const STORES: { code: string; label: string }[] = [
   { code: "NM", label: "New Market" },
@@ -16,14 +18,26 @@ const STORES: { code: string; label: string }[] = [
   { code: "CHW", label: "Chowringhee" },
 ];
 
-const GAUGES = [
-  "daily_conversion_gauge",
-  "daily_achievement_gauge",
-  "daily_remaining_gauge",
-  "daily_atv_gauge",
-  "daily_rpv_gauge",
-  "daily_basket_size_gauge",
+const GAUGES: { id: string; title: string }[] = [
+  { id: "daily_conversion_gauge", title: "Conversion %" },
+  { id: "daily_achievement_gauge", title: "Achievement %" },
+  { id: "daily_remaining_gauge", title: "Remaining %" },
+  { id: "daily_atv_gauge", title: "ATV" },
+  { id: "daily_rpv_gauge", title: "RPV" },
+  { id: "daily_basket_size_gauge", title: "Basket Size" },
 ];
+
+function resolveKpiStatus(key: DailyKpiKey, rawStatus: StatusColor | undefined, kpis?: DailyKpis): StatusColor | null | undefined {
+  if (!kpis) return rawStatus;
+  const hasOperations = (kpis.net_sales ?? 0) > 0 || (kpis.footfall ?? 0) > 0 || (kpis.bill_quantity ?? 0) > 0 || (kpis.nob ?? 0) > 0;
+  if (!hasOperations) {
+    if (key === "remaining_pct") {
+      return "red";
+    }
+    return null;
+  }
+  return rawStatus;
+}
 
 /** Admin-only "Overall Stores Summary" (first entry in the Daily Operations
  * store selector). Blended live Daily KPIs across all three stores -- raw
@@ -32,8 +46,6 @@ const GAUGES = [
  * or threshold editing here. */
 export function OverallStoresSummary() {
   const today = todayLocalDate();
-  // All three stores, today -- the one page that deliberately passes a
-  // multi-store scope, which api/routes_charts.py blends (admin-only).
   const gaugeFilters: FilterState = { ...emptyFilterState(), stores: STORES.map((s) => s.code), start: today, end: today };
 
   const { data, isLoading } = useQuery({
@@ -42,67 +54,116 @@ export function OverallStoresSummary() {
   });
 
   return (
-    <div>
-      <Section title="All Stores — Today" className="mb-4">
+    <div className="space-y-6">
+      <Section title="All Stores — Today" className="mb-0">
         <p className="text-muted-foreground text-sm">
           Blended live KPIs for New Market, Hatibagan and Chowringhee combined. Totals are summed across stores and the
           ratios (ATV, RPV, Conversion %, Achievement %, …) are recomputed from those totals.
         </p>
       </Section>
 
-      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(200px,1fr))] sm:gap-3">
-        {isLoading || !data
-          ? Array.from({ length: DAILY_KPI_ORDER.length }).map((_, i) => <Skeleton key={i} className="h-[96px] rounded-xl sm:h-[110px]" />)
-          : DAILY_KPI_ORDER.map((key, i) => (
-              <KpiCard
-                key={key}
-                index={i}
-                label={DAILY_KPI_LABELS[key]}
-                value={data.kpis[key]}
-                formatter={DAILY_KPI_FORMATTERS[key]}
-                formula={DAILY_KPI_FORMULAS[key]}
-                status={data.statuses[key]}
-              />
-            ))}
-      </div>
+      {/* Target Adjustment Alert */}
+      {data?.target_adjustment && (
+        <TargetAdjustmentAlert alert={data.target_adjustment} storeCode="ALL" />
+      )}
 
-      <div className="mb-4 grid grid-cols-1 gap-3 min-[400px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
-        {GAUGES.map((id) => (
-          <div key={id} className="bg-card rounded-xl border p-2">
-            <ChartPanel chartId={id} filters={gaugeFilters} className="h-[240px] sm:h-[300px] w-full" />
+      {/* Level 1: Horizontal View - 4x3 KPI Matrix & Gauges at the Same Level with Imaginary Line */}
+      <div className="rounded-2xl border border-border/80 bg-card/40 p-4 sm:p-5 shadow-sm backdrop-blur-sm">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-stretch">
+          
+          {/* Left Side: 12 KPI Cards in 4x3 Matrix */}
+          <div className="flex flex-col justify-between lg:col-span-7">
+            <div className="mb-2.5 flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Consolidated KPI Matrix (4×3 Grid)
+              </span>
+              <span className="text-[11px] text-muted-foreground font-medium">12 Blended Metrics</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-2.5 flex-1">
+              {isLoading || !data
+                ? Array.from({ length: DAILY_KPI_ORDER.length }).map((_, i) => (
+                    <Skeleton key={i} className="h-[88px] sm:h-[96px] rounded-xl" />
+                  ))
+                : DAILY_KPI_ORDER.map((key, i) => (
+                    <KpiCard
+                      key={key}
+                      index={i}
+                      label={DAILY_KPI_LABELS[key]}
+                      value={data.kpis[key]}
+                      formatter={DAILY_KPI_FORMATTERS[key]}
+                      formula={DAILY_KPI_FORMULAS[key]}
+                      status={resolveKpiStatus(key, data.statuses[key], data.kpis)}
+                    />
+                  ))}
+            </div>
           </div>
-        ))}
+
+          {/* Middle: Imaginary Line Separator */}
+          <div className="hidden lg:flex lg:col-span-1 lg:h-full lg:flex-col lg:items-center lg:justify-center relative py-4">
+            <div className="h-full w-px border-l-2 border-dashed border-indigo-500/30 dark:border-indigo-400/20 relative">
+              <div className="absolute top-1/2 -left-3 -translate-y-1/2 flex items-center justify-center h-6 w-6 rounded-full bg-background border border-indigo-500/40 text-[10px] text-indigo-400 shadow-sm">
+                <Sparkles className="h-3 w-3 animate-pulse" />
+              </div>
+            </div>
+          </div>
+
+          <div className="block lg:hidden w-full my-1 border-t-2 border-dashed border-indigo-500/30" />
+
+          {/* Right Side: Gauges (3×2 Matrix) at Same Level */}
+          <div className="flex flex-col justify-between lg:col-span-4">
+            <div className="mb-2.5 flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Gauge className="h-4 w-4 text-indigo-400" />
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Consolidated Gauges (3×2 Matrix)
+                </span>
+              </div>
+              <span className="text-[11px] text-muted-foreground font-medium">Live Dials</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-2.5 flex-1">
+              {GAUGES.map((g) => (
+                <div key={g.id} className="bg-card rounded-xl border border-border/80 p-1.5 shadow-xs flex items-center justify-center min-h-[142px] sm:min-h-[148px]">
+                  <ChartPanel chartId={g.id} filters={gaugeFilters} className="h-[136px] sm:h-[142px] w-full" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </div>
       </div>
 
-      <Section title="By Store">
+      {/* Side-by-Side Store Comparison Table */}
+      <Section title="By Store Breakdown">
         {isLoading || !data ? (
           <Skeleton className="h-64 w-full" />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto rounded-xl border border-border">
             <Table>
-              <TableHeader>
+              <TableHeader className="bg-muted/50">
                 <TableRow>
-                  <TableHead>KPI</TableHead>
+                  <TableHead className="font-semibold">KPI</TableHead>
                   {STORES.map((s) => (
-                    <TableHead key={s.code} className="text-right">
+                    <TableHead key={s.code} className="text-right font-semibold">
                       {s.label}
                     </TableHead>
                   ))}
-                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-right font-bold text-primary">Total (All Stores)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {DAILY_KPI_ORDER.map((key) => {
                   const fmt = DAILY_KPI_FORMATTERS[key];
                   return (
-                    <TableRow key={key}>
-                      <TableCell>{DAILY_KPI_LABELS[key]}</TableCell>
+                    <TableRow key={key} className="hover:bg-muted/30">
+                      <TableCell className="font-medium text-foreground">{DAILY_KPI_LABELS[key]}</TableCell>
                       {STORES.map((s) => (
-                        <TableCell key={s.code} className="text-right tabular-nums">
+                        <TableCell key={s.code} className="text-right tabular-nums text-muted-foreground">
                           {fmt(data.per_store[s.code]?.[key] ?? null)}
                         </TableCell>
                       ))}
-                      <TableCell className="text-right font-semibold tabular-nums">{fmt(data.kpis[key])}</TableCell>
+                      <TableCell className="text-right font-bold tabular-nums text-foreground">{fmt(data.kpis[key])}</TableCell>
                     </TableRow>
                   );
                 })}

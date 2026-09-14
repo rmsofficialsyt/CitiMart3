@@ -13,13 +13,17 @@ exactly (note the spelling "CHOWRINGHEE", not the "CHOWRINGEE" that appeared in
 an early spec draft) so there is only ever one spelling of each store in the
 codebase.
 
-Passwords are NOT stored here -- they live as PBKDF2 hashes in the MongoDB
-`users` collection (src/user_store.py). DEFAULT_PASSWORDS below is the seed
-used by scripts/seed_users.py when no per-account initial password is supplied
-via the environment; changing a password later (src/user_store.set_password)
-never touches this file.
+Passwords are NOT stored in this file -- they live as PBKDF2 hashes in the
+MongoDB `users` collection (src/user_store.py). Seed passwords are read
+exclusively from environment variables (<SUFFIX>_INITIAL_PASSWORD); for
+dev/test use only, a secure random fallback is generated when no env var is
+set. Changing a password later (src/user_store.set_password) never touches
+this file.
 """
 from __future__ import annotations
+
+import os
+import secrets
 
 from config.settings import STORE_CODE_TO_NAME
 
@@ -35,31 +39,58 @@ AUTH_USERS: dict[str, tuple[str, str | None]] = {
 for _code, _name in STORE_CODE_TO_NAME.items():
     AUTH_USERS[_name] = ("manager", _code)
 
-# The real credentials the developer distributes to the admin and the three
-# store managers -- these are the passwords a fresh database is seeded with
-# (scripts/seed_users.py), not placeholders. A <SUFFIX>_INITIAL_PASSWORD env
-# var still overrides any of them before the first seed, and an account that
-# already exists is never re-seeded, so changing a value here does NOT change a
-# live login -- use scripts/rotate_passwords.py / src.user_store.set_password
-# for that. Each satisfies src/password_policy.validate_password.
-DEFAULT_PASSWORDS: dict[str, str] = {
-    ADMIN_USERNAME: "CitiMart_All@123",
-}
-_STORE_DEFAULT_PASSWORDS = {
-    "NM": "CitiMart_NM@123",
-    "HB": "CitiMart_HB@231",
-    "CHW": "CitiMart_CHW@312",
-}
-for _username, (_role, _store_code) in AUTH_USERS.items():
-    if _store_code:
-        DEFAULT_PASSWORDS[_username] = _STORE_DEFAULT_PASSWORDS[_store_code]
-
 # username -> the <SUFFIX> in the <SUFFIX>_INITIAL_PASSWORD env var that
-# overrides that account's first-run seed password.
+# supplies that account's first-run seed password.
 ENV_PASSWORD_SUFFIX: dict[str, str] = {ADMIN_USERNAME: "ADMIN"}
 for _username, (_role, _store_code) in AUTH_USERS.items():
     if _store_code:
         ENV_PASSWORD_SUFFIX[_username] = f"MANAGER_{_store_code}"
+
+
+def _generate_fallback_password() -> str:
+    """Generate a secure random password for dev/test use when no env var is
+    set. The password satisfies src/password_policy (>=12 chars, 3+ character
+    classes). These are generated fresh each process start -- they are NOT
+    meant for production; set the *_INITIAL_PASSWORD env vars on Render."""
+    # token_urlsafe(18) gives 24 chars of [A-Za-z0-9_-]; prefix ensures all
+    # four character classes (upper, lower, digit, special) are always present.
+    return "Dev_" + secrets.token_urlsafe(18) + "!1"
+
+
+# Lazily-populated cache: passwords for dev/test fallback, stable within a
+# single process lifetime so repeated calls (e.g. seed + print) are consistent.
+_fallback_passwords: dict[str, str] = {}
+
+
+def _get_fallback_password(username: str) -> str:
+    """Return a stable-per-process random password for *username*."""
+    if username not in _fallback_passwords:
+        _fallback_passwords[username] = _generate_fallback_password()
+    return _fallback_passwords[username]
+
+
+def get_seed_password(username: str) -> str:
+    """First-run seed password for *username*.
+
+    1. If the corresponding <SUFFIX>_INITIAL_PASSWORD env var is set, use it.
+    2. Otherwise generate a secure random password (dev/test fallback).
+
+    Production deployments MUST set the env vars (on Render / in .env).
+    """
+    suffix = ENV_PASSWORD_SUFFIX.get(username)
+    if suffix:
+        override = os.environ.get(f"{suffix}_INITIAL_PASSWORD")
+        if override:
+            return override
+    return _get_fallback_password(username)
+
+
+# DEFAULT_PASSWORDS is kept as a public dict for backward compatibility with
+# the test suite and scripts that import it. It is populated lazily from env
+# vars / secure random fallback -- never from hardcoded plaintext.
+DEFAULT_PASSWORDS: dict[str, str] = {}
+for _username in AUTH_USERS:
+    DEFAULT_PASSWORDS[_username] = get_seed_password(_username)
 
 
 def resolve_username(raw: str) -> str | None:

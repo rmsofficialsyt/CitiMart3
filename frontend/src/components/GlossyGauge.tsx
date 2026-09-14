@@ -129,22 +129,10 @@ function fmtGaugeValue(v: number): string {
 }
 
 export function GlossyGauge({ spec, className, neon = false }: { spec: GaugeSpec; className?: string; neon?: boolean }) {
-  const wrapperClass = className ?? "h-[280px] sm:h-[360px] w-full";
+  const wrapperClass = className ?? "h-[160px] sm:h-[180px] w-full";
   const p = neon ? NEON_PALETTE : DEFAULT_PALETTE;
   const min = spec.min ?? 0;
 
-  // Scoped to first mount only: a later value change (new filters, a live
-  // refetch) sweeps from wherever the needle currently sits, not from `min`
-  // again -- `currentValueRef` (not `displayValue`) is read as the sweep's
-  // start so this effect doesn't need `displayValue` in its deps and doesn't
-  // re-trigger on every animation frame's own setState.
-  //
-  // Initial state is `min`, not `spec.value` -- the first paint must show
-  // the needle already parked at `min` so the effect's from-`min` sweep has
-  // something to animate from. Seeding this with the real value instead
-  // renders one correct frame, then visibly snaps back to `min` the instant
-  // the effect's animation starts (confirmed in-browser: the needle flashed
-  // at the true reading, then jumped back before sweeping up again).
   const [displayValue, setDisplayValue] = useState<number>(min);
   const currentValueRef = useRef(displayValue);
   const mountedRef = useRef(false);
@@ -166,16 +154,16 @@ export function GlossyGauge({ spec, className, neon = false }: { spec: GaugeSpec
 
   if (spec.value == null) {
     return (
-      <div className={`flex flex-col items-center justify-center ${wrapperClass}`}>
-        {spec.title && <p className="text-muted-foreground mb-1 text-center text-sm font-semibold">{spec.title}</p>}
-        <svg viewBox="0 0 300 300" className="h-full max-h-[280px] w-full max-w-[280px]" role="img" aria-label={`${spec.title}: not available`}>
+      <div className={`flex flex-col items-center justify-center p-1 ${wrapperClass}`}>
+        {spec.title && <p className="text-muted-foreground mb-0.5 text-center text-xs font-semibold truncate w-full">{spec.title}</p>}
+        <svg viewBox="0 0 300 300" className="h-full max-h-[135px] w-full max-w-[135px]" role="img" aria-label={`${spec.title}: not available`}>
           <circle cx={CX} cy={CY} r={BEZEL_R} fill={p.naBezel} />
           <circle cx={CX} cy={CY} r={FACE_R} fill={p.naFace} />
           <text x={CX} y={CY + 10} textAnchor="middle" style={{ fontSize: 26, fontWeight: 700, fontFamily: "'Fira Code Variable', ui-monospace, monospace" }} fill={p.naText}>
             N/A
           </text>
         </svg>
-        <p className="text-muted-foreground mt-1 text-center text-xs">N/A — required source field not available</p>
+        <p className="text-muted-foreground mt-0.5 text-center text-[10px]">Data not available</p>
       </div>
     );
   }
@@ -207,11 +195,11 @@ export function GlossyGauge({ spec, className, neon = false }: { spec: GaugeSpec
   const maxLabelPos = polar(LABEL_R, START_ANGLE + SWEEP);
 
   return (
-    <div className={`flex flex-col items-center justify-center ${wrapperClass}`}>
-      {spec.title && <p className="text-muted-foreground mb-1 text-center text-sm font-semibold">{spec.title}</p>}
+    <div className={`flex flex-col items-center justify-between p-1 select-none ${wrapperClass}`}>
+      {spec.title && <p className="text-muted-foreground mb-0.5 text-center text-xs font-semibold tracking-wide truncate w-full">{spec.title}</p>}
       <svg
         viewBox="0 0 300 300"
-        className="h-full max-h-[280px] w-full max-w-[280px]"
+        className="h-full max-h-[135px] w-full max-w-[135px] shrink-0"
         role="img"
         aria-label={`${spec.title}: ${fmt(value)}${target != null ? `, target ${fmt(target)}` : ""}`}
       >
@@ -271,10 +259,12 @@ export function GlossyGauge({ spec, className, neon = false }: { spec: GaugeSpec
         {/* Glass shine overlay */}
         <circle cx={CX} cy={CY} r={BEZEL_R} fill="url(#glossyGaugeShine)" />
       </svg>
-      {target != null && (
-        <p className="text-muted-foreground mt-1 text-center text-xs">
+      {target != null ? (
+        <p className="text-muted-foreground mt-0.5 text-center text-[11px] leading-tight">
           Target: <span className="text-foreground font-semibold">{fmt(target)}</span>
         </p>
+      ) : (
+        <div className="h-3" />
       )}
     </div>
   );

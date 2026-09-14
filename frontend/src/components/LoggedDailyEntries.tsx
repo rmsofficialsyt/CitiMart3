@@ -355,8 +355,8 @@ export function LoggedDailyEntries({ store, date }: { store: string; date: strin
   const mergedRows = buildMergedRows(entries, nobEntries);
 
   return (
-    <>
-      <Section title="Logged Footfall" className="mb-4">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start mb-4">
+      <Section title="Logged Footfall" className="mb-0 h-full">
         <TimedEntryTable
           valueLabel="Footfall"
           entries={footfallEntries.map((e) => ({ row: e.row, time: e.time, value: e.footfall, time_slot: e.time_slot }))}
@@ -367,7 +367,7 @@ export function LoggedDailyEntries({ store, date }: { store: string; date: strin
         />
       </Section>
 
-      <Section title="Logged Bills & NOB" className="mb-4">
+      <Section title="Logged Bills & NOB" className="mb-0 h-full">
         {mergedRows.length === 0 ? (
           <p className="text-muted-foreground text-sm">No bills or NOB logged yet for today.</p>
         ) : (
@@ -491,6 +491,6 @@ export function LoggedDailyEntries({ store, date }: { store: string; date: strin
           </div>
         )}
       </Section>
-    </>
+    </div>
   );
 }

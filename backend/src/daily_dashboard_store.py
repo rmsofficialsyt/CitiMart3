@@ -27,7 +27,7 @@ to filter out.
 """
 from __future__ import annotations
 
-from datetime import date, time
+from datetime import date, datetime, time, timedelta
 
 from pymongo import ReturnDocument
 from pymongo.database import Database
@@ -695,3 +695,357 @@ def get_history_details(db: Database, store: str, target_date: date) -> dict:
         "footfall_logs": footfall_logs,
         "nob_logs": nob_logs,
     }
+
+
+def get_history_range_details(db: Database, store: str, start_date: date, end_date: date) -> dict:
+    """Returns comprehensive historical operations metrics, daily breakdowns,
+    aggregated time-slot breakdowns, and logs across a specified date range [start_date, end_date]."""
+    if start_date > end_date:
+        start_date, end_date = end_date, start_date
+
+    stores_to_fetch = list(STORE_CODE_TO_NAME.keys()) if store == "ALL" else [store]
+    
+    total_days = (end_date - start_date).days + 1
+    daily_breakdown: list[dict] = []
+    
+    all_bill_logs: list[dict] = []
+    all_footfall_logs: list[dict] = []
+    all_nob_logs: list[dict] = []
+
+    timeslot_summary: dict[str, dict[str, float]] = {
+        slot: {
+            "time_slot": slot,
+            "net_sales": 0.0,
+            "bill_quantity": 0.0,
+            "bill_count": 0,
+            "footfall": 0.0,
+            "nob": 0.0,
+            "atv": 0.0,
+            "rpv": 0.0,
+            "basket_size": 0.0,
+            "conversion_pct": 0.0,
+        }
+        for slot in TIME_SLOT_ORDER
+    }
+
+    total_net_sales = 0.0
+    total_sales_target = 0.0
+    has_any_target = False
+    total_bill_quantity = 0.0
+    total_footfall = 0.0
+    total_nob = 0.0
+
+    cur_d = start_date
+    while cur_d <= end_date:
+        iso_d = cur_d.isoformat()
+        if store == "ALL":
+            all_kpis = compute_live_kpis_all_stores(db, cur_d)
+            kpis = all_kpis["combined"]
+        else:
+            kpis = compute_live_kpis(db, store, cur_d)
+
+        ns = kpis.get("net_sales", 0.0) or 0.0
+        bq = kpis.get("bill_quantity", 0.0) or 0.0
+        ff = kpis.get("footfall", 0.0) or 0.0
+        nb = kpis.get("nob", 0.0) or 0.0
+        st = kpis.get("sales_target")
+
+        total_net_sales += ns
+        total_bill_quantity += bq
+        total_footfall += ff
+        total_nob += nb
+
+        if st is not None:
+            total_sales_target += st
+            has_any_target = True
+
+        for s in stores_to_fetch:
+            for b in list_bill_entries(db, s, cur_d):
+                item = dict(b)
+                if store == "ALL":
+                    item["store"] = s
+                all_bill_logs.append(item)
+            for f in list_footfall_entries(db, s, cur_d):
+                item = dict(f)
+                if store == "ALL":
+                    item["store"] = s
+                all_footfall_logs.append(item)
+            for n in list_nob_entries(db, s, cur_d):
+                item = dict(n)
+                if store == "ALL":
+                    item["store"] = s
+                all_nob_logs.append(item)
+
+        daily_breakdown.append({
+            "date": iso_d,
+            "day_name": cur_d.strftime("%A"),
+            "net_sales": round(ns, 2),
+            "sales_target": st,
+            "achievement_pct": kpis.get("achievement_pct"),
+            "remaining": kpis.get("remaining"),
+            "bill_quantity": bq,
+            "footfall": ff,
+            "nob": nb,
+            "basket_size": kpis.get("basket_size", 0.0) or 0.0,
+            "atv": kpis.get("atv", 0.0) or 0.0,
+            "rpv": kpis.get("rpv", 0.0) or 0.0,
+            "conversion_pct": kpis.get("conversion_pct", 0.0) or 0.0,
+        })
+        cur_d += timedelta(days=1)
+
+    all_bill_logs.sort(key=lambda x: (x.get("date", ""), x.get("bill_time", "")), reverse=True)
+    all_footfall_logs.sort(key=lambda x: (x.get("date", ""), x.get("time", "")), reverse=True)
+    all_nob_logs.sort(key=lambda x: (x.get("date", ""), x.get("time", "")), reverse=True)
+
+    # Accumulate timeslot aggregations
+    for b in all_bill_logs:
+        slot = b.get("time_slot")
+        if slot in timeslot_summary:
+            timeslot_summary[slot]["net_sales"] += b.get("net_amount", 0.0) or 0.0
+            timeslot_summary[slot]["bill_quantity"] += b.get("bill_quantity", 0.0) or 0.0
+            timeslot_summary[slot]["bill_count"] += 1
+
+    for f in all_footfall_logs:
+        slot = f.get("time_slot")
+        if slot in timeslot_summary:
+            timeslot_summary[slot]["footfall"] += f.get("footfall", 0.0) or 0.0
+
+    for n in all_nob_logs:
+        slot = n.get("time_slot")
+        if slot in timeslot_summary:
+            timeslot_summary[slot]["nob"] += n.get("nob", 0.0) or 0.0
+
+    timeslot_list = []
+    final_sales_target = total_sales_target if has_any_target else None
+    for slot in TIME_SLOT_ORDER:
+        cell = timeslot_summary[slot]
+        ns = cell["net_sales"]
+        bq = cell["bill_quantity"]
+        ff = cell["footfall"]
+        nob = cell["nob"]
+        bc = cell["bill_count"]
+
+        cell["sales_target"] = final_sales_target
+        cell["remaining"] = round(final_sales_target - ns, 2) if final_sales_target is not None else None
+        cell["achievement_pct"] = round((ns / final_sales_target) * 100, 2) if (final_sales_target and final_sales_target > 0) else 0.0
+        cell["remaining_pct"] = round(((final_sales_target - ns) / final_sales_target) * 100, 2) if (final_sales_target and final_sales_target > 0) else 0.0
+        cell["atv"] = round(ns / nob, 2) if nob > 0 else 0.0
+        cell["rpv"] = round(ns / ff, 2) if ff > 0 else 0.0
+        cell["basket_size"] = round(bq / nob, 2) if nob > 0 else 0.0
+        cell["conversion_pct"] = round((nob / ff) * 100, 2) if ff > 0 else 0.0
+
+        timeslot_list.append(cell)
+
+    overall_target = total_sales_target if has_any_target else None
+    overall_remaining = max(0.0, overall_target - total_net_sales) if overall_target is not None else None
+    overall_ach_pct = round((total_net_sales / overall_target) * 100, 2) if (overall_target and overall_target > 0) else None
+    overall_rem_pct = round((overall_remaining / overall_target) * 100, 2) if (overall_target and overall_target > 0 and overall_remaining is not None) else None
+
+    range_kpis = {
+        "net_sales": round(total_net_sales, 2),
+        "sales_target": overall_target,
+        "remaining": overall_remaining,
+        "achievement_pct": overall_ach_pct,
+        "remaining_pct": overall_rem_pct,
+        "bill_quantity": total_bill_quantity,
+        "footfall": total_footfall,
+        "nob": total_nob,
+        "basket_size": round(total_bill_quantity / total_nob, 2) if total_nob > 0 else 0.0,
+        "atv": round(total_net_sales / total_nob, 2) if total_nob > 0 else 0.0,
+        "rpv": round(total_net_sales / total_footfall, 2) if total_footfall > 0 else 0.0,
+        "conversion_pct": round((total_nob / total_footfall) * 100, 2) if total_footfall > 0 else 0.0,
+    }
+
+    return {
+        "store": store,
+        "start_date": start_date.isoformat(),
+        "end_date": end_date.isoformat(),
+        "days_count": total_days,
+        "kpis": range_kpis,
+        "daily_breakdown": daily_breakdown,
+        "timeslot_breakdown": timeslot_list,
+        "bill_logs": all_bill_logs,
+        "footfall_logs": all_footfall_logs,
+        "nob_logs": all_nob_logs,
+    }
+
+
+def get_target_adjustment_alert(db: Database, store: str, target_date: date) -> dict | None:
+    """Calculates Target Adjustment alert.
+    Cumulative approach: checks previous day's sales target vs achieved net sales.
+    If there is an unachieved shortfall, concludes the effective adjusted recovery
+    target without altering the admin-given sales target in the KPI card."""
+    prev_date = target_date - timedelta(days=1)
+    
+    if store == "ALL":
+        prev_kpis = compute_live_kpis_all_stores(db, prev_date)["combined"]
+        today_kpis = compute_live_kpis_all_stores(db, target_date)["combined"]
+    else:
+        prev_kpis = compute_live_kpis(db, store, prev_date)
+        today_kpis = compute_live_kpis(db, store, target_date)
+
+    prev_target = prev_kpis.get("sales_target")
+    prev_actual = prev_kpis.get("net_sales", 0.0) or 0.0
+    
+    # If yesterday had no target set, no deficit/surplus can be established from yesterday
+    if prev_target is None:
+        return None
+
+    prev_shortfall = 0.0
+    prev_surplus = 0.0
+    if prev_actual < prev_target:
+        prev_shortfall = round(prev_target - prev_actual, 2)
+    else:
+        prev_surplus = round(prev_actual - prev_target, 2)
+
+    today_target = today_kpis.get("sales_target")
+    today_actual = today_kpis.get("net_sales", 0.0) or 0.0
+
+    adjusted_target = None
+    adjusted_remaining = None
+    recovery_achievement_pct = None
+
+    if today_target is not None:
+        adjusted_target = round(today_target + prev_shortfall, 2)
+        adjusted_remaining = round(max(0.0, adjusted_target - today_actual), 2)
+        if adjusted_target > 0:
+            recovery_achievement_pct = round((today_actual / adjusted_target) * 100, 2)
+    elif prev_shortfall > 0:
+        adjusted_target = prev_shortfall
+        adjusted_remaining = round(max(0.0, adjusted_target - today_actual), 2)
+        if adjusted_target > 0:
+            recovery_achievement_pct = round((today_actual / adjusted_target) * 100, 2)
+
+    return {
+        "active": True,
+        "target_date": target_date.isoformat(),
+        "prev_date": prev_date.isoformat(),
+        "prev_target": prev_target,
+        "prev_actual": prev_actual,
+        "prev_shortfall": prev_shortfall,
+        "prev_surplus": prev_surplus,
+        "admin_today_target": today_target,
+        "adjusted_cumulative_target": adjusted_target,
+        "today_actual_sales": today_actual,
+        "adjusted_remaining": adjusted_remaining,
+        "recovery_achievement_pct": recovery_achievement_pct,
+        "has_shortfall": prev_shortfall > 0,
+        "status": "shortfall_recovery" if prev_shortfall > 0 else ("surplus_cushion" if prev_surplus > 0 else "neutral"),
+    }
+
+
+def get_landing_hero_telemetry(db: Database) -> dict:
+    """Computes authentic previous-day (or latest recorded day) telemetry
+    for the Landing page Hero section across all stores and consolidated."""
+    # Find most recent recorded date in MongoDB
+    seen_dates: set[str] = set()
+    for coll in (BILLS, FOOTFALL, NOB, TARGETS):
+        for doc in db[coll].find({}, {"entry_date": 1}):
+            iso = doc.get("entry_date")
+            if iso:
+                seen_dates.add(iso)
+
+    today_iso = date.today().isoformat()
+    # Prefer previous day or yesterday if present, otherwise latest recorded past date, otherwise today
+    sorted_dates = sorted(seen_dates, reverse=True)
+    
+    target_iso = None
+    for d_str in sorted_dates:
+        if d_str < today_iso:
+            target_iso = d_str
+            break
+    if not target_iso and sorted_dates:
+        target_iso = sorted_dates[0]
+    if not target_iso:
+        target_iso = today_iso
+
+    target_date = date.fromisoformat(target_iso)
+    
+    # Store names mapping
+    store_meta = {
+        "all": {"name": "Consolidated (All 3 Stores)", "subtitle": "Real-time network aggregate feed"},
+        "NM": {"name": "New Market (Flagship)", "subtitle": "Lindsay Street · Central Kolkata"},
+        "HB": {"name": "Hatibagan (North Hub)", "subtitle": "Bidhan Sarani · North Kolkata"},
+        "CHW": {"name": "Chowringhee (Metro Core)", "subtitle": "J.L. Nehru Road · South-Central Kolkata"},
+    }
+
+    result = {
+        "recorded_date": target_iso,
+        "day_name": target_date.strftime("%A"),
+        "stores": {},
+    }
+
+    # Consolidated ALL
+    all_kpis_bundle = compute_live_kpis_all_stores(db, target_date)
+    all_kpis = all_kpis_bundle["combined"]
+
+    # Build per-store + all telemetry
+    for store_key in ("all", "NM", "HB", "CHW"):
+        if store_key == "all":
+            kpis = all_kpis
+            stores_to_fetch = list(STORE_CODE_TO_NAME.keys())
+        else:
+            kpis = compute_live_kpis(db, store_key, target_date)
+            stores_to_fetch = [store_key]
+
+        net_sales = kpis.get("net_sales", 0.0) or 0.0
+        sales_target = kpis.get("sales_target")
+        footfall = kpis.get("footfall", 0.0) or 0.0
+        conversion_pct = kpis.get("conversion_pct", 0.0) or 0.0
+        atv = kpis.get("atv", 0.0) or 0.0
+        basket_size = kpis.get("basket_size", 0.0) or 0.0
+        ach_pct = kpis.get("achievement_pct")
+
+        if sales_target and sales_target > 0:
+            diff_pct = ((net_sales - sales_target) / sales_target) * 100
+            sales_growth_str = f"{'+' if diff_pct >= 0 else ''}{diff_pct:.1f}% vs target"
+        else:
+            sales_growth_str = "Target pending"
+
+        # Calculate time slot distribution
+        slot_sales = {slot: 0.0 for slot in TIME_SLOT_ORDER}
+        for s in stores_to_fetch:
+            for b in list_bill_entries(db, s, target_date):
+                ts = b.get("time_slot")
+                if ts in slot_sales:
+                    slot_sales[ts] += b.get("net_amount", 0.0) or 0.0
+
+        max_slot_val = max(slot_sales.values()) if slot_sales and max(slot_sales.values()) > 0 else 1.0
+
+        # Define 7 standard time checkpoint labels
+        time_labels = ["11 AM", "01 PM", "03 PM", "05 PM", "07 PM", "09 PM", "11 PM"]
+        hourly_points = []
+        for i, slot in enumerate(TIME_SLOT_ORDER):
+            val = slot_sales.get(slot, 0.0)
+            pct = round((val / max_slot_val) * 100) if max_slot_val > 0 else 20
+            time_lbl = time_labels[i] if i < len(time_labels) else f"Slot {i+1}"
+            hourly_points.append({
+                "time": time_lbl,
+                "value": max(15, pct),
+                "amount": f"₹{val:,.0f}",
+                "isPeak": (pct >= 85),
+            })
+
+        meta = store_meta.get(store_key, {"name": store_key, "subtitle": ""})
+
+        result["stores"][store_key] = {
+            "name": meta["name"],
+            "subtitle": meta["subtitle"],
+            "sales": f"₹{net_sales:,.0f}",
+            "raw_sales": net_sales,
+            "salesGrowth": sales_growth_str,
+            "footfall": f"{footfall:,.0f}",
+            "raw_footfall": footfall,
+            "conversion": f"{conversion_pct:.1f}%",
+            "raw_conversion": conversion_pct,
+            "atv": f"₹{atv:,.0f}",
+            "raw_atv": atv,
+            "basket": f"{basket_size:.1f} units",
+            "raw_basket": basket_size,
+            "achievement_pct": ach_pct,
+            "peakRush": "05:00 PM – 08:30 PM",
+            "hourlyPoints": hourly_points,
+        }
+
+    return result
+

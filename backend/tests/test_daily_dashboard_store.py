@@ -343,3 +343,62 @@ def test_save_target_entry_persists_overridden_snapshot(db_session):
     daily_dashboard_store.save_target_entry(db_session, "NM", date(2026, 8, 20), None)
     row = db_session[TARGETS].find_one({"store_code": "NM", "entry_date": "2026-08-20"})
     assert row["atv"] == 555.0  # snapshot the report reads matches the dashboard
+
+
+def test_target_adjustment_alert_none_when_no_prev_target(db_session):
+    alert = daily_dashboard_store.get_target_adjustment_alert(db_session, "NM", date(2026, 8, 21))
+    assert alert is None
+
+
+def test_target_adjustment_alert_shortfall_recovery(db_session):
+    _set_target(db_session, "NM", date(2026, 8, 20), 10_000.0)
+    daily_dashboard_store.add_bill_entry(db_session, "NM", date(2026, 8, 20), time(11, 0), 6_000.0, 5.0)
+
+    _set_target(db_session, "NM", date(2026, 8, 21), 12_000.0)
+    daily_dashboard_store.add_bill_entry(db_session, "NM", date(2026, 8, 21), time(11, 0), 4_000.0, 3.0)
+
+    alert = daily_dashboard_store.get_target_adjustment_alert(db_session, "NM", date(2026, 8, 21))
+    assert alert is not None
+    assert alert["has_shortfall"] is True
+    assert alert["prev_shortfall"] == 4_000.0
+    assert alert["prev_surplus"] == 0.0
+    assert alert["admin_today_target"] == 12_000.0
+    assert alert["adjusted_cumulative_target"] == 16_000.0
+    assert alert["adjusted_remaining"] == 12_000.0
+    assert alert["recovery_achievement_pct"] == 25.0
+    assert alert["status"] == "shortfall_recovery"
+
+
+def test_target_adjustment_alert_surplus_cushion(db_session):
+    _set_target(db_session, "NM", date(2026, 8, 20), 10_000.0)
+    daily_dashboard_store.add_bill_entry(db_session, "NM", date(2026, 8, 20), time(11, 0), 15_000.0, 10.0)
+
+    _set_target(db_session, "NM", date(2026, 8, 21), 12_000.0)
+
+    alert = daily_dashboard_store.get_target_adjustment_alert(db_session, "NM", date(2026, 8, 21))
+    assert alert is not None
+    assert alert["has_shortfall"] is False
+    assert alert["prev_shortfall"] == 0.0
+    assert alert["prev_surplus"] == 5_000.0
+    assert alert["status"] == "surplus_cushion"
+    assert alert["adjusted_cumulative_target"] == 12_000.0
+
+
+def test_target_adjustment_alert_all_stores(db_session):
+    _set_target(db_session, "NM", date(2026, 8, 20), 10_000.0)
+    _set_target(db_session, "HB", date(2026, 8, 20), 20_000.0)
+    daily_dashboard_store.add_bill_entry(db_session, "NM", date(2026, 8, 20), time(11, 0), 8_000.0, 5.0)
+    daily_dashboard_store.add_bill_entry(db_session, "HB", date(2026, 8, 20), time(11, 0), 15_000.0, 10.0)
+
+    _set_target(db_session, "NM", date(2026, 8, 21), 10_000.0)
+    _set_target(db_session, "HB", date(2026, 8, 21), 20_000.0)
+
+    alert = daily_dashboard_store.get_target_adjustment_alert(db_session, "ALL", date(2026, 8, 21))
+    assert alert is not None
+    assert alert["prev_target"] == 30_000.0
+    assert alert["prev_actual"] == 23_000.0
+    assert alert["prev_shortfall"] == 7_000.0
+    assert alert["admin_today_target"] == 30_000.0
+    assert alert["adjusted_cumulative_target"] == 37_000.0
+    assert alert["status"] == "shortfall_recovery"
+

@@ -104,6 +104,23 @@ export interface DailyKpis {
 
 export type DailyKpiKey = keyof DailyKpis;
 
+export interface TargetAdjustmentAlert {
+  active: boolean;
+  target_date: string;
+  prev_date: string;
+  prev_target: number | null;
+  prev_actual: number;
+  prev_shortfall: number;
+  prev_surplus: number;
+  admin_today_target: number | null;
+  adjusted_cumulative_target: number | null;
+  today_actual_sales: number;
+  adjusted_remaining: number | null;
+  recovery_achievement_pct: number | null;
+  has_shortfall: boolean;
+  status: "shortfall_recovery" | "surplus_cushion" | "neutral";
+}
+
 // GET /api/daily/live -- one store's live KPIs for one date, plus that day's
 // weather / holiday / election context.
 export interface DailyLiveSnapshot {
@@ -117,6 +134,7 @@ export interface DailyLiveSnapshot {
   weather: WeatherReading | null;
   kpis: DailyKpis;
   statuses: Partial<Record<DailyKpiKey, StatusColor>>;
+  target_adjustment?: TargetAdjustmentAlert | null;
   // Which of the five overridable ratio KPIs currently carry a manager's
   // hand-entered value (targets.overrides) rather than the computed figure.
   overridden: DailyKpiKey[];
@@ -131,8 +149,40 @@ export interface DailyOverallSnapshot {
   date: string;
   kpis: DailyKpis;
   statuses: Partial<Record<DailyKpiKey, StatusColor>>;
+  target_adjustment?: TargetAdjustmentAlert | null;
   per_store: Record<string, DailyKpis>;
 }
+
+export interface LandingHeroStoreTelemetry {
+  name: string;
+  subtitle: string;
+  sales: string;
+  raw_sales: number;
+  salesGrowth: string;
+  footfall: string;
+  raw_footfall: number;
+  conversion: string;
+  raw_conversion: number;
+  atv: string;
+  raw_atv: number;
+  basket: string;
+  raw_basket: number;
+  achievement_pct: number | null;
+  peakRush: string;
+  hourlyPoints: {
+    time: string;
+    value: number;
+    amount: string;
+    isPeak?: boolean;
+  }[];
+}
+
+export interface LandingHeroResponse {
+  recorded_date: string;
+  day_name: string;
+  stores: Record<string, LandingHeroStoreTelemetry>;
+}
+
 
 // The five ratio KPIs a manager can override at runtime on the Daily
 // Dashboard -- must match src/daily_dashboard_store.OVERRIDABLE_KPIS.
@@ -272,3 +322,81 @@ export interface HistoryDetailsResponse {
   footfall_logs: (FootfallEntry & { store?: string })[];
   nob_logs: (NobEntry & { store?: string })[];
 }
+
+export interface DailyHistoryBreakdown {
+  date: string;
+  day_name: string;
+  net_sales: number;
+  sales_target: number | null;
+  achievement_pct: number | null;
+  remaining: number | null;
+  bill_quantity: number;
+  footfall: number;
+  nob: number;
+  basket_size: number;
+  atv: number;
+  rpv: number;
+  conversion_pct: number;
+}
+
+export interface HistoryRangeResponse {
+  store: string;
+  start_date: string;
+  end_date: string;
+  days_count: number;
+  kpis: DailyKpis;
+  daily_breakdown: DailyHistoryBreakdown[];
+  timeslot_breakdown: TimeSlotSummary[];
+  bill_logs: (BillEntry & { store?: string; date?: string })[];
+  footfall_logs: (FootfallEntry & { store?: string; date?: string })[];
+  nob_logs: (NobEntry & { store?: string; date?: string })[];
+}
+
+export type DirectivePriority = "urgent" | "high" | "normal" | "info";
+export type DirectiveCategory = "sales_target" | "special_notice" | "operations" | "announcement" | "remarks";
+export type DirectiveTargetStore = "ALL" | "NM" | "HB" | "CHW";
+
+export interface Directive {
+  id: number;
+  title: string;
+  message: string;
+  priority: DirectivePriority;
+  category: DirectiveCategory;
+  target_store: DirectiveTargetStore;
+  author_name: string;
+  author_title: string;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+  read_by: string[];
+}
+
+export interface DirectivesSummaryResponse {
+  directives: Directive[];
+  latest_active: Directive | null;
+  unread_count: number;
+  has_urgent: boolean;
+}
+
+export interface CreateDirectivePayload {
+  title: string;
+  message: string;
+  priority?: DirectivePriority;
+  category?: DirectiveCategory;
+  target_store?: DirectiveTargetStore;
+  author_name?: string;
+  author_title?: string;
+}
+
+export interface UpdateDirectivePayload {
+  title?: string;
+  message?: string;
+  priority?: DirectivePriority;
+  category?: DirectiveCategory;
+  target_store?: DirectiveTargetStore;
+  author_name?: string;
+  author_title?: string;
+  active?: boolean;
+}
+
+

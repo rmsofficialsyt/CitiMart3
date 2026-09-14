@@ -12,8 +12,10 @@ import type {
   FootfallLogResponse,
   HistoryDateSummary,
   HistoryDetailsResponse,
+  HistoryRangeResponse,
   KpiOverrideResult,
   KpiThresholdsResponse,
+  LandingHeroResponse,
   NobEntry,
   NobLogResponse,
   OverridableDailyKpi,
@@ -21,6 +23,11 @@ import type {
   SaveEntryResult,
   StoreTargetEntry,
   StoreTargetsResponse,
+  TargetAdjustmentAlert,
+  Directive,
+  DirectivesSummaryResponse,
+  CreateDirectivePayload,
+  UpdateDirectivePayload,
 } from "@/lib/types";
 
 export interface DashboardMeta {
@@ -201,9 +208,47 @@ export const api = {
       `/api/targets?${new URLSearchParams({ store, date })}`,
     ),
 
+  landingHero: () => getJSON<LandingHeroResponse>("/api/daily/landing-hero"),
+
+  targetAdjustment: (store: string, date: string) =>
+    getJSON<TargetAdjustmentAlert | null>(`/api/daily/target-adjustment?${new URLSearchParams({ store, date })}`),
+
   historyDates: (store: string = "ALL") =>
     getJSON<HistoryDateSummary[]>(`/api/daily/history/dates?${new URLSearchParams({ store })}`),
 
   historyDetails: (store: string, date: string) =>
     getJSON<HistoryDetailsResponse>(`/api/daily/history/details?${new URLSearchParams({ store, date })}`),
+
+  historyRange: (store: string, startDate: string, endDate: string) =>
+    getJSON<HistoryRangeResponse>(
+      `/api/daily/history/range?${new URLSearchParams({ store, start_date: startDate, end_date: endDate })}`,
+    ),
+
+  directives: () => getJSON<DirectivesSummaryResponse>("/api/daily/directives"),
+
+  createDirective: (payload: CreateDirectivePayload) =>
+    postJSON<{ status: string; directive: Directive }>("/api/daily/directives", payload),
+
+  updateDirective: (directiveId: number, payload: UpdateDirectivePayload) =>
+    putJSON<{ status: string; directive: Directive }>(`/api/daily/directives/${directiveId}`, payload),
+
+  deleteDirective: (directiveId: number) =>
+    deleteJSON<{ status: string; deleted_id: number }>(`/api/daily/directives/${directiveId}`),
+
+  acknowledgeDirective: (directiveId: number) =>
+    postJSON<{ status: string; directive: Directive }>(`/api/daily/directives/${directiveId}/acknowledge`, {}),
+
+  sendChatMessage: (payload: {
+    message: string;
+    conversation_history?: Array<{ role: "user" | "assistant" | "system"; content: string }>;
+    store_code?: string;
+    date_str?: string;
+    language?: "en" | "hi" | "bn";
+  }) =>
+    postJSON<{
+      reply: string;
+      engine: string;
+      store: string;
+      date: string;
+    }>("/api/daily/chat", payload),
 };

@@ -76,6 +76,13 @@ def _parse_nonneg_number(payload: dict, field: str) -> float:
     return value
 
 
+@router.get("/landing-hero")
+def get_landing_hero(db: Database = Depends(get_db)):
+    """Public telemetry for the landing page Hero section, fetched authentically
+    from MongoDB across stores for the most recent / previous day."""
+    return daily_dashboard_store.get_landing_hero_telemetry(db)
+
+
 @router.get("/live")
 def get_daily_live(
     store: str = Query(..., description="Single store code, e.g. NM"),
@@ -91,6 +98,7 @@ def get_daily_live(
     holiday_name = daily_context.get_holiday_name(target_date)
     election_name = daily_context.get_election_info(target_date)
     is_weekend = target_date.weekday() >= 5
+    target_adj = daily_dashboard_store.get_target_adjustment_alert(db, store, target_date)
 
     return {
         "store": store,
@@ -104,6 +112,7 @@ def get_daily_live(
         "kpis": {k: _clean(v) for k, v in kpis.items() if k not in ("reason", "overridden")},
         "overridden": kpis.get("overridden", []),
         "statuses": _daily_statuses(kpis),
+        "target_adjustment": target_adj,
         "reason": kpis["reason"],
     }
 
@@ -130,16 +139,35 @@ def get_daily_live_overall(
     target_date = _parse_iso_date(date)
     result = daily_dashboard_store.compute_live_kpis_all_stores(db, target_date)
     combined = result["combined"]
+    target_adj = daily_dashboard_store.get_target_adjustment_alert(db, "ALL", target_date)
     return {
         "store": "ALL",
         "date": target_date.isoformat(),
         "kpis": {k: _clean(v) for k, v in combined.items() if k != "reason"},
         "statuses": _daily_statuses(combined),
+        "target_adjustment": target_adj,
         "per_store": {
             code: {k: _clean(v) for k, v in bundle.items() if k not in ("reason", "overridden")}
             for code, bundle in result["per_store"].items()
         },
     }
+
+
+@router.get("/target-adjustment")
+def get_target_adjustment(
+    store: str = Query(..., description="Single store code, e.g. NM, or ALL"),
+    date: str = Query(..., description="YYYY-MM-DD"),
+    db: Database = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Cumulative target adjustment calculation based on previous day's target vs actual sales."""
+    if store == "ALL":
+        require_admin(user)
+    else:
+        _guard(store, user)
+    target_date = _parse_iso_date(date)
+    return daily_dashboard_store.get_target_adjustment_alert(db, store, target_date)
+
 
 
 def _live_kpi_response(store: str, target_date: date, kpis: dict) -> dict:
@@ -529,3 +557,23 @@ def get_history_details(
         _guard(store, user)
     target_date = _parse_iso_date(date)
     return daily_dashboard_store.get_history_details(db, store, target_date)
+
+
+@router.get("/history/range")
+def get_history_range(
+    store: str = Query("ALL", description="Store code e.g. NM, HB, CHW, or ALL"),
+    start_date: str = Query(..., description="YYYY-MM-DD"),
+    end_date: str = Query(..., description="YYYY-MM-DD"),
+    db: Database = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Detailed multi-day metrics, daily trends, aggregated time slots, and logs
+    across a date range."""
+    if store == "ALL":
+        require_admin(user)
+    else:
+        _guard(store, user)
+    start_d = _parse_iso_date(start_date)
+    end_d = _parse_iso_date(end_date)
+    return daily_dashboard_store.get_history_range_details(db, store, start_d, end_d)
+

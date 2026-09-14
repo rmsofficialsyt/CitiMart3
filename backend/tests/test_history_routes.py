@@ -56,3 +56,14 @@ def test_history_endpoints(client: TestClient, db_session):
     assert len(details["bill_logs"]) == 1
     assert details["bill_logs"][0]["net_amount"] == 1500.0
     assert len(details["timeslot_breakdown"]) > 0
+
+    # Test history range endpoint
+    range_resp = client.get("/api/daily/history/range?store=NM&start_date=2026-08-15&end_date=2026-08-21", headers=headers)
+    assert range_resp.status_code == 200
+    range_data = range_resp.json()
+    assert range_data["store"] == "NM"
+    assert range_data["days_count"] == 7
+    assert range_data["kpis"]["net_sales"] == 1500.0
+    assert len(range_data["daily_breakdown"]) == 7
+    assert len(range_data["bill_logs"]) == 1
+

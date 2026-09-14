@@ -34,30 +34,34 @@ function getInitialOperatingTime(): string {
  * button, "all" = the shared Final Submission (Footfall + Bill + NOB + Remarks). */
 type SaveScope = "footfall" | "bill-nob" | "all";
 
+import { useLanguage } from "@/context/LanguageContext";
+
 /** Easily understandable user guide for managers explaining how to log footfall,
  * bills, NOB, and remarks, as well as the difference between Update and Final Submission. */
 function ManagerUserGuide() {
   const [open, setOpen] = useState(false);
+  const { t } = useLanguage();
+
   return (
     <div className="mb-4 overflow-hidden rounded-xl border border-blue-500/30 bg-blue-500/5 transition-all">
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-blue-500/10 sm:px-5"
+        className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-blue-500/10 sm:px-5 cursor-pointer"
       >
         <div className="flex items-center gap-2.5">
-          <BookOpen className="h-5 w-5 text-blue-400" />
+          <BookOpen className="h-5 w-5 text-blue-400 shrink-0" />
           <div>
             <h3 className="text-sm font-semibold text-foreground sm:text-base">
-              Manager's User Guide: How to use Manual Data Entry
+              {t.guideTitle}
             </h3>
             <p className="text-xs text-muted-foreground">
-              Simple step-by-step instructions for logging Footfall, Billing details, NOB, and Remarks.
+              {t.guideSubtitle}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 text-xs font-medium text-blue-400">
-          <span>{open ? "Hide Guide" : "View Guide"}</span>
+        <div className="flex items-center gap-1.5 text-xs font-medium text-blue-400 shrink-0">
+          <span>{open ? t.hideGuide : t.viewGuide}</span>
           {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </div>
       </button>
@@ -69,11 +73,11 @@ function ManagerUserGuide() {
             <div className="rounded-lg border border-border/60 bg-card/60 p-3 shadow-sm">
               <div className="mb-1.5 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-400">
                 <Clock className="h-4 w-4" />
-                <span>1. Time Stamp</span>
+                <span>{t.step1Title}</span>
               </div>
-              <p className="text-xs font-medium text-foreground">Store hours: 10:30 AM – 11:59 PM</p>
+              <p className="text-xs font-medium text-foreground">{t.step1Header}</p>
               <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                Choose the clock time of your entry. The system automatically assigns it to the matching 3-hour Time Slot (e.g., 11:00 AM – 01:59 PM).
+                {t.step1Desc}
               </p>
             </div>
 
@@ -81,11 +85,11 @@ function ManagerUserGuide() {
             <div className="rounded-lg border border-border/60 bg-card/60 p-3 shadow-sm">
               <div className="mb-1.5 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-indigo-400">
                 <Users className="h-4 w-4" />
-                <span>2. Footfall Entry</span>
+                <span>{t.step2Title}</span>
               </div>
-              <p className="text-xs font-medium text-foreground">Customer Walk-ins</p>
+              <p className="text-xs font-medium text-foreground">{t.step2Header}</p>
               <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                Count the visitors entering your store during the time-slot. Enter the number and click <strong className="text-foreground">"Update Footfall"</strong>.
+                {t.step2Desc}
               </p>
             </div>
 
@@ -93,45 +97,41 @@ function ManagerUserGuide() {
             <div className="rounded-lg border border-border/60 bg-card/60 p-3 shadow-sm">
               <div className="mb-1.5 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-400">
                 <Receipt className="h-4 w-4" />
-                <span>3. Billing & NOB</span>
+                <span>{t.step3Title}</span>
               </div>
-              <p className="text-xs font-medium text-foreground">Sales & Item Quantities</p>
+              <p className="text-xs font-medium text-foreground">{t.step3Header}</p>
               <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground leading-relaxed">
-                <li>• <strong>Net Amount (₹)</strong>: Total money collected from customers.</li>
-                <li>• <strong>Bill Qty (units sold)</strong>: Total physical pieces/articles sold.</li>
-                <li>• <strong>NOB (Buyers)</strong>: Number of purchasing bills (receipts).</li>
+                <li>• {t.step3Net}</li>
+                <li>• {t.step3Qty}</li>
+                <li>• {t.step3Nob}</li>
               </ul>
-              <p className="mt-1 text-xs text-muted-foreground">Click <strong className="text-foreground">"Update Bills & NOB"</strong>.</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t.step3Action}</p>
             </div>
 
             {/* Step 4 */}
             <div className="rounded-lg border border-border/60 bg-card/60 p-3 shadow-sm">
               <div className="mb-1.5 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-400">
                 <CheckCircle2 className="h-4 w-4" />
-                <span>4. Day Closing</span>
+                <span>{t.step4Title}</span>
               </div>
-              <p className="text-xs font-medium text-foreground">Remarks & Final Submission</p>
+              <p className="text-xs font-medium text-foreground">{t.step4Header}</p>
               <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                Add optional Remarks (rain, festive rush, offers). At night closing, review totals and click <strong className="text-foreground">"Final Submission"</strong>.
+                {t.step4Desc}
               </p>
               <p className="mt-1.5 rounded bg-emerald-500/10 p-1 text-[11px] text-emerald-400">
-                🛡️ <strong>Safety Net</strong>: If you forget to submit before leaving, the system automatically finalizes your day at 00:00 midnight!
+                {t.step4Safety}
               </p>
             </div>
           </div>
 
           <div className="mt-3 flex flex-col gap-2 rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">
             <div className="flex items-start gap-2">
-              <span className="font-semibold text-foreground">🔄 What does the "Reset" button do?</span>
-              <span>
-                Clicking <strong>Reset</strong> only clears the input boxes in that section if you made a typing mistake before saving, and resets the Time Stamp to current time. <strong>Reset will NEVER delete saved database records</strong>.
-              </span>
+              <span className="font-semibold text-foreground">{t.resetFaqTitle}</span>
+              <span>{t.resetFaqDesc}</span>
             </div>
             <div className="flex items-start gap-2">
-              <span className="font-semibold text-foreground">💡 How to correct saved entries:</span>
-              <span>
-                To edit or delete an entry you already saved, scroll down to the <strong>Logged Footfall</strong> or <strong>Logged Bills & NOB</strong> tables below and click <strong>Edit</strong> or <strong>Delete</strong>.
-              </span>
+              <span className="font-semibold text-foreground">{t.correctFaqTitle}</span>
+              <span>{t.correctFaqDesc}</span>
             </div>
           </div>
         </div>
