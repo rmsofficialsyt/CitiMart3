@@ -8,7 +8,7 @@
  *    (`/api/kpis`). Locally that hits vite.config.ts's dev proxy; on Vercel it
  *    hits vercel.json's `/api/:path*` rewrite, which proxies to the Render
  *    backend. Same-origin means no CORS preflight and no backend change.
- *  - **set to an absolute origin** (e.g. `https://citimart3-store-backend.onrender.com`)
+ *  - **set to an absolute origin** (e.g. `https://citimart3-kolx.onrender.com`)
  *    -- the browser calls Render directly, skipping Vercel's proxy hop. Faster
  *    and immune to the platform's proxy response-size/timeout limits (the
  *    forecast `/compute` endpoints and the PDF/XLSX report exports are the ones

@@ -6,7 +6,7 @@
  * See src/lib/apiBase.ts for how VITE_API_BASE_URL changes the request path. */
 interface ImportMetaEnv {
   /** Absolute origin of the FastAPI backend (e.g.
-   * "https://citimart3-store-backend.onrender.com"). Leave unset to use
+   * "https://citimart3-kolx.onrender.com"). Leave unset to use
    * same-origin relative `/api/*` paths + the dev proxy / Vercel rewrite. */
   readonly VITE_API_BASE_URL?: string;
 

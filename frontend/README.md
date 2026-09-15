@@ -15,7 +15,7 @@ npm run build    # outputs dist/, which app.py serves directly
 ## Deployment
 
 This SPA deploys to **Vercel**; the backend deploys separately to **Render**
-(`https://citimart3-store-backend.onrender.com`). `vercel.json` declares the build and
+(`https://citimart3-kolx.onrender.com`). `vercel.json` declares the build and
 rewrites `/api/*` through to Render, so the frontend needs no environment
 variables and the two stay same-origin (no CORS). See
 [`DEPLOYMENT.md`](DEPLOYMENT.md) for the full setup, the optional direct-to-Render

@@ -1,7 +1,7 @@
 # Deploying the CITIMART frontend to Vercel
 
 The SPA in this repo is deployed to **Vercel**; the FastAPI backend is deployed
-separately to **Render** at `https://citimart3-store-backend.onrender.com`.
+separately to **Render** at `https://citimart3-kolx.onrender.com`.
 
 This directory is its own git repository
 (`yarrowtech-intern2/CITIMART-3-FRONTEND`), so on Vercel the **Root Directory is
@@ -36,7 +36,7 @@ resolved at request time by [`src/lib/apiBase.ts`](src/lib/apiBase.ts). Two mode
 
 ```jsonc
 "rewrites": [
-  { "source": "/api/:path*", "destination": "https://citimart3-store-backend.onrender.com/api/:path*" },
+  { "source": "/api/:path*", "destination": "https://citimart3-kolx.onrender.com/api/:path*" },
   { "source": "/(.*)",       "destination": "/index.html" }
 ]
 ```
@@ -56,7 +56,7 @@ assets under `/assets/*` are still served directly.
 Set a **Production** (and Preview) environment variable in Vercel:
 
 ```
-VITE_API_BASE_URL = https://citimart3-store-backend.onrender.com
+VITE_API_BASE_URL = https://citimart3-kolx.onrender.com
 ```
 
 then **redeploy** — Vite inlines `VITE_*` vars into the bundle at build time, so
@@ -100,7 +100,7 @@ To develop the UI against the deployed backend without running Python locally,
 put this in `.env.local` (gitignored — see [`.env.example`](.env.example)):
 
 ```
-VITE_DEV_API_PROXY=https://citimart3-store-backend.onrender.com
+VITE_DEV_API_PROXY=https://citimart3-kolx.onrender.com
 ```
 
 ## 5. Verifying a deployment
