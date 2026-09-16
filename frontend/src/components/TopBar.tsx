@@ -395,7 +395,7 @@ export function TopBar({
             </Button>
           )}
 
-          {/* Boss (Raphael Sir) Avatar & Directives Button */}
+          {/* Operational Head Avatar & Directives Button */}
           <BossAvatarButton className="mr-0.5 sm:mr-1" />
 
           {/* Unified Settings Button (Accounts, Themes, Sign Out) */}

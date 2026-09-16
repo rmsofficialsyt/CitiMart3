@@ -13,9 +13,13 @@ never needs to run again here.
 """
 from __future__ import annotations
 
+import threading
+
 import plotly.graph_objects as go
 
 from src.charts import CHART_FONT_FAMILY, CHART_MONO_FONT_FAMILY, GAUGE_HEIGHT, _GAUGE_BEZEL, _GAUGE_GREEN, _GAUGE_NEEDLE, _GAUGE_RED, _GAUGE_YELLOW, _empty_figure, _size
+
+_KALEIDO_LOCK = threading.Lock()
 
 
 class ChartRenderError(RuntimeError):
@@ -29,7 +33,8 @@ class ChartRenderError(RuntimeError):
 def fig_dict_to_png(figure: dict, *, width: int = 1000, height: int = 500) -> bytes:
     try:
         fig = go.Figure(figure)
-        return fig.to_image(format="png", width=width, height=height, scale=2)
+        with _KALEIDO_LOCK:
+            return fig.to_image(format="png", width=width, height=height, scale=2)
     except Exception as error:  # pragma: no cover - depends on local Kaleido/browser install
         raise ChartRenderError(
             "Could not render a chart image for this report (Kaleido/its headless-browser "
@@ -92,7 +97,8 @@ def gauge_spec_to_figure(spec: dict) -> go.Figure:
 def gauge_spec_to_png(spec: dict, *, width: int = 700, height: int = 500) -> bytes:
     try:
         fig = gauge_spec_to_figure(spec)
-        return fig.to_image(format="png", width=width, height=height, scale=2)
+        with _KALEIDO_LOCK:
+            return fig.to_image(format="png", width=width, height=height, scale=2)
     except ChartRenderError:
         raise
     except Exception as error:  # pragma: no cover - depends on local Kaleido/browser install

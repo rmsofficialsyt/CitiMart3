@@ -30,8 +30,8 @@ export function BossAvatarButton({ className = "" }: BossAvatarButtonProps) {
           whileTap={{ scale: 0.95 }}
           type="button"
           onClick={() => setModalOpen(true)}
-          aria-label="Raphael Sir (Boss) - Executive Instructions & Notices"
-          title="Raphael Sir (Boss) — Executive Directives, Sales Notices & Remarks"
+          aria-label="Operational Head - Executive Instructions & Notices"
+          title="Operational Head — Executive Directives, Sales Notices & Remarks"
           className="group relative flex items-center gap-2 rounded-full bg-gradient-to-r from-slate-900 via-slate-800 to-amber-950/50 p-1 pl-1 pr-2.5 sm:pr-3 text-left border border-amber-500/40 shadow-md hover:border-amber-400 hover:shadow-[0_0_18px_rgba(245,158,11,0.35)] transition-all duration-200 cursor-pointer"
         >
           {/* Avatar Container with Glowing Halo */}
@@ -43,7 +43,7 @@ export function BossAvatarButton({ className = "" }: BossAvatarButtonProps) {
             
             <img
               src={raphaelAvatar}
-              alt="Raphael Sir (Boss)"
+              alt="Operational Head"
               className="relative size-full rounded-full object-cover border-2 border-amber-400/90 shadow-inner bg-slate-800"
             />
 
@@ -57,7 +57,7 @@ export function BossAvatarButton({ className = "" }: BossAvatarButtonProps) {
           <div className="hidden sm:flex flex-col min-w-0 pr-1">
             <div className="flex items-center gap-1.5">
               <span className="truncate text-xs font-bold text-amber-300 group-hover:text-amber-200 tracking-tight">
-                Raphael Sir
+                Operational Head
               </span>
               <span className="rounded bg-amber-500/20 px-1 py-0.2 text-[9px] font-black uppercase text-amber-300 border border-amber-500/30">
                 BOSS

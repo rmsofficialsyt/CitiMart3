@@ -1,4 +1,4 @@
-"""Directives and Executive Instructions from Raphael Sir (Boss / Operations Head).
+"""Directives and Executive Instructions from Operational Head (Boss / Operations Head).
 
 Endpoints for broadcasting announcements, sales targets, operational notices,
 remarks, and special directives. Admin accounts can create, update, toggle,
@@ -25,7 +25,7 @@ class CreateDirectivePayload(BaseModel):
     priority: Literal["urgent", "high", "normal", "info"] = "high"
     category: Literal["sales_target", "special_notice", "operations", "announcement", "remarks"] = "sales_target"
     target_store: Literal["ALL", "NM", "HB", "CHW"] = "ALL"
-    author_name: str = Field(default="Raphael Sir", max_length=100)
+    author_name: str = Field(default="Operational Head", max_length=100)
     author_title: str = Field(default="Executive Director / Operations Head", max_length=150)
 
 

@@ -66,7 +66,7 @@ export function BossAlertBanner() {
                 />
                 <img
                   src={raphaelAvatar}
-                  alt="Raphael Sir"
+                  alt="Operational Head"
                   className="relative size-full rounded-full object-cover border-2 border-amber-300"
                 />
                 <span className="absolute -bottom-0.5 -right-0.5 flex size-3.5 items-center justify-center rounded-full bg-amber-400 text-slate-950 shadow">

@@ -9,7 +9,7 @@ def test_manager_receives_default_directives(client, nw_headers):
     assert "directives" in data
     assert "unread_count" in data
     assert len(data["directives"]) >= 1
-    assert data["directives"][0]["author_name"] == "Raphael Sir"
+    assert data["directives"][0]["author_name"] == "Operational Head"
 
 
 def test_admin_creates_and_manages_directive(client, admin_headers, nw_headers):
@@ -20,7 +20,7 @@ def test_admin_creates_and_manages_directive(client, admin_headers, nw_headers):
         "priority": "urgent",
         "category": "sales_target",
         "target_store": "ALL",
-        "author_name": "Raphael Sir",
+        "author_name": "Operational Head",
         "author_title": "Executive Director / Operations Head",
     }
     create_res = client.post("/api/daily/directives", json=payload, headers=admin_headers)

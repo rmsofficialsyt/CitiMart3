@@ -198,8 +198,8 @@ def _generate_domain_fallback(
                 f"3. **Bundle & Multi-Buy Recommendations:** Train sales assistants on suggestive selling (e.g. matching shirts with trousers) to drive basket size >= 2.8 items."
             )
 
-    # 3. Boss Directives & Raphael Sir
-    if any(k in q_lower for k in ["boss", "raphael", "directive", "announcement", "বসের", "রাফায়েল", "নির্দেশনা", "निर्देश", "राफेल"]):
+    # 3. Boss Directives & Operational Head
+    if any(k in q_lower for k in ["boss", "raphael", "directive", "announcement", "বসের", "রাফায়েল", "নির্দেশনা", "निर्देश", "राफेल", "operational head"]):
         dirs = context.get("directives", [])
         if dirs:
             dir_list_str = "\n".join([f"- **{d['title']}**: {d['message'][:120]}..." for d in dirs[:3]])
@@ -208,19 +208,19 @@ def _generate_domain_fallback(
 
         if lang == "bn":
             return (
-                f"### 👑 **রাফায়েল স্যারের সাম্প্রতিক অপারেশনাল নির্দেশাবলী**\n\n"
+                f"### 👑 **অপারেশনস হেডের সাম্প্রতিক অপারেশনাল নির্দেশাবলী**\n\n"
                 f"{dir_list_str}\n\n"
                 f"📌 **প্রধান অগ্রাধিকার:** পিক আওয়ারে ফ্লোর সুপারভিশন নিশ্চিত করা এবং রাত ১০:৩০ টার মধ্যে সঠিক ডেটা এন্ট্রি সম্পন্ন করা।"
             )
         elif lang == "hi":
             return (
-                f"### 👑 **राफेल सर के हालिया निर्देश और घोषणाएं**\n\n"
+                f"### 👑 **ऑपरेशन्स हेड के हालिया निर्देश और घोषणाएं**\n\n"
                 f"{dir_list_str}\n\n"
                 f"📌 **मुख्य निर्देश:** पीक ऑवर्स में फ्लोर पर सक्रिय उपस्थिति रखें और रात 10:30 बजे तक सभी बिल डेटा एंट्री पूरी करें।"
             )
         else:
             return (
-                f"### 👑 **Recent Directives from Raphael Sir (Operations Head)**\n\n"
+                f"### 👑 **Recent Directives from Operational Head**\n\n"
                 f"{dir_list_str}\n\n"
                 f"📌 **Core Mandate:** Maximize floor supervision during peak trading slots and ensure all billing logs are submitted by 10:30 PM sharp."
             )
@@ -258,7 +258,7 @@ def _generate_domain_fallback(
     # Default Helpful Response
     if lang == "bn":
         return (
-            f"নমস্কার! আমি **CITIMART AI ডিসিশন অ্যাডভাইজার**। আমি আপনাকে স্টোর পারফরম্যান্স, আজকের সেলস টার্গেট, কনভার্সন রেট, টাইম-স্লট স্ট্র্যাটেজি বা রাফায়েল স্যারের নির্দেশাবলী বিশ্লেষণে সাহায্য করতে পারি।\n\n"
+            f"নমস্কার! আমি **CITIMART AI ডিসিশন অ্যাডভাইজার**। আমি আপনাকে স্টোর পারফরম্যান্স, আজকের সেলস টার্গেট, কনভার্সন রেট, টাইম-স্লট স্ট্র্যাটেজি বা অপারেশনস হেডের নির্দেশাবলী বিশ্লেষণে সাহায্য করতে পারি।\n\n"
             f"**দ্রুত জানতে ক্লিক বা টাইপ করুন:**\n"
             f"- আজকের সেলস ও টার্গেট স্ট্যাটাস কেমন?\n"
             f"- কনভার্সন রেট ও ATV কীভাবে বাড়াব?\n"
@@ -266,7 +266,7 @@ def _generate_domain_fallback(
         )
     elif lang == "hi":
         return (
-            f"नमस्ते! मैं **CITIMART AI डिसीजन एडवाइजर** हूँ। मैं स्टोर परफॉर्मेंस, सेल्स टारगेट, कन्वर्शन रेट, टाइम-स्लॉट रणनीति या राफेल सर के निर्देशों में आपकी मदद कर सकता हूँ।\n\n"
+            f"नमस्ते! मैं **CITIMART AI डिसीजन एडवाइजर** हूँ। मैं स्टोर परफॉर्मेंस, सेल्स टारगेट, कन्वर्शन रेट, टाइम-स्लॉट रणनीति या ऑपरेशन्स हेड के निर्देशों में आपकी मदद कर सकता हूँ।\n\n"
             f"**आप पूछ सकते हैं:**\n"
             f"- आज की बिक्री और टारगेट स्थिति क्या है?\n"
             f"- कन्वर्शन रेट और ATV कैसे बढ़ाएं?\n"
@@ -275,11 +275,11 @@ def _generate_domain_fallback(
     else:
         return (
             f"Hello! I am the **CITIMART AI Decision Advisor & Co-Pilot**.\n\n"
-            f"I can assist you with real-time sales performance, target gap analysis, hourly time-slot pacing, ATV boost strategies, or Raphael Sir's operational directives.\n\n"
+            f"I can assist you with real-time sales performance, target gap analysis, hourly time-slot pacing, ATV boost strategies, or Operational Head's operational directives.\n\n"
             f"**Popular Queries:**\n"
             f"- *How is {curr_store_name} performing against today's target?*\n"
             f"- *Suggest 3 tactics to increase ATV and conversion rate*\n"
-            f"- *What are the active directives from Raphael Sir?*\n"
+            f"- *What are the active directives from Operational Head?*\n"
             f"- *Show KPI formulas and calculation rules*"
         )
 

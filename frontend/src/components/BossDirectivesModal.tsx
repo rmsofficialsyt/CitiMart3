@@ -187,7 +187,7 @@ export function BossDirectivesModal({
   const createMutation = useMutation({
     mutationFn: (payload: CreateDirectivePayload) => api.createDirective(payload),
     onSuccess: () => {
-      toast.success("Directive broadcasted successfully by Raphael Sir!");
+      toast.success("Directive broadcasted successfully by Operational Head!");
       queryClient.invalidateQueries({ queryKey: ["directives-summary"] });
       setFormTitle("");
       setFormMessage("");
@@ -254,7 +254,7 @@ export function BossDirectivesModal({
       priority: formPriority,
       category: formCategory,
       target_store: formTargetStore,
-      author_name: "Raphael Sir",
+      author_name: "Operational Head",
       author_title: "Executive Director / Operations Head",
     });
   };
@@ -285,12 +285,12 @@ export function BossDirectivesModal({
         <div className="relative border-b border-amber-500/20 bg-gradient-to-r from-slate-950 via-slate-900 to-amber-950/30 p-4 sm:p-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">
-              {/* Raphael Sir Avatar with Glowing Gold Frame */}
+              {/* Operational Head Avatar with Glowing Gold Frame */}
               <div className="relative size-13 sm:size-15 shrink-0 rounded-full">
                 <span className="absolute -inset-1 rounded-full bg-gradient-to-tr from-amber-500 via-yellow-400 to-amber-600 opacity-75 blur-[3px]" />
                 <img
                   src={raphaelAvatar}
-                  alt="Raphael Sir"
+                  alt="Operational Head"
                   className="relative size-full rounded-full object-cover border-2 border-amber-300 shadow-xl bg-slate-800"
                 />
                 <span className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 shadow border border-slate-950">
@@ -301,7 +301,7 @@ export function BossDirectivesModal({
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="text-lg sm:text-xl font-black text-white tracking-tight flex items-center gap-2">
-                    Raphael Sir
+                    Operational Head
                     <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-extrabold uppercase text-amber-300 border border-amber-500/40">
                       BOSS / Executive Desk
                     </span>
@@ -349,12 +349,18 @@ export function BossDirectivesModal({
           {isAdmin && (
             <div className="mt-4 pt-3 border-t border-slate-800/80">
               <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "directives" | "broadcast")}>
-                <TabsList className="bg-slate-900/80 border border-slate-800 p-1">
-                  <TabsTrigger value="directives" className="text-xs data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300">
+                <TabsList className="bg-slate-900 border border-slate-700/80 p-1 rounded-lg gap-1.5 shadow-inner">
+                  <TabsTrigger
+                    value="directives"
+                    className="text-xs font-semibold px-3.5 py-1.5 rounded-md text-slate-300 hover:text-white hover:bg-slate-800/60 data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500 data-[state=active]:to-yellow-500 data-[state=active]:text-slate-950 data-[state=active]:font-black data-[state=active]:shadow transition-all cursor-pointer"
+                  >
                     <Bell className="size-3.5 mr-1.5" />
                     {t.activeDirectivesTab} ({directivesList.length})
                   </TabsTrigger>
-                  <TabsTrigger value="broadcast" className="text-xs data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300">
+                  <TabsTrigger
+                    value="broadcast"
+                    className="text-xs font-semibold px-3.5 py-1.5 rounded-md text-slate-300 hover:text-white hover:bg-slate-800/60 data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500 data-[state=active]:to-yellow-500 data-[state=active]:text-slate-950 data-[state=active]:font-black data-[state=active]:shadow transition-all cursor-pointer"
+                  >
                     <PlusCircle className="size-3.5 mr-1.5" />
                     {t.createDirectiveTab}
                   </TabsTrigger>
@@ -376,7 +382,7 @@ export function BossDirectivesModal({
                   </div>
                   <h3 className="mt-3 text-sm font-semibold text-white">{t.noActiveDirectives}</h3>
                   <p className="mt-1 text-xs text-slate-400">
-                    Raphael Sir has not broadcasted any active directives for your store.
+                    Operational Head has not broadcasted any active directives for your store.
                   </p>
                 </div>
               ) : (
@@ -630,7 +636,7 @@ export function BossDirectivesModal({
               {/* Message Content */}
               <div className="space-y-1.5">
                 <Label htmlFor="directive-msg" className="text-xs font-bold text-slate-200">
-                  Instruction / Notice Content from Raphael Sir *
+                  Instruction / Notice Content from Operational Head *
                 </Label>
                 <Textarea
                   id="directive-msg"

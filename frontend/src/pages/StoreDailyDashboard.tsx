@@ -108,7 +108,7 @@ function StoreDailyDashboard({ store }: { store: StoreCode }) {
           <div className="flex flex-col justify-between lg:col-span-7">
             <div className="mb-2.5 flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Store KPI Matrix (4×3 Grid)
+                Store KPI Matrix
               </span>
               <span className="text-[11px] text-muted-foreground font-medium">12 Live Metric Indicators</span>
             </div>
@@ -162,13 +162,13 @@ function StoreDailyDashboard({ store }: { store: StoreCode }) {
 
           <div className="block lg:hidden w-full my-1 border-t-2 border-dashed border-indigo-500/30" />
 
-          {/* Right Side: Gauges (3×2 Matrix) at Same Level */}
+          {/* Right Side: Gauges at Same Level */}
           <div className="flex flex-col justify-between lg:col-span-4">
             <div className="mb-2.5 flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <Gauge className="h-4 w-4 text-indigo-400" />
                 <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Performance Gauges (3×2 Matrix)
+                  Performance Gauges
                 </span>
               </div>
               <span className="text-[11px] text-muted-foreground font-medium">Live Dials</span>
@@ -176,8 +176,12 @@ function StoreDailyDashboard({ store }: { store: StoreCode }) {
 
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-2.5 flex-1">
               {GAUGES.map((g) => (
-                <div key={g.id} className="bg-card rounded-xl border border-border/80 p-1.5 shadow-xs flex items-center justify-center min-h-[142px] sm:min-h-[148px]">
-                  <ChartPanel chartId={g.id} filters={gaugeFilters} className="h-[136px] sm:h-[142px] w-full" />
+                <div
+                  key={g.id}
+                  className="group relative bg-card/90 dark:bg-card/75 backdrop-blur-md rounded-xl border border-border/70 p-1.5 shadow-xs hover:shadow-md hover:border-primary/40 transition-all duration-200 flex items-center justify-center min-h-[146px] sm:min-h-[152px] overflow-hidden"
+                >
+                  <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 dark:via-white/10 to-transparent" />
+                  <ChartPanel chartId={g.id} filters={gaugeFilters} className="h-[140px] sm:h-[146px] w-full" />
                 </div>
               ))}
             </div>

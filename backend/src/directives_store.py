@@ -9,11 +9,11 @@ from db.models import DIRECTIVES, next_id
 
 DEFAULT_SEED_DIRECTIVE = {
     "title": "Puja Season Sales Target & Conversion Push",
-    "message": "Special instructions from Raphael Sir: Focus heavily on peak hour floor presence (03:00 PM - 09:00 PM). Ensure minimum conversion rate of 70% across all departments. Hatibagan, New Market, and Chowringhee managers, please maintain ATV above ₹1,800 with active cross-selling at billing counters.",
+    "message": "Special instructions from Operational Head: Focus heavily on peak hour floor presence (03:00 PM - 09:00 PM). Ensure minimum conversion rate of 70% across all departments. Hatibagan, New Market, and Chowringhee managers, please maintain ATV above ₹1,800 with active cross-selling at billing counters.",
     "priority": "urgent",  # "urgent" | "high" | "normal" | "info"
     "category": "sales_target",  # "sales_target" | "special_notice" | "operations" | "announcement" | "remarks"
     "target_store": "ALL",  # "ALL" | "NM" | "HB" | "CHW"
-    "author_name": "Raphael Sir",
+    "author_name": "Operational Head",
     "author_title": "Executive Director / Operations Head",
     "active": True,
     "read_by": [],
@@ -28,7 +28,7 @@ def _directive_to_dict(doc: dict) -> dict:
         "priority": doc.get("priority", "high"),
         "category": doc.get("category", "sales_target"),
         "target_store": doc.get("target_store", "ALL"),
-        "author_name": doc.get("author_name", "Raphael Sir"),
+        "author_name": doc.get("author_name", "Operational Head"),
         "author_title": doc.get("author_title", "Executive Director"),
         "active": bool(doc.get("active", True)),
         "created_at": doc.get("created_at", ""),
@@ -70,7 +70,7 @@ def create_directive(
     priority: str = "high",
     category: str = "sales_target",
     target_store: str = "ALL",
-    author_name: str = "Raphael Sir",
+    author_name: str = "Operational Head",
     author_title: str = "Executive Director / Operations Head",
 ) -> dict:
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -81,7 +81,7 @@ def create_directive(
         "priority": priority,
         "category": category,
         "target_store": target_store,
-        "author_name": author_name.strip() or "Raphael Sir",
+        "author_name": author_name.strip() or "Operational Head",
         "author_title": author_title.strip() or "Executive Director",
         "active": True,
         "read_by": [],

@@ -64,8 +64,8 @@ const PROMPT_TEMPLATES: Record<
     {
       category: "Directives",
       icon: Store,
-      label: "Raphael Sir's Directives",
-      prompt: "What are the active operational directives and targets from Raphael Sir?",
+      label: "Operational Head's Directives",
+      prompt: "What are the active operational directives and targets from the Operational Head?",
     },
     {
       category: "Formulas",
@@ -177,7 +177,7 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
       return {
         id: "welcome",
         role: "assistant",
-        content: `नमस्ते ${user?.username || "मैनेजर"}! मैं **CITIMART AI डिसीजन एडवाइजर** हूँ। वर्तमान में **${storeLabel}** का लाइव डेटा कनेक्टेड है। आप आज के सेल्स टारगेट, कन्वर्शन रेट, पीक आवर्स रणनीति या राफेल सर के निर्देशों से जुड़ा कोई भी सवाल पूछ सकते हैं।`,
+        content: `नमस्ते ${user?.username || "मैनेजर"}! मैं **CITIMART AI डिसीजन एडवाइजर** हूँ। वर्तमान में **${storeLabel}** का लाइव डेटा कनेक्टेड है। आप आज के सेल्स टारगेट, कन्वर्शन रेट, पीक आवर्स रणनीति या ऑपरेशन्स हेड के निर्देशों से जुड़ा कोई भी सवाल पूछ सकते हैं।`,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         engine: "CITIMART Intelligence",
       };
@@ -185,7 +185,7 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
     return {
       id: "welcome",
       role: "assistant",
-      content: `Hello ${user?.username || "Manager"}! I am the **CITIMART AI Decision Advisor & Co-Pilot**. Connected to **${storeLabel}** live operational state. Ask me anything about today's target gaps, conversion pacing, ATV boosters, or Raphael Sir's directives.`,
+      content: `Hello ${user?.username || "Manager"}! I am the **CITIMART AI Decision Advisor & Co-Pilot**. Connected to **${storeLabel}** live operational state. Ask me anything about today's target gaps, conversion pacing, ATV boosters, or Operational Head's directives.`,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       engine: "CITIMART Intelligence",
     };
@@ -544,7 +544,7 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
                         ? "সেলস, টার্গেট, কনভার্সন বা নির্দেশাবলী নিয়ে প্রশ্ন করুন..."
                         : chatLanguage === "hi"
                         ? "सेल्स, टारगेट, कन्वर्शन या निर्देशों पर सवाल पूछें..."
-                        : "Ask about sales, target gaps, ATV, or Raphael Sir's directives..."
+                        : "Ask about sales, target gaps, ATV, or Operational Head's directives..."
                     }
                     className="w-full rounded-xl bg-slate-900/90 border border-slate-800 px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-inner"
                     disabled={chatMutation.isPending}
