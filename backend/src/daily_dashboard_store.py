@@ -887,17 +887,24 @@ def get_target_adjustment_alert(
     recovery_window: int = 7,
     carry_forward_policy: str = "MONTH_END_CLOSE",
     distribution_mode: str = "EQUAL",
+    policy_start_date: date | None = None,
 ) -> dict | None:
     """Calculates Target Adjustment alert using the rolling recovery deficit bucket engine."""
     from src.target_adjustment_engine import compute_target_adjustment
+
+    kwargs = {
+        "recovery_window": recovery_window,
+        "carry_forward_policy": carry_forward_policy,
+        "distribution_mode": distribution_mode,
+    }
+    if policy_start_date is not None:
+        kwargs["policy_start_date"] = policy_start_date
 
     return compute_target_adjustment(
         db,
         store,
         target_date,
-        recovery_window=recovery_window,
-        carry_forward_policy=carry_forward_policy,
-        distribution_mode=distribution_mode,
+        **kwargs,
     )
 
 

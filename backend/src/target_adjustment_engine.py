@@ -23,6 +23,10 @@ from db.models import BILLS, TARGETS
 CarryForwardPolicy = Literal["MONTH_END_CLOSE", "TRUE_ROLLING"]
 DistributionMode = Literal["EQUAL", "TARGET_WEIGHTED"]
 
+# Target Adjustment policy officially starts from 16.9.26 (2026-09-16).
+# Days prior to 2026-09-16 are not counted/considered for deficit creation or carry forward.
+POLICY_START_DATE: date = date(2026, 9, 16)
+
 
 @dataclass
 class DeficitBucket:
@@ -66,11 +70,13 @@ def compute_target_adjustment(
     recovery_window: int = 7,
     carry_forward_policy: CarryForwardPolicy = "MONTH_END_CLOSE",
     distribution_mode: DistributionMode = "EQUAL",
+    policy_start_date: date = POLICY_START_DATE,
 ) -> dict | None:
     """Computes the comprehensive Target Adjustment state for a given store and date.
 
     Reconstructs chronological daily target performance and active deficit buckets
-    from the beginning of the lookback horizon up to `target_date`.
+    from the policy start date (2026-09-16) up to `target_date`.
+    Days before 2026-09-16 are not considered for deficit creation or carry forwards.
 
     Args:
         db: MongoDB Database instance
@@ -79,11 +85,15 @@ def compute_target_adjustment(
         recovery_window: 7, 14, or 30 days rolling recovery window
         carry_forward_policy: 'MONTH_END_CLOSE' or 'TRUE_ROLLING'
         distribution_mode: 'EQUAL' or 'TARGET_WEIGHTED'
+        policy_start_date: Inception date for the target adjustment policy (default: 2026-09-16)
 
     Returns:
         A rich dict containing today's scheduled carry, adjusted target,
         outstanding deficit backlog, recovery status, and active deficit bucket details.
     """
+    if target_date < policy_start_date:
+        return None
+
     if recovery_window not in (7, 14, 30):
         recovery_window = 7
     if carry_forward_policy not in ("MONTH_END_CLOSE", "TRUE_ROLLING"):
@@ -91,13 +101,13 @@ def compute_target_adjustment(
     if distribution_mode not in ("EQUAL", "TARGET_WEIGHTED"):
         distribution_mode = "EQUAL"
 
-    # 1. Determine lookback horizon:
-    # If MONTH_END_CLOSE, look back to the 1st of the current month
-    # If TRUE_ROLLING, look back at least recovery_window * 3 days
+    # 1. Determine lookback horizon (clamped so it never looks back before policy_start_date):
     if carry_forward_policy == "MONTH_END_CLOSE":
-        horizon_start = date(target_date.year, target_date.month, 1)
+        month_start = date(target_date.year, target_date.month, 1)
+        horizon_start = max(month_start, policy_start_date)
     else:
-        horizon_start = target_date - timedelta(days=max(60, recovery_window * 2))
+        rolling_start = target_date - timedelta(days=max(60, recovery_window * 2))
+        horizon_start = max(rolling_start, policy_start_date)
 
     # Also check earliest recorded date in DB
     all_recorded_dates = _get_recorded_dates(db, store, horizon_start, target_date)
