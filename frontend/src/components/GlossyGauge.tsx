@@ -2,6 +2,8 @@ import { animate } from "framer-motion";
 import { useTheme } from "next-themes";
 import { useEffect, useId, useRef, useState } from "react";
 
+import { getGaugeIconConfig } from "@/lib/kpiIcons";
+import { cn } from "@/lib/utils";
 import type { GaugeSpec } from "@/lib/types";
 
 /** A luxury chronometer-grade analog speedometer gauge featuring:
@@ -203,6 +205,69 @@ function fmtGaugeValue(v: number): string {
   return rounded.toLocaleString("en-IN", { maximumFractionDigits: 1 });
 }
 
+function renderGaugeEtchedEmblem(title: string | undefined, p: GaugePalette) {
+  if (!title) return null;
+  const lower = title.toLowerCase();
+  if (lower.includes("conversion")) {
+    // Zap / Lightning bolt
+    return (
+      <g opacity={0.35}>
+        <path d="M 152 86 L 145 98 L 150 98 L 147 110 L 156 96 L 151 96 Z" fill={p.tick} stroke={p.faceStroke} strokeWidth={0.5} />
+      </g>
+    );
+  }
+  if (lower.includes("achievement")) {
+    // Trophy
+    return (
+      <g opacity={0.4} stroke={p.tick} strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" fill="none">
+        <path d="M 144 88 L 156 88 L 155 98 C 155 102 152 104 150 104 C 148 104 145 102 145 98 Z" />
+        <path d="M 144 90 L 141 90 C 139.5 90 139 92 140 94 C 141 96 142.5 97 144 97" />
+        <path d="M 156 90 L 159 90 C 160.5 90 161 92 160 94 C 159 96 157.5 97 156 97" />
+        <path d="M 150 104 L 150 109 M 146 109 L 154 109" />
+      </g>
+    );
+  }
+  if (lower.includes("remaining")) {
+    // Timer / Countdown
+    return (
+      <g opacity={0.4} stroke={p.tick} strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" fill="none">
+        <circle cx={150} cy={98} r={8} />
+        <path d="M 150 90 L 150 87 M 147 87 L 153 87 M 150 94 L 150 98 L 153 98" />
+      </g>
+    );
+  }
+  if (lower.includes("atv")) {
+    // Rupee symbol ₹
+    return (
+      <g opacity={0.4} stroke={p.tick} strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" fill="none">
+        <circle cx={150} cy={98} r={9} strokeDasharray="2 2" />
+        <path d="M 146 93 L 154 93 M 146 96 L 152 96 M 146 93 L 146 99 C 149 99 152 98.5 152 96 C 152 94 148 94 146 94 M 148 99 L 154 105" />
+      </g>
+    );
+  }
+  if (lower.includes("rpv")) {
+    // User Check / Revenue per visitor
+    return (
+      <g opacity={0.4} stroke={p.tick} strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" fill="none">
+        <circle cx={148} cy={94} r={3.5} />
+        <path d="M 142 105 C 142 101.5 145 100 148 100 C 151 100 154 101.5 154 105" />
+        <path d="M 153 93 L 155 95 L 158 91" />
+      </g>
+    );
+  }
+  if (lower.includes("basket")) {
+    // Shopping Basket
+    return (
+      <g opacity={0.4} stroke={p.tick} strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" fill="none">
+        <path d="M 143 96 L 157 96 L 155 106 L 145 106 Z" />
+        <path d="M 142 96 L 158 96 M 146 96 L 150 90 L 154 96" />
+        <path d="M 147 99 L 148 103 M 153 99 L 152 103" />
+      </g>
+    );
+  }
+  return null;
+}
+
 export function GlossyGauge({ spec, className, neon }: { spec: GaugeSpec; className?: string; neon?: boolean }) {
   const { theme, resolvedTheme } = useTheme();
   const isNeon = neon ?? theme === "neon";
@@ -216,6 +281,8 @@ export function GlossyGauge({ spec, className, neon }: { spec: GaugeSpec; classN
   const [displayValue, setDisplayValue] = useState<number>(min);
   const currentValueRef = useRef(displayValue);
   const mountedRef = useRef(false);
+  const iconConfig = getGaugeIconConfig(spec.title);
+  const GaugeIcon = iconConfig?.icon;
 
   useEffect(() => {
     if (spec.value == null) return;
@@ -238,9 +305,16 @@ export function GlossyGauge({ spec, className, neon }: { spec: GaugeSpec; classN
     return (
       <div className={`flex flex-col items-center justify-center p-1 ${wrapperClass}`}>
         {spec.title && (
-          <p className="text-muted-foreground mb-1 text-center text-xs font-semibold tracking-wide truncate w-full">
-            {spec.title}
-          </p>
+          <div className="flex items-center justify-center gap-1.5 mb-1.5 px-2 py-0.5 rounded-full bg-muted/30 border border-border/40 backdrop-blur-xs max-w-[95%]">
+            {GaugeIcon && (
+              <div className={cn("flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border", iconConfig.bg, iconConfig.border)}>
+                <GaugeIcon className={cn("h-2 w-2", iconConfig.color)} />
+              </div>
+            )}
+            <span className="text-muted-foreground text-[11px] font-semibold tracking-wide truncate">
+              {spec.title}
+            </span>
+          </div>
         )}
         <svg viewBox="0 0 300 300" className="h-full max-h-[135px] w-full max-w-[135px]" role="img" aria-label={`${spec.title}: not available`}>
           <circle cx={CX} cy={CY} r={BEZEL_OUTER_R} fill={p.bezelOuter} />
@@ -313,9 +387,16 @@ export function GlossyGauge({ spec, className, neon }: { spec: GaugeSpec; classN
   return (
     <div className={`group flex flex-col items-center justify-center p-1 select-none transition-transform duration-300 ${wrapperClass}`}>
       {spec.title && (
-        <p className="text-muted-foreground group-hover:text-foreground mb-1 text-center text-xs font-semibold tracking-wide truncate w-full transition-colors">
-          {spec.title}
-        </p>
+        <div className="flex items-center justify-center gap-1.5 mb-1 px-2 py-0.5 rounded-full bg-muted/40 border border-border/40 backdrop-blur-xs transition-all duration-200 group-hover:bg-muted/70 group-hover:border-primary/30 max-w-[95%]">
+          {GaugeIcon && (
+            <div className={cn("flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border transition-transform group-hover:scale-110", iconConfig.bg, iconConfig.border)}>
+              <GaugeIcon className={cn("h-2 w-2", iconConfig.color)} />
+            </div>
+          )}
+          <span className="text-muted-foreground group-hover:text-foreground text-[11px] sm:text-xs font-semibold tracking-wide truncate transition-colors">
+            {spec.title}
+          </span>
+        </div>
       )}
       <svg
         viewBox="0 0 300 300"
@@ -371,6 +452,9 @@ export function GlossyGauge({ spec, className, neon }: { spec: GaugeSpec; classN
 
         {/* Ambient active zone back-glow */}
         <circle cx={CX} cy={CY} r={FACE_R - 4} fill={`url(#ambientHalo_${uniqueId})`} />
+
+        {/* Laser-etched precision instrument emblem */}
+        {renderGaugeEtchedEmblem(spec.title, p)}
 
         {/* 3. Color threshold bands */}
         {bands.map((b, i) => (

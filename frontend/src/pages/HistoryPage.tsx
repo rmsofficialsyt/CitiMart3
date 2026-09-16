@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Calendar, Clock, DollarSign, Users, ShoppingBag, Filter, Printer, CalendarRange, Eye } from "lucide-react";
+import { Calendar, CalendarClock, CalendarRange, Eye, Filter, Footprints, IndianRupee, PackageCheck, Printer } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 
 import { api } from "@/api/client";
@@ -344,12 +344,14 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
         <>
           {/* Day / Range Overview Summary Cards */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+            <div className="rounded-xl border border-border bg-card p-4 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between text-muted-foreground">
                 <span className="text-xs font-semibold uppercase tracking-wider">
                   {isMultiDay ? "Total Net Sales" : "Net Sales"}
                 </span>
-                <DollarSign className="h-4 w-4 text-blue-400" />
+                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-500">
+                  <IndianRupee className="h-3.5 w-3.5" />
+                </div>
               </div>
               <p className="mt-2 text-2xl font-bold text-foreground">
                 {fmtCurrencyOrZero(kpis?.net_sales)}
@@ -357,19 +359,21 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
               <p className="mt-1 text-xs text-muted-foreground">
                 Target: {kpis?.sales_target != null ? fmtCurrencyOrZero(kpis.sales_target) : "N/A"}
                 {kpis?.achievement_pct != null && (
-                  <span className="ml-1.5 font-semibold text-emerald-400">
+                  <span className="ml-1.5 font-semibold text-emerald-500 dark:text-emerald-400">
                     ({fmtPercentOrZero(kpis.achievement_pct)})
                   </span>
                 )}
               </p>
             </div>
 
-            <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+            <div className="rounded-xl border border-border bg-card p-4 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between text-muted-foreground">
                 <span className="text-xs font-semibold uppercase tracking-wider">
                   {isMultiDay ? "Total Footfall & NOB" : "Footfall & NOB"}
                 </span>
-                <Users className="h-4 w-4 text-indigo-400" />
+                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-purple-500/10 border border-purple-500/20 text-purple-500">
+                  <Footprints className="h-3.5 w-3.5" />
+                </div>
               </div>
               <p className="mt-2 text-2xl font-bold text-foreground">
                 {fmtNumberOrZero(kpis?.footfall)} <span className="text-xs font-normal text-muted-foreground">visitors</span>
@@ -377,19 +381,21 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
               <p className="mt-1 text-xs text-muted-foreground">
                 Buyers (NOB): <span className="font-semibold text-foreground">{fmtNumberOrZero(kpis?.nob)}</span>
                 {kpis?.conversion_pct != null && (
-                  <span className="ml-1.5 font-semibold text-blue-400">
+                  <span className="ml-1.5 font-semibold text-amber-500 dark:text-amber-400">
                     ({fmtPercentOrZero(kpis.conversion_pct)} conv.)
                   </span>
                 )}
               </p>
             </div>
 
-            <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+            <div className="rounded-xl border border-border bg-card p-4 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between text-muted-foreground">
                 <span className="text-xs font-semibold uppercase tracking-wider">
                   {isMultiDay ? "Total Items & Avg ATV" : "Billing & Quantity"}
                 </span>
-                <ShoppingBag className="h-4 w-4 text-amber-400" />
+                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-sky-500/10 border border-sky-500/20 text-sky-500">
+                  <PackageCheck className="h-3.5 w-3.5" />
+                </div>
               </div>
               <p className="mt-2 text-2xl font-bold text-foreground">
                 {fmtNumberOrZero(kpis?.bill_quantity)} <span className="text-xs font-normal text-muted-foreground">items</span>
@@ -399,10 +405,12 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
               </p>
             </div>
 
-            <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+            <div className="rounded-xl border border-border bg-card p-4 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between text-muted-foreground">
                 <span className="text-xs font-semibold uppercase tracking-wider">Date Context</span>
-                <Clock className="h-4 w-4 text-purple-400" />
+                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-indigo-500/10 border border-indigo-500/20 text-indigo-500">
+                  <CalendarClock className="h-3.5 w-3.5" />
+                </div>
               </div>
               <p className="mt-2 text-lg font-bold text-foreground capitalize">
                 {isMultiDay ? `${daysCount} Days Range` : (dailyBreakdown[0]?.day_name ?? "Single Day")}

@@ -105,11 +105,6 @@ async function deleteJSON<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-// The historical endpoints this object used to carry -- /api/filters/*,
-// /api/kpis, /api/tables/*, /api/data-quality, /api/reports/render and the
-// whole /api/forecast/* surface (api/forecastClient.ts) -- are served by the
-// Analytics & Forecasting sub-project's backend, not this one. They are not
-// listed here on purpose: a call to any of them from this app would 404.
 export const api = {
   kpiThresholds: () => getJSON<KpiThresholdsResponse>("/api/kpi-thresholds"),
 
@@ -119,19 +114,33 @@ export const api = {
   resetKpiThreshold: (kpi?: string) =>
     deleteJSON<KpiThresholdsResponse>(`/api/kpi-thresholds${kpi ? `?${new URLSearchParams({ kpi })}` : ""}`),
 
-  // Only the daily_* chart ids resolve here (api/routes_charts.py). The
-  // FilterState is still the wire format -- the backend reads `stores` and
-  // `start` off it and ignores the rest.
   chart: (chartId: string, state: FilterState, extra: Record<string, string | number | undefined> = {}) =>
     getJSON<ChartFigure>(`/api/charts/${chartId}?${toSearchParams(state, extra)}`),
 
   meta: () => getJSON<DashboardMeta>("/api/meta"),
 
-  dailyLive: (store: string, date: string) =>
-    getJSON<DailyLiveSnapshot>(`/api/daily/live?${new URLSearchParams({ store, date })}`),
+  dailyLive: (
+    store: string,
+    date: string,
+    params?: { recovery_window?: number; carry_forward_policy?: string; distribution_mode?: string },
+  ) => {
+    const q = new URLSearchParams({ store, date });
+    if (params?.recovery_window != null) q.set("recovery_window", String(params.recovery_window));
+    if (params?.carry_forward_policy != null) q.set("carry_forward_policy", params.carry_forward_policy);
+    if (params?.distribution_mode != null) q.set("distribution_mode", params.distribution_mode);
+    return getJSON<DailyLiveSnapshot>(`/api/daily/live?${q}`);
+  },
 
-  dailyLiveOverall: (date: string) =>
-    getJSON<DailyOverallSnapshot>(`/api/daily/live/overall?${new URLSearchParams({ date })}`),
+  dailyLiveOverall: (
+    date: string,
+    params?: { recovery_window?: number; carry_forward_policy?: string; distribution_mode?: string },
+  ) => {
+    const q = new URLSearchParams({ date });
+    if (params?.recovery_window != null) q.set("recovery_window", String(params.recovery_window));
+    if (params?.carry_forward_policy != null) q.set("carry_forward_policy", params.carry_forward_policy);
+    if (params?.distribution_mode != null) q.set("distribution_mode", params.distribution_mode);
+    return getJSON<DailyOverallSnapshot>(`/api/daily/live/overall?${q}`);
+  },
 
   billLog: (store: string, date: string) =>
     getJSON<BillLogResponse>(`/api/daily/bill-log?${new URLSearchParams({ store, date })}`),
@@ -210,8 +219,17 @@ export const api = {
 
   landingHero: () => getJSON<LandingHeroResponse>("/api/daily/landing-hero"),
 
-  targetAdjustment: (store: string, date: string) =>
-    getJSON<TargetAdjustmentAlert | null>(`/api/daily/target-adjustment?${new URLSearchParams({ store, date })}`),
+  targetAdjustment: (
+    store: string,
+    date: string,
+    params?: { recovery_window?: number; carry_forward_policy?: string; distribution_mode?: string },
+  ) => {
+    const q = new URLSearchParams({ store, date });
+    if (params?.recovery_window != null) q.set("recovery_window", String(params.recovery_window));
+    if (params?.carry_forward_policy != null) q.set("carry_forward_policy", params.carry_forward_policy);
+    if (params?.distribution_mode != null) q.set("distribution_mode", params.distribution_mode);
+    return getJSON<TargetAdjustmentAlert | null>(`/api/daily/target-adjustment?${q}`);
+  },
 
   historyDates: (store: string = "ALL") =>
     getJSON<HistoryDateSummary[]>(`/api/daily/history/dates?${new URLSearchParams({ store })}`),

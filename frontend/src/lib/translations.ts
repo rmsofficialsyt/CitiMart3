@@ -125,6 +125,7 @@ export interface Translations {
   positiveMomentumSurplus: string;
   targetTrackingOnTrack: string;
   cumulativeRecoveryMode: (prevDate: string) => string;
+  rollingRecoveryMode: (window: number, policy: string) => string;
   shortfallHeading: (shortfall: string) => string;
   surplusHeading: (surplus: string) => string;
   exactMatchHeading: (prevDate: string) => string;
@@ -141,7 +142,33 @@ export interface Translations {
   recoveryStatus: string;
   rem: string;
   notSet: string;
+
+  // Rolling Target Adjustment Engine Details
+  scheduledCarryLabel: string;
+  outstandingDeficitLabel: string;
+  liveNetSalesLabel: string;
+  originalGapLabel: string;
+  adjustedGapLabel: string;
+  recoveredTodayLabel: string;
+  trueSurplusLabel: string;
+  onTrackLabel: string;
+  activeBucketsPaceLabel: string;
+  activeDeficitBuckets: string;
+  bucketOriginDate: string;
+  bucketInitialDeficit: string;
+  bucketRemainingDeficit: string;
+  bucketRecoveryEnd: string;
+  bucketDaysRemaining: string;
+  fifoRecoveryRule: string;
+  window7Days: string;
+  window14Days: string;
+  window30Days: string;
+  monthEndClosePolicy: string;
+  trueRollingPolicy: string;
+  viewDeficitBuckets: string;
+  hideDeficitBuckets: string;
 }
+
 
 export const TRANSLATIONS: Record<Language, Translations> = {
   en: {
@@ -261,23 +288,50 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     positiveMomentumSurplus: "Positive Momentum Surplus",
     targetTrackingOnTrack: "Target Tracking On Track",
     cumulativeRecoveryMode: (prevDate) => `Cumulative Recovery Mode · Carried forward from previous day (${prevDate})`,
-    shortfallHeading: (shortfall) => `Previous Day Shortfall Carried Forward: +${shortfall}`,
-    surplusHeading: (surplus) => `Previous Day Surplus Cushion: +${surplus} achieved`,
-    exactMatchHeading: (prevDate) => `Previous Day Target Met Exactly (${prevDate})`,
-    shortfallDesc: (prevDate, target, adminTarget) => `To recover yesterday's deficit (${prevDate}), the recommended operational pace target is ${target}. (* Note: Official Admin Sales Target in the primary KPI card remains ${adminTarget}).`,
-    surplusDesc: (prevActual, prevTarget, prevDate, adminTarget) => `Excellent performance! Yesterday achieved ${prevActual} vs ${prevTarget} (${prevDate}). Maintain this pace to achieve today's target of ${adminTarget}.`,
-    exactMatchDesc: (prevTarget, prevDate, store) => `Operations met yesterday's target of ${prevTarget} (${prevDate}) for store ${store}. Continue steady operations to meet target.`,
+    rollingRecoveryMode: (window, policy) => `Rolling Recovery Engine · ${window}-Day Rolling (${policy === "MONTH_END_CLOSE" ? "Month-End Close" : "True Rolling"})`,
+    shortfallHeading: (shortfall) => `Unachieved Deficit Carry Forward: +${shortfall}`,
+    surplusHeading: (surplus) => `Surplus Buffer Achieved: +${surplus}`,
+    exactMatchHeading: (prevDate) => `Target Met Exactly (${prevDate})`,
+    shortfallDesc: (prevDate, target, adminTarget) => `Unresolved deficit is dynamically redistributed across future days. Recommended operational pace target for ${prevDate} onwards is ${target}. (* Note: Official Admin Sales Target in the primary KPI card remains ${adminTarget}).`,
+    surplusDesc: (prevActual, prevTarget, prevDate, adminTarget) => `Excellent performance! Achieved ${prevActual} vs ${prevTarget} (${prevDate}). Excess sales pay down historical deficit or provide a performance cushion towards today's target of ${adminTarget}.`,
+    exactMatchDesc: (prevTarget, prevDate, store) => `Operations met target of ${prevTarget} (${prevDate}) for store ${store}. Continue steady operations to meet target.`,
+
     adminSetTarget: "Admin Set Target",
-    primaryBaseline: "Primary baseline",
-    adjustedRecoveryGoal: "Adjusted Recovery Goal",
+    primaryBaseline: "Primary baseline (T_t)",
+    adjustedRecoveryGoal: "Adjusted Target (A_t)",
     targetGoal: "Target Goal",
-    includesDeficit: (shortfall) => `Includes +${shortfall} deficit`,
+    includesDeficit: (shortfall) => `+${shortfall} scheduled carry (C_t)`,
     plusBuffer: (surplus) => `+${surplus} buffer`,
-    noDeficit: "No deficit",
-    recoveryStatus: "Recovery Status",
+    noDeficit: "No active deficit",
+    recoveryStatus: "Recovery Pace",
     rem: "Rem:",
     notSet: "Not set",
+
+    scheduledCarryLabel: "Scheduled Carry Today (C_t)",
+    outstandingDeficitLabel: "Total Outstanding Deficit (P_t)",
+    liveNetSalesLabel: "Live Net Sales (S_t)",
+    originalGapLabel: "Original Target Gap (D_t)",
+    adjustedGapLabel: "Adjusted Recovery Gap",
+    recoveredTodayLabel: "Recovered Today (R_t)",
+    trueSurplusLabel: "True Surplus Buffer",
+    onTrackLabel: "On Track",
+    activeBucketsPaceLabel: "Active Buckets & Horizon",
+    activeDeficitBuckets: "Active Deficit Buckets",
+    bucketOriginDate: "Origin Date",
+    bucketInitialDeficit: "Initial Deficit",
+    bucketRemainingDeficit: "Remaining Deficit",
+    bucketRecoveryEnd: "Recovery Deadline",
+    bucketDaysRemaining: "Days Left",
+    fifoRecoveryRule: "FIFO Recovery Rule: Excess sales above original target recover oldest deficits first.",
+    window7Days: "7-Day Rolling",
+    window14Days: "14-Day Rolling",
+    window30Days: "30-Day Rolling",
+    monthEndClosePolicy: "Month-End Close",
+    trueRollingPolicy: "True Rolling",
+    viewDeficitBuckets: "View Deficit Buckets",
+    hideDeficitBuckets: "Hide Deficit Buckets",
   },
+
 
   hi: {
     language: "भाषा",
@@ -396,23 +450,51 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     positiveMomentumSurplus: "सकारात्मक अधिशेष (Positive Surplus)",
     targetTrackingOnTrack: "लक्ष्य ट्रैकिंग ट्रैक पर (On Track)",
     cumulativeRecoveryMode: (prevDate) => `संचयी रिकवरी मोड · पिछले दिन (${prevDate}) से आगे लाया गया`,
-    shortfallHeading: (shortfall) => `पिछले दिन की कमी (Shortfall) आगे लाई गई: +${shortfall}`,
-    surplusHeading: (surplus) => `पिछले दिन का अतिरिक्त अधिशेष (Surplus Cushion): +${surplus} हासिल किया`,
-    exactMatchHeading: (prevDate) => `पिछले दिन का लक्ष्य पूर्णतः प्राप्त (${prevDate})`,
-    shortfallDesc: (prevDate, target, adminTarget) => `कल के घाटे (${prevDate}) की भरपाई के लिए, आज का अनुशंसित परिचालन पेस लक्ष्य ${target} है। (* नोट: प्राथमिक KPI कार्ड में आधिकारिक एडमिन बिक्री लक्ष्य ${adminTarget} ही रहेगा)।`,
-    surplusDesc: (prevActual, prevTarget, prevDate, adminTarget) => `शानदार प्रदर्शन! कल ${prevTarget} के मुकाबले ${prevActual} अर्जित किया (${prevDate})। आज के ${adminTarget} के लक्ष्य को प्राप्त करने के लिए इस गति को बनाए रखें।`,
-    exactMatchDesc: (prevTarget, prevDate, store) => `स्टोर ${store} के लिए कल का ${prevTarget} का लक्ष्य (${prevDate}) पूर्णतः प्राप्त हुआ। लक्ष्य प्राप्त करने के लिए स्थिर संचालन जारी रखें।`,
+    rollingRecoveryMode: (window, policy) => `रोलिंग रिकवरी इंजन · ${window}-दिवसीय रोलिंग (${policy === "MONTH_END_CLOSE" ? "महीने के अंत में क्लोज" : "ट्रू रोलिंग"})`,
+    shortfallHeading: (shortfall) => `अप्राप्त घाटा आगे लाया गया (Deficit Carry Forward): +${shortfall}`,
+    surplusHeading: (surplus) => `सकारात्मक अधिशेष कुशन: +${surplus} हासिल किया`,
+    exactMatchHeading: (prevDate) => `लक्ष्य पूर्णतः प्राप्त (${prevDate})`,
+    shortfallDesc: (prevDate, target, adminTarget) => `बचे हुए घाटे को ${prevDate} से आगे भविष्य के दिनों में पुनर्वितरित किया गया है। आज का अनुशंसित परिचालन पेस लक्ष्य ${target} है। (* नोट: प्राथमिक KPI कार्ड में आधिकारिक एडमिन बिक्री लक्ष्य ${adminTarget} ही रहेगा)।`,
+
+
+    surplusDesc: (prevActual, prevTarget, prevDate, adminTarget) => `शानदार प्रदर्शन! ${prevTarget} के मुकाबले ${prevActual} अर्जित किया (${prevDate})। अतिरिक्त बिक्री पिछले घाटे को कम करती है या आज के ${adminTarget} के लक्ष्य में सहायता देती है।`,
+    exactMatchDesc: (prevTarget, prevDate, store) => `स्टोर ${store} के लिए ${prevTarget} का लक्ष्य (${prevDate}) पूर्णतः प्राप्त हुआ। लक्ष्य प्राप्त करने के लिए स्थिर संचालन जारी रखें।`,
     adminSetTarget: "एडमिन निर्धारित लक्ष्य",
-    primaryBaseline: "प्राथमिक आधार रेखा",
-    adjustedRecoveryGoal: "समायोजित रिकवरी लक्ष्य",
+    primaryBaseline: "प्राथमिक आधार रेखा (T_t)",
+    adjustedRecoveryGoal: "समायोजित लक्ष्य (A_t)",
     targetGoal: "लक्ष्य गोल",
-    includesDeficit: (shortfall) => `+${shortfall} की कमी शामिल`,
+    includesDeficit: (shortfall) => `+${shortfall} निर्धारित कैरी (C_t)`,
     plusBuffer: (surplus) => `+${surplus} बफर`,
-    noDeficit: "कोई कमी नहीं",
-    recoveryStatus: "रिकवरी स्थिति",
+    noDeficit: "कोई सक्रिय घाटा नहीं",
+    recoveryStatus: "रिकवरी पेस",
     rem: "शेष:",
     notSet: "निर्धारित नहीं",
+
+    scheduledCarryLabel: "आज का निर्धारित कैरी (C_t)",
+    outstandingDeficitLabel: "कुल बकाया घाटा (P_t)",
+    liveNetSalesLabel: "लाइव नेट बिक्री (S_t)",
+    originalGapLabel: "मूल लक्ष्य अंतर (D_t)",
+    adjustedGapLabel: "समायोजित रिकवरी अंतर",
+    recoveredTodayLabel: "आज रिकवर हुआ (R_t)",
+    trueSurplusLabel: "शुद्ध अधिशेष बफर",
+    onTrackLabel: "ट्रैक पर",
+    activeBucketsPaceLabel: "सक्रिय बकेट और समयसीमा",
+    activeDeficitBuckets: "सक्रिय घाटा बकेट (Active Deficit Buckets)",
+    bucketOriginDate: "उत्पत्ति तिथि",
+    bucketInitialDeficit: "प्रारंभिक घाटा",
+    bucketRemainingDeficit: "शेष घाटा",
+    bucketRecoveryEnd: "रिकवरी समयसीमा",
+    bucketDaysRemaining: "शेष दिन",
+    fifoRecoveryRule: "FIFO नियम: मूल लक्ष्य से अधिक बिक्री सबसे पहले पुराने घाटे को चुकाती है।",
+    window7Days: "7-दिवसीय रोलिंग",
+    window14Days: "14-दिवसीय रोलिंग",
+    window30Days: "30-दिवसीय रोलिंग",
+    monthEndClosePolicy: "महीने के अंत में क्लोज",
+    trueRollingPolicy: "ट्रू रोलिंग",
+    viewDeficitBuckets: "घाटा बकेट देखें",
+    hideDeficitBuckets: "घाटा बकेट छिपाएं",
   },
+
 
   bn: {
     language: "ভাষা",
@@ -531,21 +613,49 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     positiveMomentumSurplus: "ইতিবাচক উদ্বৃত্ত কুশন (Positive Surplus)",
     targetTrackingOnTrack: "টার্গেট ট্র্যাকিং সঠিক পথে (On Track)",
     cumulativeRecoveryMode: (prevDate) => `ক্রমযোজিত রিকভারি মোড · পূর্ববর্তী দিন (${prevDate}) থেকে সমন্বিত`,
-    shortfallHeading: (shortfall) => `পূর্ববর্তী দিনের ঘাটতি (Shortfall) সমন্বিত: +${shortfall}`,
-    surplusHeading: (surplus) => `পূর্ববর্তী দিনের অতিরিক্ত উদ্বৃত্ত (Surplus Cushion): +${surplus} অর্জিত`,
-    exactMatchHeading: (prevDate) => `পূর্ববর্তী দিনের লক্ষ্যমাত্রা সম্পূর্ণ অর্জিত (${prevDate})`,
-    shortfallDesc: (prevDate, target, adminTarget) => `গতকালের ঘাটতি (${prevDate}) পূরণ করতে আজকের প্রস্তাবিত পরিচালন লক্ষ্যমাত্রা ${target}। (* উল্লেখ্য: প্রাথমিক KPI কার্ডে অফিসিয়াল অ্যাডমিন সেলস টার্গেট ${adminTarget} অপরিবর্তিত থাকবে)।`,
-    surplusDesc: (prevActual, prevTarget, prevDate, adminTarget) => `চমৎকার কার্যক্ষমতা! গতকাল ${prevTarget} লক্ষ্যমাত্রার বিপরীতে ${prevActual} অর্জিত হয়েছে (${prevDate})। আজকের ${adminTarget} লক্ষ্য অর্জনে এই গতি বজায় রাখুন।`,
-    exactMatchDesc: (prevTarget, prevDate, store) => `স্টোর ${store}-এর গতকালের ${prevTarget} লক্ষ্যমাত্রা (${prevDate}) সঠিকভাবে অর্জিত হয়েছে। লক্ষ্যমাত্রা অর্জনে অবিচল পরিচালনা বজায় রাখুন।`,
+    rollingRecoveryMode: (window, policy) => `রোলিং রিকভারি ইঞ্জিন · ${window}-দিনের রোলিং (${policy === "MONTH_END_CLOSE" ? "মাস সমাপ্তিতে ক্লোজ" : "ট্রু রোলিং"})`,
+    shortfallHeading: (shortfall) => `অনাদায়ী ঘাটতি সমন্বিত (Deficit Carry Forward): +${shortfall}`,
+    surplusHeading: (surplus) => `ইতিবাচক উদ্বৃত্ত কুশন: +${surplus} অর্জিত`,
+    exactMatchHeading: (prevDate) => `লক্ষ্যমাত্রা সম্পূর্ণ অর্জিত (${prevDate})`,
+    shortfallDesc: (prevDate, target, adminTarget) => `বাকি থাকা ঘাটতি ${prevDate} থেকে আগামী দিনগুলিতে গতিশীলভাবে ভাগ করে দেওয়া হয়েছে। আজকের প্রস্তাবিত পরিচালন লক্ষ্যমাত্রা ${target}। (* উল্লেখ্য: প্রাথমিক KPI কার্ডে অফিসিয়াল অ্যাডমিন সেলস টার্গেট ${adminTarget} অপরিবর্তিত থাকবে)।`,
+
+
+    surplusDesc: (prevActual, prevTarget, prevDate, adminTarget) => `চমৎকার কার্যক্ষমতা! ${prevTarget} লক্ষ্যমাত্রার বিপরীতে ${prevActual} অর্জিত হয়েছে (${prevDate})। অতিরিক্ত বিক্রয় পূর্ববর্তী ঘাটতি পূরণ করে বা আজকের ${adminTarget} লক্ষ্য অর্জনে সহায়তা করে।`,
+    exactMatchDesc: (prevTarget, prevDate, store) => `স্টোর ${store}-এর ${prevTarget} লক্ষ্যমাত্রা (${prevDate}) সঠিকভাবে অর্জিত হয়েছে। লক্ষ্যমাত্রা অর্জনে অবিচল পরিচালনা বজায় রাখুন।`,
     adminSetTarget: "অ্যাডমিন নির্ধারিত লক্ষ্য",
-    primaryBaseline: "প্রাথমিক বেসলাইন",
-    adjustedRecoveryGoal: "সমন্বিত রিকভারি লক্ষ্য",
+    primaryBaseline: "প্রাথমিক বেসলাইন (T_t)",
+    adjustedRecoveryGoal: "সমন্বিত লক্ষ্য (A_t)",
     targetGoal: "টার্গেট লক্ষ্য",
-    includesDeficit: (shortfall) => `+${shortfall} ঘাটতি অন্তর্ভুক্ত`,
+    includesDeficit: (shortfall) => `+${shortfall} নির্ধারিত ক্যারি (C_t)`,
     plusBuffer: (surplus) => `+${surplus} বাফার`,
-    noDeficit: "কোনো ঘাটতি নেই",
-    recoveryStatus: "রিকভারি অবস্থা",
+    noDeficit: "কোনো সক্রিয় ঘাটতি নেই",
+    recoveryStatus: "রিকভারি পেস",
     rem: "বাকি:",
     notSet: "নির্ধারিত নয়",
+
+    scheduledCarryLabel: "আজকের নির্ধারিত ক্যারি (C_t)",
+    outstandingDeficitLabel: "মোট বকেয়া ঘাটতি (P_t)",
+    liveNetSalesLabel: "লাইভ নেট বিক্রয় (S_t)",
+    originalGapLabel: "মূল লক্ষ্যমাত্রার ব্যবধান (D_t)",
+    adjustedGapLabel: "সমন্বিত রিকভারি ব্যবধান",
+    recoveredTodayLabel: "আজ রিকভার হয়েছে (R_t)",
+    trueSurplusLabel: "প্রকৃত উদ্বৃত্ত বাফার",
+    onTrackLabel: "সঠিক পথে",
+    activeBucketsPaceLabel: "সক্রিয় বাকেট ও সময়সীমা",
+    activeDeficitBuckets: "সক্রিয় ঘাটতি বাকেট (Active Deficit Buckets)",
+    bucketOriginDate: "উৎপত্তি তারিখ",
+    bucketInitialDeficit: "প্রাথমিক ঘাটতি",
+    bucketRemainingDeficit: "বাকি ঘাটতি",
+    bucketRecoveryEnd: "রিকভারির শেষ সময়",
+    bucketDaysRemaining: "বাকি দিন",
+    fifoRecoveryRule: "FIFO নিয়ম: মূল লক্ষ্যমাত্রার অতিরিক্ত বিক্রয় সবার আগে পুরানো ঘাটতি পূরণ করে।",
+    window7Days: "৭-দিনের রোলিং",
+    window14Days: "১৪-দিনের রোলিং",
+    window30Days: "৩০-দিনের রোলিং",
+    monthEndClosePolicy: "মাস সমাপ্তিতে ক্লোজ",
+    trueRollingPolicy: "ট্রু রোলিং",
+    viewDeficitBuckets: "ঘাটতি বাকেট দেখুন",
+    hideDeficitBuckets: "ঘাটতি বাকেট লুকান",
   },
+
 };

@@ -126,6 +126,7 @@ function StoreDailyDashboard({ store }: { store: StoreCode }) {
                     return (
                       <KpiCard
                         key={key}
+                        kpiKey={key}
                         index={i}
                         label={DAILY_KPI_LABELS[key]}
                         value={data.kpis[key]}

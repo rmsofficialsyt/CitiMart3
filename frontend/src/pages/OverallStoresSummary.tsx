@@ -9,7 +9,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { TargetAdjustmentAlert } from "@/components/TargetAdjustmentAlert";
 import { DAILY_KPI_FORMATTERS, DAILY_KPI_FORMULAS, DAILY_KPI_LABELS, DAILY_KPI_ORDER, todayLocalDate } from "@/lib/format";
+import { getKpiIconConfig } from "@/lib/kpiIcons";
 import { emptyFilterState } from "@/lib/filterParams";
+import { cn } from "@/lib/utils";
 import type { DailyKpiKey, DailyKpis, FilterState, StatusColor } from "@/lib/types";
 
 const STORES: { code: string; label: string }[] = [
@@ -88,6 +90,7 @@ export function OverallStoresSummary() {
                 : DAILY_KPI_ORDER.map((key, i) => (
                     <KpiCard
                       key={key}
+                      kpiKey={key}
                       index={i}
                       label={DAILY_KPI_LABELS[key]}
                       value={data.kpis[key]}
@@ -159,9 +162,20 @@ export function OverallStoresSummary() {
               <TableBody>
                 {DAILY_KPI_ORDER.map((key) => {
                   const fmt = DAILY_KPI_FORMATTERS[key];
+                  const iconCfg = getKpiIconConfig(key);
+                  const IconComp = iconCfg?.icon;
                   return (
                     <TableRow key={key} className="hover:bg-muted/30">
-                      <TableCell className="font-medium text-foreground">{DAILY_KPI_LABELS[key]}</TableCell>
+                      <TableCell className="font-medium text-foreground">
+                        <div className="flex items-center gap-2">
+                          {IconComp && (
+                            <div className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded-md border", iconCfg?.bg, iconCfg?.border, iconCfg?.color)}>
+                              <IconComp className="h-3 w-3" />
+                            </div>
+                          )}
+                          <span>{DAILY_KPI_LABELS[key]}</span>
+                        </div>
+                      </TableCell>
                       {STORES.map((s) => (
                         <TableCell key={s.code} className="text-right tabular-nums text-muted-foreground">
                           {fmt(data.per_store[s.code]?.[key] ?? null)}

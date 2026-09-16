@@ -87,6 +87,9 @@ def get_landing_hero(db: Database = Depends(get_db)):
 def get_daily_live(
     store: str = Query(..., description="Single store code, e.g. NM"),
     date: str = Query(..., description="YYYY-MM-DD"),
+    recovery_window: int = Query(7, description="7, 14, or 30 days rolling recovery window"),
+    carry_forward_policy: str = Query("MONTH_END_CLOSE", description="MONTH_END_CLOSE or TRUE_ROLLING"),
+    distribution_mode: str = Query("EQUAL", description="EQUAL or TARGET_WEIGHTED"),
     db: Database = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -98,7 +101,14 @@ def get_daily_live(
     holiday_name = daily_context.get_holiday_name(target_date)
     election_name = daily_context.get_election_info(target_date)
     is_weekend = target_date.weekday() >= 5
-    target_adj = daily_dashboard_store.get_target_adjustment_alert(db, store, target_date)
+    target_adj = daily_dashboard_store.get_target_adjustment_alert(
+        db,
+        store,
+        target_date,
+        recovery_window=recovery_window,
+        carry_forward_policy=carry_forward_policy,
+        distribution_mode=distribution_mode,
+    )
 
     return {
         "store": store,
@@ -131,6 +141,9 @@ def _daily_statuses(kpis: dict) -> dict:
 @router.get("/live/overall")
 def get_daily_live_overall(
     date: str = Query(..., description="YYYY-MM-DD"),
+    recovery_window: int = Query(7, description="7, 14, or 30 days rolling recovery window"),
+    carry_forward_policy: str = Query("MONTH_END_CLOSE", description="MONTH_END_CLOSE or TRUE_ROLLING"),
+    distribution_mode: str = Query("EQUAL", description="EQUAL or TARGET_WEIGHTED"),
     db: Database = Depends(get_db),
     user: CurrentUser = Depends(require_admin),
 ):
@@ -139,7 +152,14 @@ def get_daily_live_overall(
     target_date = _parse_iso_date(date)
     result = daily_dashboard_store.compute_live_kpis_all_stores(db, target_date)
     combined = result["combined"]
-    target_adj = daily_dashboard_store.get_target_adjustment_alert(db, "ALL", target_date)
+    target_adj = daily_dashboard_store.get_target_adjustment_alert(
+        db,
+        "ALL",
+        target_date,
+        recovery_window=recovery_window,
+        carry_forward_policy=carry_forward_policy,
+        distribution_mode=distribution_mode,
+    )
     return {
         "store": "ALL",
         "date": target_date.isoformat(),
@@ -157,16 +177,27 @@ def get_daily_live_overall(
 def get_target_adjustment(
     store: str = Query(..., description="Single store code, e.g. NM, or ALL"),
     date: str = Query(..., description="YYYY-MM-DD"),
+    recovery_window: int = Query(7, description="7, 14, or 30 days rolling recovery window"),
+    carry_forward_policy: str = Query("MONTH_END_CLOSE", description="MONTH_END_CLOSE or TRUE_ROLLING"),
+    distribution_mode: str = Query("EQUAL", description="EQUAL or TARGET_WEIGHTED"),
     db: Database = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    """Cumulative target adjustment calculation based on previous day's target vs actual sales."""
+    """Cumulative target adjustment calculation based on rolling recovery periods and FIFO deficit buckets."""
     if store == "ALL":
         require_admin(user)
     else:
         _guard(store, user)
     target_date = _parse_iso_date(date)
-    return daily_dashboard_store.get_target_adjustment_alert(db, store, target_date)
+    return daily_dashboard_store.get_target_adjustment_alert(
+        db,
+        store,
+        target_date,
+        recovery_window=recovery_window,
+        carry_forward_policy=carry_forward_policy,
+        distribution_mode=distribution_mode,
+    )
+
 
 
 

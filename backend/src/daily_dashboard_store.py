@@ -233,37 +233,35 @@ def sum_nob_log(db: Database, store: str, target_date: date) -> float:
     return _sum_timed_log(db, NOB, "nob", store, target_date)
 
 
-def compute_live_timeslot_breakdown(db: Database, store: str, target_date: date) -> dict[str, dict[str, float]]:
-    """Today's Net Sales/Bill Quantity/Footfall/NOB, each summed per
-    TIME_SLOT_ORDER band, from the three logs' own persisted TIME SLOT
-    column -- the Daily Dashboard's counterpart to Historical Analytics'
-    "Footfall vs NOB: Time-of-Day Performance" chart
-    (src/charts.py's footfall_nob_by_timeslot_chart), except also covering
-    Net Sales/Bill Quantity: unlike DATASET.xlsx's DAY WISE SALE sheet
-    (which has no Bill Time column at all, so historical sales can never be
-    sliced by time slot), every bill logged here carries a real clock time.
-    An entry whose time falls outside all 4 bands (before 11 AM) has
-    time_slot None and is excluded from every band's totals here, the same
-    way it would silently drop out of the historical chart's own
-    reindex(TIME_SLOT_ORDER) -- this never touches sum_bill_log/
-    sum_footfall_log/sum_nob_log's own totals (the live KPI cards), which
-    still sum every entry regardless of time slot."""
+def compute_live_timeslot_breakdown(
+    db: Database, store: str, target_date: date, end_date: date | None = None
+) -> dict[str, dict[str, float]]:
+    """Today's or date range's Net Sales/Bill Quantity/Footfall/NOB, each summed
+    per TIME_SLOT_ORDER band, from the three logs' own persisted TIME SLOT column.
+    Supports single day or date range [target_date, end_date] and 'ALL' stores."""
     breakdown: dict[str, dict[str, float]] = {
         slot: {"net_sales": 0.0, "bill_quantity": 0.0, "footfall": 0.0, "nob": 0.0} for slot in TIME_SLOT_ORDER
     }
-    for entry in list_bill_entries(db, store, target_date):
-        slot = entry.get("time_slot")
-        if slot in breakdown:
-            breakdown[slot]["net_sales"] += entry["net_amount"] or 0.0
-            breakdown[slot]["bill_quantity"] += entry["bill_quantity"] or 0.0
-    for entry in list_footfall_entries(db, store, target_date):
-        slot = entry.get("time_slot")
-        if slot in breakdown:
-            breakdown[slot]["footfall"] += entry["footfall"] or 0.0
-    for entry in list_nob_entries(db, store, target_date):
-        slot = entry.get("time_slot")
-        if slot in breakdown:
-            breakdown[slot]["nob"] += entry["nob"] or 0.0
+    cur_date = target_date
+    final_date = end_date or target_date
+    stores_to_query = list(STORE_CODE_TO_NAME) if store == "ALL" else [store]
+
+    while cur_date <= final_date:
+        for s in stores_to_query:
+            for entry in list_bill_entries(db, s, cur_date):
+                slot = entry.get("time_slot")
+                if slot in breakdown:
+                    breakdown[slot]["net_sales"] += entry.get("net_amount") or 0.0
+                    breakdown[slot]["bill_quantity"] += entry.get("bill_quantity") or 0.0
+            for entry in list_footfall_entries(db, s, cur_date):
+                slot = entry.get("time_slot")
+                if slot in breakdown:
+                    breakdown[slot]["footfall"] += entry.get("footfall") or 0.0
+            for entry in list_nob_entries(db, s, cur_date):
+                slot = entry.get("time_slot")
+                if slot in breakdown:
+                    breakdown[slot]["nob"] += entry.get("nob") or 0.0
+        cur_date += timedelta(days=1)
     return breakdown
 
 
@@ -276,11 +274,23 @@ def _find_target(db: Database, store: str, target_date: date) -> dict | None:
     return db[TARGETS].find_one({"store_code": store, "entry_date": target_date.isoformat()})
 
 
-def read_store_target(db: Database, store: str, target_date: date) -> float | None:
-    target = _find_target(db, store, target_date)
-    if target is None or target.get("sales_target") is None:
-        return None
-    return float(target["sales_target"])
+def read_store_target(db: Database, store: str, target_date: date, end_date: date | None = None) -> float | None:
+    if end_date is None or end_date <= target_date:
+        target = _find_target(db, store, target_date)
+        if target is None or target.get("sales_target") is None:
+            return None
+        return float(target["sales_target"])
+
+    total_target = 0.0
+    has_target = False
+    cur = target_date
+    while cur <= end_date:
+        t = _find_target(db, store, cur)
+        if t is not None and t.get("sales_target") is not None:
+            total_target += float(t["sales_target"])
+            has_target = True
+        cur += timedelta(days=1)
+    return total_target if has_target else None
 
 
 def read_target_for_stores(db: Database, stores: list[str], target_date: date) -> float | None:
@@ -870,68 +880,26 @@ def get_history_range_details(db: Database, store: str, start_date: date, end_da
     }
 
 
-def get_target_adjustment_alert(db: Database, store: str, target_date: date) -> dict | None:
-    """Calculates Target Adjustment alert.
-    Cumulative approach: checks previous day's sales target vs achieved net sales.
-    If there is an unachieved shortfall, concludes the effective adjusted recovery
-    target without altering the admin-given sales target in the KPI card."""
-    prev_date = target_date - timedelta(days=1)
-    
-    if store == "ALL":
-        prev_kpis = compute_live_kpis_all_stores(db, prev_date)["combined"]
-        today_kpis = compute_live_kpis_all_stores(db, target_date)["combined"]
-    else:
-        prev_kpis = compute_live_kpis(db, store, prev_date)
-        today_kpis = compute_live_kpis(db, store, target_date)
+def get_target_adjustment_alert(
+    db: Database,
+    store: str,
+    target_date: date,
+    recovery_window: int = 7,
+    carry_forward_policy: str = "MONTH_END_CLOSE",
+    distribution_mode: str = "EQUAL",
+) -> dict | None:
+    """Calculates Target Adjustment alert using the rolling recovery deficit bucket engine."""
+    from src.target_adjustment_engine import compute_target_adjustment
 
-    prev_target = prev_kpis.get("sales_target")
-    prev_actual = prev_kpis.get("net_sales", 0.0) or 0.0
-    
-    # If yesterday had no target set, no deficit/surplus can be established from yesterday
-    if prev_target is None:
-        return None
+    return compute_target_adjustment(
+        db,
+        store,
+        target_date,
+        recovery_window=recovery_window,
+        carry_forward_policy=carry_forward_policy,
+        distribution_mode=distribution_mode,
+    )
 
-    prev_shortfall = 0.0
-    prev_surplus = 0.0
-    if prev_actual < prev_target:
-        prev_shortfall = round(prev_target - prev_actual, 2)
-    else:
-        prev_surplus = round(prev_actual - prev_target, 2)
-
-    today_target = today_kpis.get("sales_target")
-    today_actual = today_kpis.get("net_sales", 0.0) or 0.0
-
-    adjusted_target = None
-    adjusted_remaining = None
-    recovery_achievement_pct = None
-
-    if today_target is not None:
-        adjusted_target = round(today_target + prev_shortfall, 2)
-        adjusted_remaining = round(max(0.0, adjusted_target - today_actual), 2)
-        if adjusted_target > 0:
-            recovery_achievement_pct = round((today_actual / adjusted_target) * 100, 2)
-    elif prev_shortfall > 0:
-        adjusted_target = prev_shortfall
-        adjusted_remaining = round(max(0.0, adjusted_target - today_actual), 2)
-        if adjusted_target > 0:
-            recovery_achievement_pct = round((today_actual / adjusted_target) * 100, 2)
-
-    return {
-        "active": True,
-        "target_date": target_date.isoformat(),
-        "prev_date": prev_date.isoformat(),
-        "prev_target": prev_target,
-        "prev_actual": prev_actual,
-        "prev_shortfall": prev_shortfall,
-        "prev_surplus": prev_surplus,
-        "admin_today_target": today_target,
-        "adjusted_cumulative_target": adjusted_target,
-        "today_actual_sales": today_actual,
-        "adjusted_remaining": adjusted_remaining,
-        "recovery_achievement_pct": recovery_achievement_pct,
-        "has_shortfall": prev_shortfall > 0,
-        "status": "shortfall_recovery" if prev_shortfall > 0 else ("surplus_cushion" if prev_surplus > 0 else "neutral"),
-    }
 
 
 def get_landing_hero_telemetry(db: Database) -> dict:

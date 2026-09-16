@@ -3,8 +3,9 @@ import { Info } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { getKpiIconConfig } from "@/lib/kpiIcons";
 import { cn } from "@/lib/utils";
-import type { StatusColor } from "@/lib/types";
+import type { DailyKpiKey, StatusColor } from "@/lib/types";
 
 const STATUS_CONFIGS: Record<
   StatusColor,
@@ -50,6 +51,7 @@ interface KpiCardProps {
   formula: string;
   status?: StatusColor | null;
   index: number;
+  kpiKey?: DailyKpiKey | string;
   thresholdControl?: ReactNode;
 }
 
@@ -82,10 +84,13 @@ export function KpiCard({
   formula,
   status,
   index,
+  kpiKey,
   thresholdControl,
 }: KpiCardProps) {
   const display = useCountUp(value, formatter);
   const statusConfig = status ? STATUS_CONFIGS[status] : null;
+  const iconConfig = getKpiIconConfig(kpiKey ?? label);
+  const IconComponent = iconConfig?.icon;
 
   return (
     <motion.div
@@ -100,7 +105,7 @@ export function KpiCard({
         delay: Math.min(index, 12) * 0.022,
       }}
       className={cn(
-        "group relative flex flex-col justify-between rounded-xl border border-border/70 border-l-[3.5px] p-3 sm:p-3.5 transition-all duration-200 overflow-hidden",
+        "group relative flex flex-col justify-between rounded-xl border border-border/70 border-l-[3.5px] p-2.5 sm:p-3 transition-all duration-200 overflow-hidden",
         "bg-card/90 dark:bg-card/75 backdrop-blur-md shadow-xs hover:shadow-lg hover:border-border",
         statusConfig
           ? cn(statusConfig.border, statusConfig.borderGlow, statusConfig.bgGradient)
@@ -123,9 +128,22 @@ export function KpiCard({
       {/* Shimmer sweep on hover */}
       <div className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/5 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full" />
 
-      {/* Card Header: Label + Status Beacon + Popover Actions */}
+      {/* Card Header: Icon Chip + Label + Status Beacon + Popover Actions */}
       <div className="relative z-10 flex items-start justify-between gap-1.5">
         <div className="flex items-center gap-1.5 min-w-0 pr-1">
+          {IconComponent && (
+            <div
+              className={cn(
+                "flex h-5 w-5 sm:h-5.5 sm:w-5.5 shrink-0 items-center justify-center rounded-md border text-muted-foreground transition-all duration-300 shadow-xs",
+                "group-hover:scale-110",
+                iconConfig.bg,
+                iconConfig.border,
+                iconConfig.color,
+              )}
+            >
+              <IconComponent className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+            </div>
+          )}
           {statusConfig && (
             <span className="relative flex h-2 w-2 shrink-0">
               <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-75", statusConfig.dotGlow)} />

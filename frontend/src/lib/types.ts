@@ -104,22 +104,61 @@ export interface DailyKpis {
 
 export type DailyKpiKey = keyof DailyKpis;
 
+export interface DeficitBucketItem {
+  id: string;
+  origin_date: string;
+  original_deficit: number;
+  remaining_deficit: number;
+  recovery_start_date: string;
+  recovery_end_date: string;
+  days_remaining: number;
+  scheduled_carry_today: number;
+  status: "ACTIVE" | "COMPLETED" | "EXPIRED" | "FORCED_MONTH_END";
+}
+
 export interface TargetAdjustmentAlert {
   active: boolean;
   target_date: string;
-  prev_date: string;
-  prev_target: number | null;
-  prev_actual: number;
-  prev_shortfall: number;
-  prev_surplus: number;
-  admin_today_target: number | null;
-  adjusted_cumulative_target: number | null;
+  store?: string;
+  recovery_window?: number;
+  carry_forward_policy?: "MONTH_END_CLOSE" | "TRUE_ROLLING";
+  distribution_mode?: "EQUAL" | "TARGET_WEIGHTED";
+  recovery_allocation?: string;
+
+  // Target Metrics
+  original_target?: number | null;
+  admin_today_target?: number | null;
+  scheduled_carry?: number;
+  adjusted_target?: number | null;
+  adjusted_cumulative_target?: number | null;
   today_actual_sales: number;
   adjusted_remaining: number | null;
+  adjusted_target_gap?: number | null;
+  original_target_gap?: number;
   recovery_achievement_pct: number | null;
+  recovered_today?: number;
+  true_surplus?: number;
+  new_deficit_created?: number;
+
+  // Deficit Backlog
+  outstanding_before?: number;
+  outstanding_after?: number;
+  total_outstanding_deficit?: number;
+  active_buckets_count?: number;
+  deficit_buckets?: DeficitBucketItem[];
+
+  // Status
   has_shortfall: boolean;
   status: "shortfall_recovery" | "surplus_cushion" | "neutral";
+
+  // Legacy/Compatibility fields
+  prev_date?: string;
+  prev_target?: number | null;
+  prev_actual?: number;
+  prev_shortfall?: number;
+  prev_surplus?: number;
 }
+
 
 // GET /api/daily/live -- one store's live KPIs for one date, plus that day's
 // weather / holiday / election context.

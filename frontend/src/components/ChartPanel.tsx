@@ -4,6 +4,7 @@ import { useTheme } from "next-themes";
 import Plotly from "plotly.js-dist-min";
 import type { Layout, PlotData } from "plotly.js-dist-min";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BarChart3, Eye, EyeOff, Grid3X3, LineChart, PieChart, TrendingUp } from "lucide-react";
 
 import { api } from "@/api/client";
 import { Button } from "@/components/ui/button";
@@ -26,27 +27,10 @@ interface ChartPanelProps {
 
 function formatCell(v: unknown): string {
   if (typeof v === "number") return fmtNumber(v);
-  // A chart-derived table is value-oriented -- a null/undefined cell is a gap in
-  // a numeric series, shown as 0 (Historical Analytics Overhaul: missing -> 0).
   if (v === null || v === undefined) return "0";
   return String(v);
 }
 
-// Gauge (Indicator) value-sweep-in: mount the gauge with its value zeroed,
-// then imperatively animate to the real value once Plotly has actually
-// painted that zeroed first frame. `Plotly.animate()` on the graph div
-// `onInitialized` hands back is what makes this reliable.
-//
-// Deliberately indicator-only, not "zero every chart": bar/scatter data-
-// value changes were tried the same way and rejected after testing -- the
-// y-axis autorange doesn't stay synced with the interpolated in-between
-// values during the transition, producing genuinely broken intermediate
-// geometry (bar paths landing at wild coordinates like `V-11827455...`
-// instead of a clean grow-in), confirmed by polling the live SVG path data
-// frame-by-frame during the transition. Indicators have no such autorange
-// dependency (their gauge arc range is fixed from server-side thresholds),
-// so they sweep cleanly. Every other chart type keeps only the whole-panel
-// fade+rise entrance below.
 type IndicatorTrace = PlotData & { type?: string; value?: number };
 
 function isGauge(trace: PlotData): boolean {
@@ -57,52 +41,48 @@ function zeroTraceValue(trace: PlotData): PlotData {
   return isGauge(trace) ? ({ ...trace, value: 0 } as PlotData) : trace;
 }
 
-import { BarChart3, LineChart, PieChart, TrendingUp } from "lucide-react";
-
 export type ChartVisualFormat = "column" | "line" | "area" | "pie";
+
+const SLICE_COLORS = [
+  "#3b82f6", // Blue
+  "#6366f1", // Indigo
+  "#8b5cf6", // Purple
+  "#ec4899", // Pink
+  "#f59e0b", // Amber
+  "#10b981", // Emerald
+  "#06b6d4", // Cyan
+  "#14b8a6", // Teal
+];
 
 export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPanelProps) {
   const [showTable, setShowTable] = useState(false);
+  const [showLegend, setShowLegend] = useState<boolean>(true);
+  const [showGrid, setShowGrid] = useState<boolean>(true);
   const [chartFormat, setChartFormat] = useState<ChartVisualFormat>("column");
+  const [pieSubMetric, setPieSubMetric] = useState<number | "all">(0);
+
   const { theme } = useTheme();
-  // The "neon" theme recolours the server-rendered figure (`src/theme.py`);
-  // any other theme leaves `?theme` off so the figure is byte-identical to
-  // before. Report exports call `api.chart` directly (not this component) and
-  // never pass a theme, so exported charts stay on the light palette.
   const themedExtra = useMemo(
     () => (theme === "neon" ? { ...extra, theme: "neon" } : extra),
     [extra, theme],
   );
-  // keepPreviousData: an Apply-Filters-driven refetch keeps showing the
-  // last chart (not a blank skeleton) until the new figure lands -- see
-  // ExecutiveOverview.tsx's KPI query for the same reasoning.
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ["chart", chartId, filterQueryKey(filters, themedExtra)],
     queryFn: () => api.chart(chartId, filters, themedExtra),
     placeholderData: keepPreviousData,
   });
 
-  // /api/charts/{chart_id} returns a GaugeSpec (plain JSON, rendered below
-  // via GlossyGauge -- a real SVG needle, which Plotly can't draw) for the
-  // *_gauge chart ids instead of a Plotly figure. `figure` narrows `data`
-  // to the Plotly-figure case so every `.data`/`.layout` access below stays
-  // type-safe without gating any hook behind a conditional.
   const isGaugeSpec = !!data && "kind" in data && data.kind === "gauge";
   const figure = !isGaugeSpec ? (data as PlotlyChartFigure | undefined) : undefined;
 
   const traces = figure?.data as PlotData[] | undefined;
   const hasAnimatableValues = useMemo(() => !!traces && traces.some(isGauge), [traces]);
 
-  // Scoped to first mount only (empty deps) -- filter-driven data changes on
-  // an already-mounted chart get Plotly's normal old-value-to-new-value
-  // transition on the `data` prop, not a repeated sweep-from-zero.
   const [revealed, setRevealed] = useState(false);
   const latestTraces = useRef(traces);
   latestTraces.current = traces;
 
-  // Safety net: onInitialized (below) is the normal, precise trigger, but if
-  // it never fires for some edge-case figure shape, this still guarantees
-  // the chart can't get stuck showing zeroed values indefinitely.
   useEffect(() => {
     const id = window.setTimeout(() => setRevealed(true), 2000);
     return () => window.clearTimeout(id);
@@ -119,7 +99,7 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
       return traces;
     }
 
-    // Format transformation for Line, Area, Pie/Donut
+    // Format transformation for Line
     if (chartFormat === "line") {
       return traces.map((t) => ({
         ...t,
@@ -130,6 +110,7 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
       }));
     }
 
+    // Format transformation for Area
     if (chartFormat === "area") {
       return traces.map((t) => ({
         ...t,
@@ -141,63 +122,148 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
       }));
     }
 
+    // Format transformation for Donut / Pie
     if (chartFormat === "pie") {
-      // Create pie / donut trace
+      // Case 1: Single trace (e.g., Performance by Time Slot - Net Sales)
       if (traces.length === 1) {
         const t = traces[0] as any;
+        const labels = Array.isArray(t.x) ? t.x : [];
+        const values = Array.isArray(t.y) ? t.y.map((v: any) => Number(v) || 0) : [];
+        const isSales = chartId === "daily_timeslot_breakdown";
+
         return [
           {
             type: "pie" as any,
-            hole: 0.45,
-            labels: t.x,
-            values: t.y,
-            textinfo: "label+percent",
+            hole: 0.48,
+            labels,
+            values,
+            textinfo: "percent",
+            textposition: "inside",
+            insidetextorientation: "horizontal",
+            automargin: true,
             hoverinfo: "label+value+percent",
-            marker: { colors: ["#3b82f6", "#6366f1", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981"] },
+            hovertemplate: isSales
+              ? "<b>%{label}</b><br>Net Sales: ₹%{value:,.2f}<br>Share: <b>%{percent}</b><extra></extra>"
+              : "<b>%{label}</b><br>Value: %{value:,.0f}<br>Share: <b>%{percent}</b><extra></extra>",
+            marker: {
+              colors: SLICE_COLORS,
+              line: { color: theme === "neon" ? "rgba(0,0,0,0.6)" : "rgba(255,255,255,0.4)", width: 1.5 },
+            },
           },
         ] as unknown as PlotData[];
       }
+
+      // Case 2: Multi-trace (e.g., Footfall vs NOB based on Time Slot)
       if (traces.length > 1) {
-        // Multi-trace pie (sum totals per trace category)
-        const labels = traces.map((t: any) => t.name || "Series");
-        const values = traces.map((t: any) =>
-          Array.isArray(t.y) ? t.y.reduce((acc: number, v: any) => acc + (Number(v) || 0), 0) : 0,
-        );
+        if (pieSubMetric === "all") {
+          // Compare totals across the traces (Total Footfall vs Total Buyers)
+          const labels = traces.map((t: any) => t.name || "Series");
+          const values = traces.map((t: any) =>
+            Array.isArray(t.y) ? t.y.reduce((acc: number, v: any) => acc + (Number(v) || 0), 0) : 0,
+          );
+          return [
+            {
+              type: "pie" as any,
+              hole: 0.48,
+              labels,
+              values,
+              textinfo: "percent",
+              textposition: "inside",
+              insidetextorientation: "horizontal",
+              automargin: true,
+              hoverinfo: "label+value+percent",
+              hovertemplate: "<b>%{label}</b><br>Total Count: %{value:,.0f}<br>Share: <b>%{percent}</b><extra></extra>",
+              marker: {
+                colors: ["#94a3b8", "#2563eb", "#10b981", "#f59e0b"],
+                line: { color: theme === "neon" ? "rgba(0,0,0,0.6)" : "rgba(255,255,255,0.4)", width: 1.5 },
+              },
+            },
+          ] as unknown as PlotData[];
+        }
+
+        // Specific sub-trace by Time Slot (e.g. Footfall by Time Slot or NOB by Time Slot)
+        const targetIdx = typeof pieSubMetric === "number" && pieSubMetric < traces.length ? pieSubMetric : 0;
+        const targetTrace = traces[targetIdx] as any;
+        const labels = Array.isArray(targetTrace.x) ? targetTrace.x : [];
+        const values = Array.isArray(targetTrace.y) ? targetTrace.y.map((v: any) => Number(v) || 0) : [];
+        const traceName = targetTrace.name || `Series ${targetIdx + 1}`;
+
         return [
           {
             type: "pie" as any,
-            hole: 0.45,
+            hole: 0.48,
             labels,
             values,
-            textinfo: "label+percent",
+            textinfo: "percent",
+            textposition: "inside",
+            insidetextorientation: "horizontal",
+            automargin: true,
             hoverinfo: "label+value+percent",
-            marker: { colors: ["#94a3b8", "#2563eb", "#10b981", "#f59e0b"] },
+            hovertemplate: `<b>%{label}</b><br>${traceName}: %{value:,.0f}<br>Share: <b>%{percent}</b><extra></extra>`,
+            marker: {
+              colors: SLICE_COLORS,
+              line: { color: theme === "neon" ? "rgba(0,0,0,0.6)" : "rgba(255,255,255,0.4)", width: 1.5 },
+            },
           },
         ] as unknown as PlotData[];
       }
     }
 
     return traces;
-  }, [traces, hasAnimatableValues, revealed, chartFormat, isTimeslotChart]);
+  }, [traces, hasAnimatableValues, revealed, chartFormat, isTimeslotChart, pieSubMetric, chartId, theme]);
 
-  // Dynamic layout tweaks for pie/donut
+  // Dynamic layout tweaks with Legend and Grid view support
   const plotLayout = useMemo(() => {
     if (!figure) return undefined;
     const base = { ...(figure.layout as Partial<Layout>), autosize: true };
-    if (chartFormat === "pie" && isTimeslotChart) {
+
+    const baseXaxis = (base.xaxis as Record<string, any>) || {};
+    const baseYaxis = (base.yaxis as Record<string, any>) || {};
+
+    if (chartFormat === "pie") {
       return touchLayout({
         ...base,
-        xaxis: { visible: false },
-        yaxis: { visible: false },
-        showlegend: true,
+        xaxis: { ...baseXaxis, visible: false, showgrid: false },
+        yaxis: { ...baseYaxis, visible: false, showgrid: false },
+        showlegend: showLegend,
+        legend: {
+          orientation: "h",
+          y: -0.15,
+          x: 0.5,
+          xanchor: "center",
+          font: { size: 11 },
+          itemclick: "toggle",
+          itemdoubleclick: "toggleothers",
+        },
+        margin: { l: 20, r: 20, t: 40, b: showLegend ? 50 : 20 },
       });
     }
-    return touchLayout(base);
-  }, [figure, chartFormat, isTimeslotChart]);
 
-  // Fires once Plotly has actually painted the zeroed first frame (the
-  // graphDiv it hands back is fully drawn at this point -- see onInitialized
-  // below). Animate straight from there to the real values.
+    return touchLayout({
+      ...base,
+      xaxis: {
+        ...baseXaxis,
+        showgrid: showGrid,
+        gridcolor: theme === "neon" ? "rgba(0, 255, 255, 0.12)" : "rgba(148, 163, 184, 0.2)",
+      },
+      yaxis: {
+        ...baseYaxis,
+        showgrid: showGrid,
+        gridcolor: theme === "neon" ? "rgba(0, 255, 255, 0.12)" : "rgba(148, 163, 184, 0.2)",
+      },
+      showlegend: showLegend,
+      legend: {
+        orientation: "h",
+        y: -0.18,
+        x: 0.5,
+        xanchor: "center",
+        font: { size: 11 },
+        itemclick: "toggle",
+        itemdoubleclick: "toggleothers",
+      },
+    });
+  }, [figure, chartFormat, showLegend, showGrid, theme]);
+
   function revealChart(graphDiv: Readonly<HTMLElement>) {
     const real = latestTraces.current;
     if (hasAnimatableValues && real) {
@@ -205,10 +271,7 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
         graphDiv as unknown as Plotly.Root,
         { data: real as Plotly.Data[] },
         { transition: { duration: 400, easing: "cubic-in-out" }, frame: { duration: 400, redraw: false } },
-      ).catch(() => {
-        // Best-effort polish -- a failed animate() (e.g. the graph div was
-        // torn down mid-flight) should never block showing the real data.
-      });
+      ).catch(() => {});
     }
     setRevealed(true);
   }
@@ -217,9 +280,6 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
     try {
       return deriveTableFromFigure(figure?.data, figure?.layout);
     } catch {
-      // Best-effort table extraction from arbitrary Plotly trace shapes --
-      // a shape this doesn't recognise should just hide the toggle, not
-      // break the chart itself.
       return null;
     }
   }, [figure]);
@@ -239,18 +299,20 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
   }
 
   return (
-    <div>
-      {isTimeslotChart && (
-        <div className="mb-2 flex items-center justify-between gap-2">
+    <div className="space-y-2">
+      {/* Chart Control Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {isTimeslotChart ? (
           <div className="flex items-center gap-1 rounded-lg border bg-muted/30 p-0.5">
             <button
               type="button"
               onClick={() => setChartFormat("column")}
               className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
                 chartFormat === "column"
-                  ? "bg-primary text-primary-foreground shadow-sm"
+                  ? "bg-primary text-primary-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
               }`}
+              title="Column Chart"
             >
               <BarChart3 className="h-3.5 w-3.5" />
               <span>Column</span>
@@ -260,9 +322,10 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
               onClick={() => setChartFormat("line")}
               className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
                 chartFormat === "line"
-                  ? "bg-primary text-primary-foreground shadow-sm"
+                  ? "bg-primary text-primary-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
               }`}
+              title="Line Chart"
             >
               <LineChart className="h-3.5 w-3.5" />
               <span>Line</span>
@@ -272,9 +335,10 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
               onClick={() => setChartFormat("area")}
               className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
                 chartFormat === "area"
-                  ? "bg-primary text-primary-foreground shadow-sm"
+                  ? "bg-primary text-primary-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
               }`}
+              title="Area Chart"
             >
               <TrendingUp className="h-3.5 w-3.5" />
               <span>Area</span>
@@ -284,23 +348,105 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
               onClick={() => setChartFormat("pie")}
               className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
                 chartFormat === "pie"
-                  ? "bg-primary text-primary-foreground shadow-sm"
+                  ? "bg-primary text-primary-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
               }`}
+              title="Donut / Pie Chart"
             >
               <PieChart className="h-3.5 w-3.5" />
               <span>Donut/Pie</span>
             </button>
           </div>
+        ) : (
+          <div />
+        )}
 
+        <div className="flex items-center gap-1.5 ml-auto">
+          {/* Chart Grid Lines View Toggle */}
+          {chartFormat !== "pie" && (
+            <button
+              type="button"
+              onClick={() => setShowGrid((prev) => !prev)}
+              className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium border transition-colors ${
+                showGrid
+                  ? "bg-primary/10 border-primary/30 text-primary"
+                  : "bg-muted/40 border-border text-muted-foreground hover:text-foreground"
+              }`}
+              title={showGrid ? "Hide Chart Grid Lines" : "Show Chart Grid Lines"}
+            >
+              <Grid3X3 className="h-3.5 w-3.5" />
+              <span>Grid: {showGrid ? "ON" : "OFF"}</span>
+            </button>
+          )}
+
+          {/* Chart Legend On/Off Option */}
+          <button
+            type="button"
+            onClick={() => setShowLegend((prev) => !prev)}
+            className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium border transition-colors ${
+              showLegend
+                ? "bg-primary/10 border-primary/30 text-primary"
+                : "bg-muted/40 border-border text-muted-foreground hover:text-foreground"
+            }`}
+            title={showLegend ? "Hide Chart Legend" : "Show Chart Legend"}
+          >
+            {showLegend ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+            <span>Legend: {showLegend ? "ON" : "OFF"}</span>
+          </button>
+
+          {/* Table View Toggle */}
           {table && table.rows.length > 0 && (
-            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setShowTable((o) => !o)}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2.5 text-xs font-medium"
+              onClick={() => setShowTable((o) => !o)}
+            >
               {showTable ? "Hide" : "View"} Data Table
             </Button>
           )}
         </div>
+      </div>
+
+      {/* Donut/Pie Sub-Breakdown Selector (for multi-trace charts like Footfall vs NOB) */}
+      {isTimeslotChart && chartFormat === "pie" && traces && traces.length > 1 && (
+        <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-border/60 bg-muted/20 px-2.5 py-1.5 text-xs">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mr-1">
+            Breakdown:
+          </span>
+          {traces.map((t: any, idx: number) => {
+            const name = t.name || `Series ${idx + 1}`;
+            const active = pieSubMetric === idx;
+            return (
+              <button
+                key={name}
+                type="button"
+                onClick={() => setPieSubMetric(idx)}
+                className={`rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
+                  active
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "bg-card hover:bg-muted text-muted-foreground hover:text-foreground border border-border/70"
+                }`}
+              >
+                {name} by Slot
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setPieSubMetric("all")}
+            className={`rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
+              pieSubMetric === "all"
+                ? "bg-primary text-primary-foreground shadow-xs"
+                : "bg-card hover:bg-muted text-muted-foreground hover:text-foreground border border-border/70"
+            }`}
+          >
+            Overall ({traces.map((t: any) => t.name).filter(Boolean).join(" vs ")})
+          </button>
+        </div>
       )}
 
+      {/* Main Chart Canvas */}
       <motion.div
         initial={{ opacity: 0, y: 16, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -318,13 +464,7 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
         />
       </motion.div>
 
-      {!isTimeslotChart && table && table.rows.length > 0 && (
-        <div className="mt-2 flex justify-end">
-          <Button variant="outline" size="sm" onClick={() => setShowTable((o) => !o)}>
-            {showTable ? "Hide" : "View"} Table
-          </Button>
-        </div>
-      )}
+      {/* Data Table View */}
       <AnimatePresence initial={false}>
         {showTable && table && (
           <motion.div

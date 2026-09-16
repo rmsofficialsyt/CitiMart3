@@ -350,55 +350,97 @@ def test_target_adjustment_alert_none_when_no_prev_target(db_session):
     assert alert is None
 
 
-def test_target_adjustment_alert_shortfall_recovery(db_session):
+def test_target_adjustment_alert_rolling_recovery(db_session):
+    # Aug 20: Target 10,000, Sales 6,000 -> Deficit 4,000
     _set_target(db_session, "NM", date(2026, 8, 20), 10_000.0)
     daily_dashboard_store.add_bill_entry(db_session, "NM", date(2026, 8, 20), time(11, 0), 6_000.0, 5.0)
 
+    # Aug 21: Target 12,000, Sales 4,000 so far
     _set_target(db_session, "NM", date(2026, 8, 21), 12_000.0)
     daily_dashboard_store.add_bill_entry(db_session, "NM", date(2026, 8, 21), time(11, 0), 4_000.0, 3.0)
 
-    alert = daily_dashboard_store.get_target_adjustment_alert(db_session, "NM", date(2026, 8, 21))
+    # 7-Day rolling recovery window: 4,000 / 7 = 571.43 scheduled carry for Aug 21
+    alert = daily_dashboard_store.get_target_adjustment_alert(db_session, "NM", date(2026, 8, 21), recovery_window=7)
     assert alert is not None
     assert alert["has_shortfall"] is True
-    assert alert["prev_shortfall"] == 4_000.0
-    assert alert["prev_surplus"] == 0.0
-    assert alert["admin_today_target"] == 12_000.0
-    assert alert["adjusted_cumulative_target"] == 16_000.0
-    assert alert["adjusted_remaining"] == 12_000.0
-    assert alert["recovery_achievement_pct"] == 25.0
+    assert alert["total_outstanding_deficit"] == 4_000.0
+    assert alert["scheduled_carry"] == 571.43
+    assert alert["original_target"] == 12_000.0
+    assert alert["adjusted_target"] == 12571.43
+    assert alert["adjusted_remaining"] == round(12571.43 - 4000.0, 2)
     assert alert["status"] == "shortfall_recovery"
+    assert len(alert["deficit_buckets"]) == 1
+    assert alert["deficit_buckets"][0]["original_deficit"] == 4_000.0
+    assert alert["deficit_buckets"][0]["remaining_deficit"] == 4_000.0
+    assert alert["deficit_buckets"][0]["days_remaining"] == 7
 
 
-def test_target_adjustment_alert_surplus_cushion(db_session):
-    _set_target(db_session, "NM", date(2026, 8, 20), 10_000.0)
-    daily_dashboard_store.add_bill_entry(db_session, "NM", date(2026, 8, 20), time(11, 0), 15_000.0, 10.0)
+def test_target_adjustment_fifo_recovery_and_dynamic_redistribution(db_session):
+    # Test sequence matching the master implementation prompt:
+    # 01-09: Target 100, Sales 90 -> Deficit 10
+    d1 = date(2026, 9, 1)
+    _set_target(db_session, "NM", d1, 100.0)
+    daily_dashboard_store.add_bill_entry(db_session, "NM", d1, time(11, 0), 90.0, 1.0)
 
-    _set_target(db_session, "NM", date(2026, 8, 21), 12_000.0)
+    # 02-09: Target 200, Sales 200 (Exact achievement, 0 excess -> remaining deficit 10 across 6 remaining days)
+    d2 = date(2026, 9, 2)
+    _set_target(db_session, "NM", d2, 200.0)
+    daily_dashboard_store.add_bill_entry(db_session, "NM", d2, time(11, 0), 200.0, 2.0)
 
-    alert = daily_dashboard_store.get_target_adjustment_alert(db_session, "NM", date(2026, 8, 21))
-    assert alert is not None
-    assert alert["has_shortfall"] is False
-    assert alert["prev_shortfall"] == 0.0
-    assert alert["prev_surplus"] == 5_000.0
-    assert alert["status"] == "surplus_cushion"
-    assert alert["adjusted_cumulative_target"] == 12_000.0
+    alert_d2 = daily_dashboard_store.get_target_adjustment_alert(db_session, "NM", d2, recovery_window=7)
+    assert alert_d2["scheduled_carry"] == 1.43
+    assert alert_d2["adjusted_target"] == 201.43
+
+    # 03-09: Target 300, scheduled carry = 10 / 6 = 1.67 -> Adjusted target 301.67
+    # Sales = 305 -> 5 excess above original target (recovers 5 from bucket 1 -> 5 remaining across 5 days)
+    d3 = date(2026, 9, 3)
+    _set_target(db_session, "NM", d3, 300.0)
+    daily_dashboard_store.add_bill_entry(db_session, "NM", d3, time(11, 0), 305.0, 3.0)
+
+    alert_d3 = daily_dashboard_store.get_target_adjustment_alert(db_session, "NM", d3, recovery_window=7)
+    assert alert_d3["scheduled_carry"] == 1.67
+    assert alert_d3["adjusted_target"] == 301.67
+    assert alert_d3["recovered_today"] == 5.0
+    assert alert_d3["total_outstanding_deficit"] == 10.0  # before day 3's excess
+
+    # 04-09: Target 400. Bucket 1 has 5 remaining / 5 days = 1.0 scheduled carry.
+    # Adjusted target = 401. Sales = 390 -> creates Bucket 2 with deficit 10.
+    d4 = date(2026, 9, 4)
+    _set_target(db_session, "NM", d4, 400.0)
+    daily_dashboard_store.add_bill_entry(db_session, "NM", d4, time(11, 0), 390.0, 3.0)
+
+    alert_d4 = daily_dashboard_store.get_target_adjustment_alert(db_session, "NM", d4, recovery_window=7)
+    assert alert_d4["scheduled_carry"] == 1.0
+    assert alert_d4["adjusted_target"] == 401.0
+
+    # 05-09: Target 500. Bucket 1 (5/4 days = 1.25) + Bucket 2 (10/7 days = 1.43) -> total carry 2.68
+    # Adjusted target = 502.68
+    d5 = date(2026, 9, 5)
+    _set_target(db_session, "NM", d5, 500.0)
+    alert_d5 = daily_dashboard_store.get_target_adjustment_alert(db_session, "NM", d5, recovery_window=7)
+    assert alert_d5["total_outstanding_deficit"] == 15.0
+    assert alert_d5["scheduled_carry"] == 2.68
+    assert alert_d5["adjusted_target"] == 502.68
+    assert alert_d5["active_buckets_count"] == 2
 
 
 def test_target_adjustment_alert_all_stores(db_session):
-    _set_target(db_session, "NM", date(2026, 8, 20), 10_000.0)
-    _set_target(db_session, "HB", date(2026, 8, 20), 20_000.0)
-    daily_dashboard_store.add_bill_entry(db_session, "NM", date(2026, 8, 20), time(11, 0), 8_000.0, 5.0)
-    daily_dashboard_store.add_bill_entry(db_session, "HB", date(2026, 8, 20), time(11, 0), 15_000.0, 10.0)
+    d1 = date(2026, 8, 20)
+    d2 = date(2026, 8, 21)
+    _set_target(db_session, "NM", d1, 10_000.0)
+    _set_target(db_session, "HB", d1, 20_000.0)
+    daily_dashboard_store.add_bill_entry(db_session, "NM", d1, time(11, 0), 8_000.0, 5.0)
+    daily_dashboard_store.add_bill_entry(db_session, "HB", d1, time(11, 0), 15_000.0, 10.0)
 
-    _set_target(db_session, "NM", date(2026, 8, 21), 10_000.0)
-    _set_target(db_session, "HB", date(2026, 8, 21), 20_000.0)
+    _set_target(db_session, "NM", d2, 10_000.0)
+    _set_target(db_session, "HB", d2, 20_000.0)
 
-    alert = daily_dashboard_store.get_target_adjustment_alert(db_session, "ALL", date(2026, 8, 21))
+    alert = daily_dashboard_store.get_target_adjustment_alert(db_session, "ALL", d2, recovery_window=7)
     assert alert is not None
-    assert alert["prev_target"] == 30_000.0
-    assert alert["prev_actual"] == 23_000.0
-    assert alert["prev_shortfall"] == 7_000.0
-    assert alert["admin_today_target"] == 30_000.0
-    assert alert["adjusted_cumulative_target"] == 37_000.0
+    assert alert["original_target"] == 30_000.0
+    assert alert["total_outstanding_deficit"] == 7_000.0
+    assert alert["scheduled_carry"] == 1000.0  # 7,000 / 7 days
+    assert alert["adjusted_target"] == 31000.0
     assert alert["status"] == "shortfall_recovery"
+
 

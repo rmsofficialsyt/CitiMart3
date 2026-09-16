@@ -60,10 +60,11 @@ def _dispatch_chart(chart_id: str, db: Database, state: DailyChartState, user: C
         # meaningful blend of three stores' time-slot shapes, so the Overall
         # Stores Summary page doesn't render them.
         require_store_access(state.stores[0], user)
-        breakdown = daily_dashboard_store.compute_live_timeslot_breakdown(db, state.stores[0], state.start_date)
+        end_date = state.end_date or state.start_date
+        breakdown = daily_dashboard_store.compute_live_timeslot_breakdown(db, state.stores[0], state.start_date, end_date)
         if chart_id == "daily_footfall_nob":
             return charts.daily_footfall_vs_nob_chart(breakdown)
-        day_target = daily_dashboard_store.read_store_target(db, state.stores[0], state.start_date)
+        day_target = daily_dashboard_store.read_store_target(db, state.stores[0], state.start_date, end_date)
         return charts.daily_timeslot_breakdown_chart(breakdown, day_target)
 
     raise HTTPException(status_code=404, detail=f"Unknown chart_id: {chart_id}")
