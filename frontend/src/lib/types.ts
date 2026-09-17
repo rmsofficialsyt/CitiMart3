@@ -106,13 +106,21 @@ export type DailyKpiKey = keyof DailyKpis;
 
 export interface DeficitBucketItem {
   id: string;
+  store_code?: string;
   origin_date: string;
   original_deficit: number;
   remaining_deficit: number;
+  recovered_amount?: number;
+  recovery_pct?: number;
   recovery_start_date: string;
   recovery_end_date: string;
+  recovery_window?: number;
+  elapsed_days?: number;
+  total_horizon_days?: number;
   days_remaining: number;
   scheduled_carry_today: number;
+  daily_burn_rate?: number;
+  fifo_priority?: number;
   status: "ACTIVE" | "COMPLETED" | "EXPIRED" | "FORCED_MONTH_END";
 }
 
@@ -392,8 +400,8 @@ export interface HistoryRangeResponse {
 }
 
 export type DirectivePriority = "urgent" | "high" | "normal" | "info";
-export type DirectiveCategory = "sales_target" | "special_notice" | "operations" | "announcement" | "remarks";
-export type DirectiveTargetStore = "ALL" | "NM" | "HB" | "CHW";
+export type DirectiveCategory = "sales_target" | "special_notice" | "operations" | "announcement" | "remarks" | "complaint" | "requirements";
+export type DirectiveTargetStore = "ALL" | "NM" | "HB" | "CHW" | "ADMIN";
 
 export interface Directive {
   id: number;

@@ -47,7 +47,7 @@ function resolveKpiStatus(key: DailyKpiKey, rawStatus: StatusColor | undefined, 
 
 /** One store's live Daily Dashboard:
  * Level 1: 4x3 KPI Cards matrix and 3x2 Gauges matrix at the exact same horizontal level with an imaginary line separator.
- * Level 2: Target Adjustment Alert & AI Store Intelligence Decision Advisor.
+ * Level 2: AI Store Intelligence Decision Advisor & Target Adjustment Alert.
  * Level 3: 2 Time-Slot Charts (Today's Performance & Footfall vs NOB) in 2-column horizontal view with multi-type format switchers.
  * Level 4: Today's Context.
  * Level 5: Logged Footfall and Logged Bills & NOB in horizontal view. */
@@ -90,14 +90,14 @@ function StoreDailyDashboard({ store }: { store: StoreCode }) {
         <DailyExportMenu store={store} />
       </div>
 
-      {/* Target Adjustment Alert */}
-      {data?.target_adjustment && (
-        <TargetAdjustmentAlert alert={data.target_adjustment} storeCode={store} />
-      )}
-
       {/* AI Store Intelligence & Decision Advisor */}
       {data && (
         <AiStoreAdvisor kpis={data.kpis} storeCode={store} storeName={storeName} />
+      )}
+
+      {/* Target Adjustment Alert */}
+      {data?.target_adjustment && (
+        <TargetAdjustmentAlert alert={data.target_adjustment} storeCode={store} />
       )}
 
       {/* Level 1: Horizontal View - 4x3 KPI Matrix & Gauges at the Same Level with Imaginary Line */}

@@ -64,6 +64,7 @@ function SettingsMenu({
   const [open, setOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const navigate = useNavigate();
+  const isAdmin = roleLabel === "Admin" || username === "CITIMART - ADMIN";
 
   const themes = [
     { id: "light", label: "Light", Icon: Sun },
@@ -140,33 +141,35 @@ function SettingsMenu({
                 </div>
               )}
 
-              {/* Switch Account */}
-              <div className="mt-2.5">
-                <span className="text-[11px] text-slate-400 font-medium">{t.switchAccount}</span>
-                <div className="mt-1.5 grid grid-cols-2 gap-1.5">
-                  {SIGN_IN_OPTIONS.map((opt) => {
-                    const isActive = opt.username === username;
-                    return (
-                      <button
-                        key={opt.username}
-                        type="button"
-                        onClick={() => {
-                          setOpen(false);
-                          navigate(`/login?account=${encodeURIComponent(opt.username)}`);
-                        }}
-                        className={`flex flex-col items-start rounded-md px-2 py-1.5 text-left text-xs transition border ${
-                          isActive
-                            ? "border-blue-500 bg-blue-500/15 text-blue-200"
-                            : "border-slate-800 bg-slate-800/40 text-slate-300 hover:bg-slate-800 hover:text-white"
-                        }`}
-                      >
-                        <span className="truncate w-full font-medium">{opt.title.replace("CITIMART — ", "")}</span>
-                        <span className="text-[10px] text-slate-400">{opt.sub.split("·")[0]}</span>
-                      </button>
-                    );
-                  })}
+              {/* Switch Account (Admin Only) */}
+              {isAdmin && (
+                <div className="mt-2.5">
+                  <span className="text-[11px] text-slate-400 font-medium">{t.switchAccount}</span>
+                  <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                    {SIGN_IN_OPTIONS.map((opt) => {
+                      const isActive = opt.username === username;
+                      return (
+                        <button
+                          key={opt.username}
+                          type="button"
+                          onClick={() => {
+                            setOpen(false);
+                            navigate(`/login?account=${encodeURIComponent(opt.username)}`);
+                          }}
+                          className={`flex flex-col items-start rounded-md px-2 py-1.5 text-left text-xs transition border ${
+                            isActive
+                              ? "border-blue-500 bg-blue-500/15 text-blue-200"
+                              : "border-slate-800 bg-slate-800/40 text-slate-300 hover:bg-slate-800 hover:text-white"
+                          }`}
+                        >
+                          <span className="truncate w-full font-medium">{opt.title.replace("CITIMART — ", "")}</span>
+                          <span className="text-[10px] text-slate-400">{opt.sub.split("·")[0]}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Theme Switcher */}

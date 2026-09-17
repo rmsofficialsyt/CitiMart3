@@ -154,11 +154,23 @@ export interface Translations {
   onTrackLabel: string;
   activeBucketsPaceLabel: string;
   activeDeficitBuckets: string;
+  bucketFifoRank: string;
+  bucketStore: string;
+  bucketAge: string;
   bucketOriginDate: string;
   bucketInitialDeficit: string;
+  bucketRecoveredSoFar: string;
   bucketRemainingDeficit: string;
+  bucketHorizonSpan: string;
   bucketRecoveryEnd: string;
   bucketDaysRemaining: string;
+  bucketDailyPace: string;
+  bucketStatusCol: string;
+  bucketTotals: string;
+  bucketNextInLine: string;
+  bucketInQueue: string;
+  bucketTotalBacklog: string;
+  bucketTotalCleared: string;
   fifoRecoveryRule: string;
   window7Days: string;
   window14Days: string;
@@ -317,11 +329,23 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     onTrackLabel: "On Track",
     activeBucketsPaceLabel: "Active Buckets & Horizon",
     activeDeficitBuckets: "Active Deficit Buckets",
+    bucketFifoRank: "FIFO Priority",
+    bucketStore: "Store",
+    bucketAge: "Deficit Age",
     bucketOriginDate: "Origin Date",
     bucketInitialDeficit: "Initial Deficit",
+    bucketRecoveredSoFar: "Recovered (Paid)",
     bucketRemainingDeficit: "Remaining Deficit",
+    bucketHorizonSpan: "Recovery Horizon",
     bucketRecoveryEnd: "Recovery Deadline",
     bucketDaysRemaining: "Days Left",
+    bucketDailyPace: "Scheduled Carry Today",
+    bucketStatusCol: "Queue Status",
+    bucketTotals: "Consolidated Deficit Totals",
+    bucketNextInLine: "Next in Line (Active Payer)",
+    bucketInQueue: "In Queue (FIFO)",
+    bucketTotalBacklog: "Total Backlog",
+    bucketTotalCleared: "Total Cleared to Date",
     fifoRecoveryRule: "FIFO Recovery Rule: Excess sales above original target recover oldest deficits first.",
     window7Days: "7-Day Rolling",
     window14Days: "14-Day Rolling",
@@ -480,11 +504,23 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     onTrackLabel: "ट्रैक पर",
     activeBucketsPaceLabel: "सक्रिय बकेट और समयसीमा",
     activeDeficitBuckets: "सक्रिय घाटा बकेट (Active Deficit Buckets)",
+    bucketFifoRank: "FIFO प्राथमिकता",
+    bucketStore: "स्टोर",
+    bucketAge: "घाटे की अवधि",
     bucketOriginDate: "उत्पत्ति तिथि",
     bucketInitialDeficit: "प्रारंभिक घाटा",
+    bucketRecoveredSoFar: "रिकवर हुआ (भुगतान)",
     bucketRemainingDeficit: "शेष घाटा",
-    bucketRecoveryEnd: "रिकवरी समयसीमा",
+    bucketHorizonSpan: "रिकवरी समयसीमा",
+    bucketRecoveryEnd: "अंतिम तिथि",
     bucketDaysRemaining: "शेष दिन",
+    bucketDailyPace: "आज का निर्धारित कैरी",
+    bucketStatusCol: "कतार स्थिति",
+    bucketTotals: "कुल घाटा बैकलॉग योग",
+    bucketNextInLine: "भुगतान हेतु पहला (सक्रिय)",
+    bucketInQueue: "कतार में (FIFO)",
+    bucketTotalBacklog: "कुल बैकलॉग",
+    bucketTotalCleared: "अब तक कुल चुकता",
     fifoRecoveryRule: "FIFO नियम: मूल लक्ष्य से अधिक बिक्री सबसे पहले पुराने घाटे को चुकाती है।",
     window7Days: "7-दिवसीय रोलिंग",
     window14Days: "14-दिवसीय रोलिंग",
@@ -643,11 +679,23 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     onTrackLabel: "সঠিক পথে",
     activeBucketsPaceLabel: "সক্রিয় বাকেট ও সময়সীমা",
     activeDeficitBuckets: "সক্রিয় ঘাটতি বাকেট (Active Deficit Buckets)",
+    bucketFifoRank: "FIFO অগ্রাধিকার",
+    bucketStore: "স্টোর",
+    bucketAge: "ঘাটতির বয়স",
     bucketOriginDate: "উৎপত্তি তারিখ",
     bucketInitialDeficit: "প্রাথমিক ঘাটতি",
+    bucketRecoveredSoFar: "রিকভার হয়েছে (পরিশোধ)",
     bucketRemainingDeficit: "বাকি ঘাটতি",
-    bucketRecoveryEnd: "রিকভারির শেষ সময়",
+    bucketHorizonSpan: "রিকভারি সময়সীমা",
+    bucketRecoveryEnd: "শেষ সময়সীমা",
     bucketDaysRemaining: "বাকি দিন",
+    bucketDailyPace: "আজকের নির্ধারিত ক্যারি",
+    bucketStatusCol: "সারির স্ট্যাটাস",
+    bucketTotals: "মোট ঘাটতি ব্যাকলগ সমষ্টি",
+    bucketNextInLine: "পরিশোধের জন্য প্রথম (সক্রিয়)",
+    bucketInQueue: "সারিতে (FIFO)",
+    bucketTotalBacklog: "মোট ব্যাকলগ",
+    bucketTotalCleared: "এখন পর্যন্ত মোট পরিশোধ",
     fifoRecoveryRule: "FIFO নিয়ম: মূল লক্ষ্যমাত্রার অতিরিক্ত বিক্রয় সবার আগে পুরানো ঘাটতি পূরণ করে।",
     window7Days: "৭-দিনের রোলিং",
     window14Days: "১৪-দিনের রোলিং",

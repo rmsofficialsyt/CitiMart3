@@ -1,11 +1,20 @@
 import { animate, motion, useMotionValue } from "framer-motion";
-import { Info } from "lucide-react";
+import { Info, TrendingDown, TrendingUp } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { getKpiIconConfig } from "@/lib/kpiIcons";
 import { cn } from "@/lib/utils";
 import type { DailyKpiKey, StatusColor } from "@/lib/types";
+
+export interface KpiDelta {
+  kpi?: string;
+  current?: number | null;
+  previous?: number | null;
+  absolute_variance?: number | null;
+  percentage_variance?: number | null;
+  status?: StatusColor;
+}
 
 const STATUS_CONFIGS: Record<
   StatusColor,
@@ -50,6 +59,7 @@ interface KpiCardProps {
   formatter: (v: number | null | undefined) => string;
   formula: string;
   status?: StatusColor | null;
+  delta?: KpiDelta;
   index: number;
   kpiKey?: DailyKpiKey | string;
   thresholdControl?: ReactNode;
@@ -83,10 +93,15 @@ export function KpiCard({
   formatter,
   formula,
   status,
+  delta,
   index,
   kpiKey,
   thresholdControl,
 }: KpiCardProps) {
+  const pct = delta?.percentage_variance;
+  const hasDelta = pct !== null && pct !== undefined;
+  const isUp = hasDelta && pct > 0;
+  const isDown = hasDelta && pct < 0;
   const display = useCountUp(value, formatter);
   const statusConfig = status ? STATUS_CONFIGS[status] : null;
   const iconConfig = getKpiIconConfig(kpiKey ?? label);
@@ -188,11 +203,34 @@ export function KpiCard({
         </div>
       </div>
 
-      {/* Card Value Display */}
-      <div className="relative z-10 mt-2.5 flex items-baseline justify-between">
+      {/* Card Value Display + Optional Delta Variance */}
+      <div className="relative z-10 mt-2.5 flex items-baseline justify-between gap-1">
         <div className="font-mono text-base font-extrabold tabular-nums tracking-tight text-foreground group-hover:text-primary transition-colors sm:text-lg lg:text-xl break-all sm:break-normal drop-shadow-xs">
           {display}
         </div>
+
+        {hasDelta && (
+          <div
+            className={cn(
+              "flex items-center gap-1 font-mono text-[10px] sm:text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-md border shrink-0",
+              isUp && "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+              isDown && "text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/20",
+              !isUp && !isDown && "text-muted-foreground bg-muted/60 border-border/60",
+            )}
+          >
+            {(isUp || isDown) && (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 500, damping: 15, delay: Math.min(index, 12) * 0.022 + 0.15 }}
+                className="inline-flex"
+              >
+                {isUp ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+              </motion.span>
+            )}
+            {Math.round(Math.abs(pct))}%
+          </div>
+        )}
       </div>
     </motion.div>
   );

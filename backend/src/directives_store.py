@@ -55,7 +55,10 @@ def list_directives(db: Database, store_code: str | None = None, is_admin: bool 
     if not is_admin:
         query["active"] = True
         if store_code:
-            query["target_store"] = {"$in": ["ALL", store_code]}
+            query["$or"] = [
+                {"target_store": {"$in": ["ALL", store_code]}},
+                {"author_title": {"$regex": store_code, "$options": "i"}},
+            ]
         else:
             query["target_store"] = "ALL"
 

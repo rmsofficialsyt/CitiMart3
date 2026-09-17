@@ -281,15 +281,29 @@ def compute_target_adjustment(
             if b_start <= target_date <= b_end:
                 days_rem = (b_end - target_date).days + 1
                 daily_alloc = round(b.remaining_deficit / max(1, days_rem), 2) if days_rem > 1 else b.remaining_deficit
+                b_origin_d = date.fromisoformat(b.origin_date)
+                recovered_amt = round(max(0.0, b.original_deficit - b.remaining_deficit), 2)
+                rec_pct = round((recovered_amt / b.original_deficit) * 100, 1) if b.original_deficit > 0 else 0.0
+                elapsed = max(0, (target_date - b_origin_d).days)
+                total_span = max(1, (b_end - b_origin_d).days)
+                
                 active_bucket_items.append({
                     "id": b.id,
+                    "store_code": b.store_code,
                     "origin_date": b.origin_date,
                     "original_deficit": b.original_deficit,
+                    "recovered_amount": recovered_amt,
+                    "recovery_pct": rec_pct,
                     "remaining_deficit": b.remaining_deficit,
                     "recovery_start_date": b.recovery_start_date,
                     "recovery_end_date": b.recovery_end_date,
+                    "recovery_window": b.recovery_window,
+                    "elapsed_days": elapsed,
+                    "total_horizon_days": total_span,
                     "days_remaining": max(1, days_rem),
                     "scheduled_carry_today": daily_alloc,
+                    "daily_burn_rate": daily_alloc,
+                    "fifo_priority": len(active_bucket_items) + 1,
                     "status": b.status,
                 })
 

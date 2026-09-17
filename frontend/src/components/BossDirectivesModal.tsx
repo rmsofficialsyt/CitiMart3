@@ -10,6 +10,7 @@ import {
   Edit2,
   Flame,
   Info,
+  Layers,
   Megaphone,
   PlusCircle,
   Radio,
@@ -58,7 +59,7 @@ interface BossDirectivesModalProps {
   onDirectiveAcknowledged?: () => void;
 }
 
-const PRESET_TEMPLATES = [
+const ADMIN_PRESET_TEMPLATES = [
   {
     name: "Peak Hour Sales & Conversion Push",
     category: "sales_target" as DirectiveCategory,
@@ -90,6 +91,41 @@ const PRESET_TEMPLATES = [
     title: "Daily Data Entry Timelines & Verification",
     message:
       "Store managers: Kindly ensure all bill logs, footfall entries, and NOB logs are updated by 10:30 PM sharp each evening so consolidated executive reports reflect exact numbers.",
+  },
+];
+
+const MANAGER_PRESET_TEMPLATES = [
+  {
+    name: "Operational Issue / Technical Breakdown",
+    category: "complaint" as DirectiveCategory,
+    priority: "urgent" as DirectivePriority,
+    title: "Store Infrastructure / Electrical / Cooling Malfunction",
+    message:
+      "Operational Head: Facing an unexpected hardware/cooling/electrical issue on the sales floor. Requesting urgent maintenance support.",
+  },
+  {
+    name: "POS & Billing Terminal Glitch",
+    category: "complaint" as DirectiveCategory,
+    priority: "high" as DirectivePriority,
+    title: "Billing Counter Terminal / Barcode Scanner Fault",
+    message:
+      "Operational Head: Billing terminal scanner experiencing latency during rush hours, slowing customer checkout. Technical intervention requested.",
+  },
+  {
+    name: "Store Packaging & Carry Bag Requisition",
+    category: "requirements" as DirectiveCategory,
+    priority: "normal" as DirectivePriority,
+    title: "Requisition for Carry Bags & Counter Thermal Rolls",
+    message:
+      "Operational Head: Store inventory running low on Large/Medium carry bags and thermal billing rolls for upcoming days. Requesting dispatch.",
+  },
+  {
+    name: "Floor Demand & Footfall Remarks",
+    category: "remarks" as DirectiveCategory,
+    priority: "normal" as DirectivePriority,
+    title: "Daily Store Footfall & Category Demand Feedback",
+    message:
+      "Operational Head: Strong customer interest observed in Festive and Ethnic wear today. Re-stocking fast-moving sizes recommended.",
   },
 ];
 
@@ -128,7 +164,9 @@ const CATEGORY_CONFIG: Record<DirectiveCategory, { label: string; icon: typeof T
   special_notice: { label: "Special Notice", icon: AlertTriangle, color: "text-amber-400 bg-amber-500/10 border-amber-500/30" },
   operations: { label: "Operations", icon: Radio, color: "text-cyan-400 bg-cyan-500/10 border-cyan-500/30" },
   announcement: { label: "Announcement", icon: Megaphone, color: "text-purple-400 bg-purple-500/10 border-purple-500/30" },
-  remarks: { label: "Remarks", icon: Tag, color: "text-rose-400 bg-rose-500/10 border-rose-500/30" },
+  remarks: { label: "Remarks & Observations", icon: Tag, color: "text-rose-400 bg-rose-500/10 border-rose-500/30" },
+  complaint: { label: "Complaint / Escalation", icon: AlertTriangle, color: "text-red-400 bg-red-500/10 border-red-500/30" },
+  requirements: { label: "Store Requisitions / Need", icon: Layers, color: "text-sky-400 bg-sky-500/10 border-sky-500/30" },
 };
 
 const STORE_CONFIG: Record<DirectiveTargetStore, { label: string; code: string }> = {
@@ -136,6 +174,7 @@ const STORE_CONFIG: Record<DirectiveTargetStore, { label: string; code: string }
   NM: { label: "New Market", code: "NM" },
   HB: { label: "Hatibagan", code: "HB" },
   CHW: { label: "Chowringhee", code: "CHW" },
+  ADMIN: { label: "Operational Head / Admin Desk", code: "ADMIN" },
 };
 
 function formatTimestamp(isoStr: string): string {
@@ -168,12 +207,14 @@ export function BossDirectivesModal({
   const [activeTab, setActiveTab] = useState<"directives" | "broadcast">("directives");
   const [editingDirective, setEditingDirective] = useState<Directive | null>(null);
 
-  // Form State for Broadcasting
+  // Form State for Broadcasting / Reporting
   const [formTitle, setFormTitle] = useState("");
   const [formMessage, setFormMessage] = useState("");
-  const [formPriority, setFormPriority] = useState<DirectivePriority>("high");
-  const [formCategory, setFormCategory] = useState<DirectiveCategory>("sales_target");
-  const [formTargetStore, setFormTargetStore] = useState<DirectiveTargetStore>("ALL");
+  const [formPriority, setFormPriority] = useState<DirectivePriority>(isAdmin ? "high" : "normal");
+  const [formCategory, setFormCategory] = useState<DirectiveCategory>(isAdmin ? "sales_target" : "complaint");
+  const [formTargetStore, setFormTargetStore] = useState<DirectiveTargetStore>(
+    isAdmin ? "ALL" : ((user?.storeCode as DirectiveTargetStore) || "ADMIN")
+  );
 
   // Query Directives Summary
   const { data: summary, isLoading, refetch } = useQuery({
@@ -187,14 +228,18 @@ export function BossDirectivesModal({
   const createMutation = useMutation({
     mutationFn: (payload: CreateDirectivePayload) => api.createDirective(payload),
     onSuccess: () => {
-      toast.success("Directive broadcasted successfully by Operational Head!");
+      toast.success(
+        isAdmin
+          ? "Directive broadcasted successfully by Operational Head!"
+          : "Report / Directive submitted successfully to Operational Head!"
+      );
       queryClient.invalidateQueries({ queryKey: ["directives-summary"] });
       setFormTitle("");
       setFormMessage("");
       setActiveTab("directives");
     },
     onError: (err: Error) => {
-      toast.error(`Broadcast failed: ${err.message}`);
+      toast.error(`Submission failed: ${err.message}`);
     },
   });
 
@@ -234,7 +279,7 @@ export function BossDirectivesModal({
     },
   });
 
-  const handleApplyPreset = (preset: (typeof PRESET_TEMPLATES)[number]) => {
+  const handleApplyPreset = (preset: { name: string; category: DirectiveCategory; priority: DirectivePriority; title: string; message: string }) => {
     setFormTitle(preset.title);
     setFormMessage(preset.message);
     setFormCategory(preset.category);
@@ -248,15 +293,29 @@ export function BossDirectivesModal({
       toast.error("Please fill in both title and directive message.");
       return;
     }
-    createMutation.mutate({
-      title: formTitle.trim(),
-      message: formMessage.trim(),
-      priority: formPriority,
-      category: formCategory,
-      target_store: formTargetStore,
-      author_name: "Operational Head",
-      author_title: "Executive Director / Operations Head",
-    });
+
+    if (isAdmin) {
+      createMutation.mutate({
+        title: formTitle.trim(),
+        message: formMessage.trim(),
+        priority: formPriority,
+        category: formCategory,
+        target_store: formTargetStore,
+        author_name: "Operational Head",
+        author_title: "Executive Director / Operations Head",
+      });
+    } else {
+      const storeName = STORE_CONFIG[user?.storeCode as DirectiveTargetStore]?.label || "Store";
+      createMutation.mutate({
+        title: formTitle.trim(),
+        message: formMessage.trim(),
+        priority: formPriority,
+        category: formCategory,
+        target_store: (user?.storeCode as DirectiveTargetStore) || "ADMIN",
+        author_name: user?.username || `${storeName} Store Manager`,
+        author_title: `${storeName} Manager`,
+      });
+    }
   };
 
   const handleSaveEdit = (e: React.FormEvent) => {
@@ -308,15 +367,17 @@ export function BossDirectivesModal({
                   </h2>
                 </div>
                 <p className="text-xs text-amber-200/80 font-medium">
-                  {t.bossDirectivesSubtitle}
+                  {isAdmin
+                    ? "Official executive instructions, operational targets, and manager escalation channel"
+                    : "Official operational instructions, alerts & direct communication channel with Operational Head"}
                 </p>
                 <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-400">
                   <span className="inline-flex items-center gap-1 text-emerald-400 font-semibold">
                     <span className="size-1.5 rounded-full bg-emerald-400 animate-ping" />
-                    Live Broadcasting Active
+                    Live Channel Active
                   </span>
                   <span>•</span>
-                  <span>{directivesList.length} Active Directives</span>
+                  <span>{directivesList.length} Active Directives & Reports</span>
                   {unreadCount > 0 && (
                     <>
                       <span>•</span>
@@ -345,34 +406,32 @@ export function BossDirectivesModal({
             </div>
           </div>
 
-          {/* Navigation Tabs (Admin gets Broadcast tab) */}
-          {isAdmin && (
-            <div className="mt-4 pt-3 border-t border-slate-800/80">
-              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "directives" | "broadcast")}>
-                <TabsList className="bg-slate-900 border border-slate-700/80 p-1 rounded-lg gap-1.5 shadow-inner">
-                  <TabsTrigger
-                    value="directives"
-                    className="text-xs font-semibold px-3.5 py-1.5 rounded-md text-slate-300 hover:text-white hover:bg-slate-800/60 data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500 data-[state=active]:to-yellow-500 data-[state=active]:text-slate-950 data-[state=active]:font-black data-[state=active]:shadow transition-all cursor-pointer"
-                  >
-                    <Bell className="size-3.5 mr-1.5" />
-                    {t.activeDirectivesTab} ({directivesList.length})
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="broadcast"
-                    className="text-xs font-semibold px-3.5 py-1.5 rounded-md text-slate-300 hover:text-white hover:bg-slate-800/60 data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500 data-[state=active]:to-yellow-500 data-[state=active]:text-slate-950 data-[state=active]:font-black data-[state=active]:shadow transition-all cursor-pointer"
-                  >
-                    <PlusCircle className="size-3.5 mr-1.5" />
-                    {t.createDirectiveTab}
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
-          )}
+          {/* Navigation Tabs */}
+          <div className="mt-4 pt-3 border-t border-slate-800/80">
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "directives" | "broadcast")}>
+              <TabsList className="bg-slate-900 border border-slate-700/80 p-1 rounded-lg gap-1.5 shadow-inner">
+                <TabsTrigger
+                  value="directives"
+                  className="text-xs font-semibold px-3.5 py-1.5 rounded-md text-slate-300 hover:text-white hover:bg-slate-800/60 data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500 data-[state=active]:to-yellow-500 data-[state=active]:text-slate-950 data-[state=active]:font-black data-[state=active]:shadow transition-all cursor-pointer"
+                >
+                  <Bell className="size-3.5 mr-1.5" />
+                  {isAdmin ? "Directives & Store Reports" : "Executive Directives & Notices"} ({directivesList.length})
+                </TabsTrigger>
+                <TabsTrigger
+                  value="broadcast"
+                  className="text-xs font-semibold px-3.5 py-1.5 rounded-md text-slate-300 hover:text-white hover:bg-slate-800/60 data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500 data-[state=active]:to-yellow-500 data-[state=active]:text-slate-950 data-[state=active]:font-black data-[state=active]:shadow transition-all cursor-pointer"
+                >
+                  <PlusCircle className="size-3.5 mr-1.5" />
+                  {isAdmin ? "Broadcast Directive (Executive)" : "Report to Operational Head / Requisitions"}
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
         </div>
 
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
-          {/* TAB 1: Directives List (Visible to Managers & Admin) */}
+          {/* TAB 1: Directives List */}
           {activeTab === "directives" && (
             <div className="space-y-4">
               {directivesList.length === 0 ? (
@@ -382,7 +441,7 @@ export function BossDirectivesModal({
                   </div>
                   <h3 className="mt-3 text-sm font-semibold text-white">{t.noActiveDirectives}</h3>
                   <p className="mt-1 text-xs text-slate-400">
-                    Operational Head has not broadcasted any active directives for your store.
+                    No active directives or reports recorded at this moment.
                   </p>
                 </div>
               ) : (
@@ -393,6 +452,10 @@ export function BossDirectivesModal({
                   const PriorityIcon = priorityInfo.icon;
                   const CategoryIcon = categoryInfo.icon;
                   const targetStoreInfo = STORE_CONFIG[directive.target_store] || STORE_CONFIG.ALL;
+                  const isManagerReport =
+                    directive.category === "complaint" ||
+                    directive.category === "requirements" ||
+                    directive.author_name !== "Operational Head";
 
                   return (
                     <motion.div
@@ -422,10 +485,10 @@ export function BossDirectivesModal({
                             {categoryInfo.label}
                           </span>
 
-                          {/* Target Store Badge */}
+                          {/* Origin / Target Store Badge */}
                           <span className="inline-flex items-center gap-1 rounded-md bg-slate-800/80 px-2 py-1 text-xs font-medium text-slate-300 border border-slate-700/60">
                             <Store className="size-3 text-amber-400" />
-                            {targetStoreInfo.label}
+                            {isManagerReport ? `From: ${directive.author_title || directive.author_name}` : targetStoreInfo.label}
                           </span>
 
                           {!directive.active && (
@@ -448,23 +511,31 @@ export function BossDirectivesModal({
                           {directive.title}
                         </h4>
 
-                        {/* Executive Quote Box */}
-                        <div className="relative rounded-lg bg-slate-900/90 p-3.5 sm:p-4 text-sm leading-relaxed text-slate-200 border-l-4 border-amber-400 shadow-inner">
+                        {/* Message Quote Box */}
+                        <div
+                          className={`relative rounded-lg bg-slate-900/90 p-3.5 sm:p-4 text-sm leading-relaxed text-slate-200 border-l-4 shadow-inner ${
+                            isManagerReport ? "border-sky-400 bg-sky-950/20" : "border-amber-400 bg-slate-900/90"
+                          }`}
+                        >
                           <div className="flex items-start gap-2.5">
                             <p className="whitespace-pre-line text-xs sm:text-sm font-normal text-slate-100">
                               {directive.message}
                             </p>
                           </div>
-                          <div className="mt-2.5 flex items-center justify-between text-[11px] text-amber-300/80 font-semibold border-t border-slate-800/60 pt-2">
-                            <span>— {directive.author_name} ({directive.author_title})</span>
-                            <span className="text-slate-400 font-normal">CITIMART Operations Headquarters</span>
+                          <div className="mt-2.5 flex items-center justify-between text-[11px] font-semibold border-t border-slate-800/60 pt-2 text-slate-400">
+                            <span className={isManagerReport ? "text-sky-300 font-bold" : "text-amber-300/90"}>
+                              — {directive.author_name} ({directive.author_title})
+                            </span>
+                            <span className="text-slate-500 font-normal">
+                              {isManagerReport ? "Store Operations Escalation" : "CITIMART Operations Headquarters"}
+                            </span>
                           </div>
                         </div>
                       </div>
 
                       {/* Footer Actions / Acknowledgements */}
                       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800/50">
-                        {/* Acknowledgement Status for Managers */}
+                        {/* Acknowledgement Status for Users */}
                         <div className="flex items-center gap-2">
                           {isRead ? (
                             <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/30">
@@ -479,37 +550,41 @@ export function BossDirectivesModal({
                               className="h-8 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md border border-emerald-400/40"
                             >
                               <Check className="size-3.5 mr-1.5" />
-                              {t.markAcknowledged}
+                              {isAdmin && isManagerReport ? "Mark Reviewed / Acknowledge" : t.markAcknowledged}
                             </Button>
                           )}
                         </div>
 
-                        {/* Admin Controls (Edit / Toggle Active / Delete / Read Receipts) */}
-                        {isAdmin && (
+                        {/* Controls (Edit / Toggle Active / Delete / Read Receipts) */}
+                        {(isAdmin || user?.username === directive.author_name || (user?.storeCode && directive.target_store === user.storeCode)) && (
                           <div className="flex items-center gap-2">
                             {/* Read Receipts Badge */}
-                            <span
-                              className="text-[11px] text-slate-400 bg-slate-800/60 px-2 py-1 rounded border border-slate-700/50"
-                              title={`Read by: ${directive.read_by?.join(", ") || "None"}`}
-                            >
-                              <UserCheck className="inline size-3 mr-1 text-blue-400" />
-                              {directive.read_by?.length || 0} Read
-                            </span>
+                            {isAdmin && (
+                              <span
+                                className="text-[11px] text-slate-400 bg-slate-800/60 px-2 py-1 rounded border border-slate-700/50"
+                                title={`Read by: ${directive.read_by?.join(", ") || "None"}`}
+                              >
+                                <UserCheck className="inline size-3 mr-1 text-blue-400" />
+                                {directive.read_by?.length || 0} Read
+                              </span>
+                            )}
 
                             {/* Active Toggle Button */}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() =>
-                                updateMutation.mutate({
-                                  id: directive.id,
-                                  payload: { active: !directive.active },
-                                })
-                              }
-                              className="h-7 text-[11px] bg-slate-800/60 border-slate-700 text-slate-300 hover:text-white"
-                            >
-                              {directive.active ? "Archive" : "Re-activate"}
-                            </Button>
+                            {isAdmin && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  updateMutation.mutate({
+                                    id: directive.id,
+                                    payload: { active: !directive.active },
+                                  })
+                                }
+                                className="h-7 text-[11px] bg-slate-800/60 border-slate-700 text-slate-300 hover:text-white"
+                              >
+                                {directive.active ? "Archive" : "Re-activate"}
+                              </Button>
+                            )}
 
                             {/* Edit Button */}
                             <Button
@@ -527,7 +602,7 @@ export function BossDirectivesModal({
                               variant="ghost"
                               size="sm"
                               onClick={() => {
-                                if (confirm("Delete this directive permanently?")) {
+                                if (confirm("Delete this directive / report permanently?")) {
                                   deleteMutation.mutate(directive.id);
                                 }
                               }}
@@ -545,17 +620,17 @@ export function BossDirectivesModal({
             </div>
           )}
 
-          {/* TAB 2: Broadcast New Directive (Admin Only) */}
-          {activeTab === "broadcast" && isAdmin && (
+          {/* TAB 2: Broadcast / Submit New Directive / Escalation */}
+          {activeTab === "broadcast" && (
             <form onSubmit={handleBroadcastSubmit} className="space-y-4">
               {/* Quick Template Presets */}
               <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-3.5">
                 <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5 uppercase tracking-wide">
                   <Sparkles className="size-3.5 text-amber-400" />
-                  Quick Presets & Common Directives
+                  {isAdmin ? "Quick Presets & Common Directives" : "Quick Escalation / Requisition Templates"}
                 </span>
                 <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {PRESET_TEMPLATES.map((tpl) => (
+                  {(isAdmin ? ADMIN_PRESET_TEMPLATES : MANAGER_PRESET_TEMPLATES).map((tpl) => (
                     <button
                       key={tpl.name}
                       type="button"
@@ -572,11 +647,15 @@ export function BossDirectivesModal({
               {/* Directive Title */}
               <div className="space-y-1.5">
                 <Label htmlFor="directive-title" className="text-xs font-bold text-slate-200">
-                  Directive Title / Subject *
+                  {isAdmin ? "Directive Title / Subject *" : "Subject / Escalation Title *"}
                 </Label>
                 <Input
                   id="directive-title"
-                  placeholder="e.g. Weekend Sales Target Push & ATV Optimization"
+                  placeholder={
+                    isAdmin
+                      ? "e.g. Weekend Sales Target Push & ATV Optimization"
+                      : "e.g. POS Billing Terminal Error / Staff Shortage Escalation"
+                  }
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
                   className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-500"
@@ -588,7 +667,7 @@ export function BossDirectivesModal({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {/* Priority Selector */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-200">Priority Level</Label>
+                  <Label className="text-xs font-bold text-slate-200">Priority / Urgency Level</Label>
                   <select
                     value={formPriority}
                     onChange={(e) => setFormPriority(e.target.value as DirectivePriority)}
@@ -609,26 +688,50 @@ export function BossDirectivesModal({
                     onChange={(e) => setFormCategory(e.target.value as DirectiveCategory)}
                     className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white shadow-sm focus:border-amber-400 focus:outline-none"
                   >
-                    <option value="sales_target">🎯 Sales Target</option>
-                    <option value="special_notice">📢 Special Notice</option>
-                    <option value="operations">⚙️ Operations</option>
-                    <option value="announcement">📣 Announcement</option>
-                    <option value="remarks">📝 Remarks</option>
+                    {isAdmin ? (
+                      <>
+                        <option value="sales_target">🎯 Sales Target</option>
+                        <option value="special_notice">📢 Special Notice</option>
+                        <option value="operations">⚙️ Operations</option>
+                        <option value="announcement">📣 Announcement</option>
+                        <option value="remarks">📝 Remarks</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="complaint">⚠️ Complaint / Breakdown Issue</option>
+                        <option value="requirements">📦 Store Requisition / Material Need</option>
+                        <option value="remarks">📝 Daily Remarks & Feedback</option>
+                        <option value="operations">⚙️ Floor Operational Update</option>
+                      </>
+                    )}
                   </select>
                 </div>
 
                 {/* Target Store */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-200">Target Store Scope</Label>
+                  <Label className="text-xs font-bold text-slate-200">
+                    {isAdmin ? "Target Store Scope" : "Destination / Store"}
+                  </Label>
                   <select
                     value={formTargetStore}
                     onChange={(e) => setFormTargetStore(e.target.value as DirectiveTargetStore)}
                     className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white shadow-sm focus:border-amber-400 focus:outline-none"
                   >
-                    <option value="ALL">🏪 All CITIMART Stores</option>
-                    <option value="NM">📍 New Market (NM Only)</option>
-                    <option value="HB">📍 Hatibagan (HB Only)</option>
-                    <option value="CHW">📍 Chowringhee (CHW Only)</option>
+                    {isAdmin ? (
+                      <>
+                        <option value="ALL">🏪 All CITIMART Stores</option>
+                        <option value="NM">📍 New Market (NM Only)</option>
+                        <option value="HB">📍 Hatibagan (HB Only)</option>
+                        <option value="CHW">📍 Chowringhee (CHW Only)</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="ADMIN">👑 Operational Head / Executive Desk</option>
+                        {user?.storeCode && (
+                          <option value={user.storeCode}>📍 {STORE_CONFIG[user.storeCode as DirectiveTargetStore]?.label || user.storeCode}</option>
+                        )}
+                      </>
+                    )}
                   </select>
                 </div>
               </div>
@@ -636,11 +739,17 @@ export function BossDirectivesModal({
               {/* Message Content */}
               <div className="space-y-1.5">
                 <Label htmlFor="directive-msg" className="text-xs font-bold text-slate-200">
-                  Instruction / Notice Content from Operational Head *
+                  {isAdmin
+                    ? "Instruction / Notice Content from Operational Head *"
+                    : "Complain / Remarks / Requirements Description for Operational Head *"}
                 </Label>
                 <Textarea
                   id="directive-msg"
-                  placeholder="Type the detailed instructions, special targets, or operational remarks here..."
+                  placeholder={
+                    isAdmin
+                      ? "Type the detailed instructions, special targets, or operational remarks here..."
+                      : "Describe the issue, requisition, or remarks in detail for the Operational Head..."
+                  }
                   value={formMessage}
                   onChange={(e) => setFormMessage(e.target.value)}
                   rows={4}
@@ -665,7 +774,11 @@ export function BossDirectivesModal({
                   className="bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs shadow-lg border border-amber-300"
                 >
                   <Send className="size-3.5 mr-1.5" />
-                  {createMutation.isPending ? "Broadcasting..." : "Broadcast Directive Immediately"}
+                  {createMutation.isPending
+                    ? "Submitting..."
+                    : isAdmin
+                    ? "Broadcast Directive Immediately"
+                    : "Submit Report to Operational Head"}
                 </Button>
               </div>
             </form>
@@ -735,6 +848,8 @@ export function BossDirectivesModal({
                         <option value="operations">Operations</option>
                         <option value="announcement">Announcement</option>
                         <option value="remarks">Remarks</option>
+                        <option value="complaint">Complaint</option>
+                        <option value="requirements">Requirements</option>
                       </select>
                     </div>
                   </div>
