@@ -34,6 +34,6 @@ def get_meta(user: CurrentUser = Depends(get_current_user)):
     return {
         "active_stores": codes,
         "store_names": [STORE_CODE_TO_NAME.get(code, code) for code in codes],
-        "date_range": now.strftime("%d-%m-%Y"),
-        "last_refresh": now.strftime("%d-%m-%Y %H:%M"),
+        "date_range": now.strftime("%d.%m.%Y"),
+        "last_refresh": now.strftime("%d.%m.%Y %H:%M"),
     }

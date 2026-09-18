@@ -373,3 +373,331 @@ body {
     background-attachment: scroll;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Glossy Design System (Theme Adaptive: Clean Classic Light & Rich Dark/Neon Glass)
+   --------------------------------------------------------------------------- */
+
+.glass-panel {
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.85) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.12),
+    0 10px 30px -10px rgba(0, 0, 0, 0.5);
+}
+
+.light .glass-panel,
+:root:not(.dark):not(.neon) .glass-panel {
+  background: #ffffff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+}
+
+.neon .glass-panel {
+  background: linear-gradient(180deg, oklch(0.24 0.05 278 / 0.7) 0%, oklch(0.18 0.04 278 / 0.85) 100%);
+  border: 1px solid oklch(0.8 0.14 205 / 0.3);
+  box-shadow: 0 8px 32px oklch(0.06 0.04 275 / 0.6), inset 0 1px 0 oklch(0.85 0.16 205 / 0.2);
+}
+
+.glossy-card {
+  background: linear-gradient(180deg, rgba(30, 32, 42, 0.88) 0%, rgba(20, 21, 28, 0.95) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.1),
+    0 12px 36px -8px rgba(0, 0, 0, 0.45);
+}
+
+.light .glossy-card,
+:root:not(.dark):not(.neon) .glossy-card {
+  background: #ffffff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+}
+
+.neon .glossy-card {
+  background: linear-gradient(180deg, oklch(0.24 0.05 278 / 0.75) 0%, oklch(0.18 0.04 278 / 0.9) 100%);
+  border: 1px solid oklch(0.8 0.14 205 / 0.35);
+  box-shadow: 0 8px 32px oklch(0.06 0.04 275 / 0.6), inset 0 1px 0 oklch(0.85 0.16 205 / 0.2);
+}
+
+.glossy-card:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.15),
+    0 16px 40px -8px rgba(0, 0, 0, 0.6);
+}
+
+.light .glossy-card:hover,
+:root:not(.dark):not(.neon) .glossy-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+}
+
+.neon .glossy-card:hover {
+  border-color: oklch(0.85 0.16 205 / 0.5);
+  box-shadow: 0 12px 40px oklch(0.65 0.2 205 / 0.25), inset 0 1px 0 oklch(0.85 0.16 205 / 0.35);
+}
+
+/* ==========================================================================
+   GLOSSY KPI STATUS CARDS (Red, Yellow, Green, Neutral)
+   ========================================================================== */
+
+/* --- GREEN / EMERALD GLOSS --- */
+.glossy-kpi-green {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(5, 150, 105, 0.08) 40%, rgba(18, 20, 29, 0.94) 100%) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(16, 185, 129, 0.4) !important;
+  border-left: 5px solid #10b981 !important;
+  box-shadow:
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.25),
+    inset 3px 0 14px 0 rgba(16, 185, 129, 0.3),
+    0 8px 24px -4px rgba(16, 185, 129, 0.25) !important;
+}
+.light .glossy-kpi-green,
+:root:not(.dark):not(.neon) .glossy-kpi-green {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 45%, #ffffff 100%) !important;
+  border: 1px solid rgba(16, 185, 129, 0.45) !important;
+  border-left: 5px solid #059669 !important;
+  box-shadow:
+    inset 0 1px 2px 0 rgba(255, 255, 255, 0.9),
+    inset 3px 0 10px 0 rgba(16, 185, 129, 0.2),
+    0 4px 16px -2px rgba(16, 185, 129, 0.2) !important;
+}
+.neon .glossy-kpi-green {
+  background: linear-gradient(135deg, rgba(52, 199, 89, 0.3) 0%, oklch(0.2 0.05 278 / 0.88) 100%) !important;
+  border: 1px solid rgba(52, 199, 89, 0.6) !important;
+  border-left: 5px solid #34c759 !important;
+  box-shadow:
+    inset 0 1px 2px 0 rgba(255, 255, 255, 0.35),
+    0 0 24px rgba(52, 199, 89, 0.4) !important;
+}
+.glossy-kpi-green:hover {
+  border-color: rgba(16, 185, 129, 0.7) !important;
+  box-shadow:
+    inset 0 1px 2px 0 rgba(255, 255, 255, 0.35),
+    inset 4px 0 18px 0 rgba(16, 185, 129, 0.45),
+    0 14px 34px -4px rgba(16, 185, 129, 0.38) !important;
+}
+
+/* --- YELLOW / AMBER GLOSS --- */
+.glossy-kpi-yellow {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.18) 0%, rgba(217, 119, 6, 0.08) 40%, rgba(18, 20, 29, 0.94) 100%) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(245, 158, 11, 0.4) !important;
+  border-left: 5px solid #f59e0b !important;
+  box-shadow:
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.25),
+    inset 3px 0 14px 0 rgba(245, 158, 11, 0.3),
+    0 8px 24px -4px rgba(245, 158, 11, 0.25) !important;
+}
+.light .glossy-kpi-yellow,
+:root:not(.dark):not(.neon) .glossy-kpi-yellow {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 45%, #ffffff 100%) !important;
+  border: 1px solid rgba(245, 158, 11, 0.45) !important;
+  border-left: 5px solid #d97706 !important;
+  box-shadow:
+    inset 0 1px 2px 0 rgba(255, 255, 255, 0.9),
+    inset 3px 0 10px 0 rgba(245, 158, 11, 0.2),
+    0 4px 16px -2px rgba(245, 158, 11, 0.2) !important;
+}
+.neon .glossy-kpi-yellow {
+  background: linear-gradient(135deg, rgba(255, 204, 0, 0.3) 0%, oklch(0.2 0.05 278 / 0.88) 100%) !important;
+  border: 1px solid rgba(255, 204, 0, 0.6) !important;
+  border-left: 5px solid #ffcc00 !important;
+  box-shadow:
+    inset 0 1px 2px 0 rgba(255, 255, 255, 0.35),
+    0 0 24px rgba(255, 204, 0, 0.4) !important;
+}
+.glossy-kpi-yellow:hover {
+  border-color: rgba(245, 158, 11, 0.7) !important;
+  box-shadow:
+    inset 0 1px 2px 0 rgba(255, 255, 255, 0.35),
+    inset 4px 0 18px 0 rgba(245, 158, 11, 0.45),
+    0 14px 34px -4px rgba(245, 158, 11, 0.38) !important;
+}
+
+/* --- RED / ROSE GLOSS --- */
+.glossy-kpi-red {
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.18) 0%, rgba(225, 29, 72, 0.08) 40%, rgba(18, 20, 29, 0.94) 100%) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(244, 63, 94, 0.4) !important;
+  border-left: 5px solid #f43f5e !important;
+  box-shadow:
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.25),
+    inset 3px 0 14px 0 rgba(244, 63, 94, 0.3),
+    0 8px 24px -4px rgba(244, 63, 94, 0.25) !important;
+}
+.light .glossy-kpi-red,
+:root:not(.dark):not(.neon) .glossy-kpi-red {
+  background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 45%, #ffffff 100%) !important;
+  border: 1px solid rgba(244, 63, 94, 0.45) !important;
+  border-left: 5px solid #e11d48 !important;
+  box-shadow:
+    inset 0 1px 2px 0 rgba(255, 255, 255, 0.9),
+    inset 3px 0 10px 0 rgba(244, 63, 94, 0.2),
+    0 4px 16px -2px rgba(244, 63, 94, 0.2) !important;
+}
+.neon .glossy-kpi-red {
+  background: linear-gradient(135deg, rgba(255, 45, 85, 0.3) 0%, oklch(0.2 0.05 278 / 0.88) 100%) !important;
+  border: 1px solid rgba(255, 45, 85, 0.6) !important;
+  border-left: 5px solid #ff2d55 !important;
+  box-shadow:
+    inset 0 1px 2px 0 rgba(255, 255, 255, 0.35),
+    0 0 24px rgba(255, 45, 85, 0.4) !important;
+}
+.glossy-kpi-red:hover {
+  border-color: rgba(244, 63, 94, 0.7) !important;
+  box-shadow:
+    inset 0 1px 2px 0 rgba(255, 255, 255, 0.35),
+    inset 4px 0 18px 0 rgba(244, 63, 94, 0.45),
+    0 14px 34px -4px rgba(244, 63, 94, 0.38) !important;
+}
+
+/* --- NEUTRAL GLOSS --- */
+.glossy-kpi-neutral {
+  background: linear-gradient(180deg, rgba(30, 32, 42, 0.88) 0%, rgba(20, 21, 28, 0.95) 100%) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-left: 4px solid rgba(148, 163, 184, 0.5) !important;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.1),
+    0 8px 24px -8px rgba(0, 0, 0, 0.45) !important;
+}
+.light .glossy-kpi-neutral,
+:root:not(.dark):not(.neon) .glossy-kpi-neutral {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%) !important;
+  border: 1px solid #e2e8f0 !important;
+  border-left: 4px solid #94a3b8 !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03) !important;
+}
+.neon .glossy-kpi-neutral {
+  background: linear-gradient(180deg, oklch(0.24 0.05 278 / 0.75) 0%, oklch(0.18 0.04 278 / 0.9) 100%) !important;
+  border: 1px solid oklch(0.8 0.14 205 / 0.35) !important;
+  border-left: 4px solid oklch(0.8 0.14 205 / 0.6) !important;
+  box-shadow: 0 8px 32px oklch(0.06 0.04 275 / 0.6), inset 0 1px 0 oklch(0.85 0.16 205 / 0.2) !important;
+}
+.glossy-kpi-neutral:hover {
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.15),
+    0 14px 32px -8px rgba(0, 0, 0, 0.55) !important;
+}
+
+.glossy-topbar {
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(11, 17, 32, 0.98) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 -1px 0 0 rgba(255, 255, 255, 0.04),
+    0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.light .glossy-topbar,
+:root:not(.dark):not(.neon) .glossy-topbar {
+  background: #ffffff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+}
+
+.neon .glossy-topbar {
+  background: linear-gradient(180deg, oklch(0.2 0.04 278 / 0.85) 0%, oklch(0.16 0.04 278 / 0.95) 100%);
+  border-bottom: 1px solid oklch(0.8 0.14 205 / 0.25);
+  box-shadow: 0 4px 24px oklch(0.06 0.04 275 / 0.5);
+}
+
+.glossy-sidebar {
+  background: linear-gradient(180deg, rgba(20, 22, 30, 0.98) 0%, rgba(13, 14, 20, 0.99) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow:
+    inset -1px 0 0 0 rgba(255, 255, 255, 0.03),
+    4px 0 24px rgba(0, 0, 0, 0.35);
+}
+
+.light .glossy-sidebar,
+:root:not(.dark):not(.neon) .glossy-sidebar {
+  background: #ffffff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-right: 1px solid #e2e8f0;
+  box-shadow: 1px 0 2px 0 rgba(0, 0, 0, 0.03);
+}
+
+.neon .glossy-sidebar {
+  background: linear-gradient(180deg, oklch(0.2 0.04 278 / 0.85) 0%, oklch(0.15 0.03 275 / 0.95) 100%);
+  border-right: 1px solid oklch(0.8 0.14 205 / 0.25);
+  box-shadow: 4px 0 24px oklch(0.06 0.04 275 / 0.4);
+}
+
+.glossy-btn {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.15),
+    0 2px 6px rgba(0, 0, 0, 0.25);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.light .glossy-btn,
+:root:not(.dark):not(.neon) .glossy-btn {
+  background: #f1f5f9;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+}
+
+.glossy-btn:hover {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.05) 100%);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.25),
+    0 4px 12px rgba(0, 0, 0, 0.35);
+  transform: translateY(-1px);
+}
+
+.light .glossy-btn:hover,
+:root:not(.dark):not(.neon) .glossy-btn:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+}
+
+.glossy-btn:active {
+  transform: translateY(0px);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.4),
+    0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.glossy-btn-primary {
+  background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.35),
+    0 4px 14px rgba(37, 99, 235, 0.35);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glossy-btn-primary:hover {
+  background: linear-gradient(180deg, #60a5fa 0%, #2563eb 100%);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.45),
+    0 6px 18px rgba(37, 99, 235, 0.45);
+  transform: translateY(-1px);
+}

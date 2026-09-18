@@ -14,7 +14,9 @@ interface AuthContextShape {
   user: AuthUser | null;
   token: string | null;
   loading: boolean;
+  isSwitchedFromAdmin: boolean;
   signIn: (username: string, password: string) => Promise<void>;
+  switchAccount: (targetUsername: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -94,6 +96,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [apply]);
 
+  const [isSwitchedFromAdmin, setIsSwitchedFromAdmin] = useState(() => {
+    try {
+      return localStorage.getItem("citimart.admin_switched") === "true";
+    } catch {
+      return false;
+    }
+  });
+
   const signIn = useCallback(
     async (username: string, password: string) => {
       const res = await fetch(apiUrl("/api/auth/login"), {
@@ -106,13 +116,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(body?.detail ?? "Invalid username or password.");
       }
       const body = (await res.json()) as { access_token: string; expires_in: number };
+      try {
+        localStorage.removeItem("citimart.admin_switched");
+      } catch {}
+      setIsSwitchedFromAdmin(false);
       writeStored({ access_token: body.access_token, expires_at: Math.floor(Date.now() / 1000) + body.expires_in });
       apply(body.access_token);
     },
     [apply],
   );
 
+  const switchAccount = useCallback(
+    async (targetUsername: string) => {
+      const res = await fetch(apiUrl("/api/auth/switch-account"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ username: targetUsername }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(body?.detail ?? "Failed to switch account.");
+      }
+      const body = (await res.json()) as { access_token: string; expires_in: number };
+      const nextIsSwitched = targetUsername !== "ADMINISTRATOR";
+      try {
+        if (nextIsSwitched) {
+          localStorage.setItem("citimart.admin_switched", "true");
+        } else {
+          localStorage.removeItem("citimart.admin_switched");
+        }
+      } catch {}
+      setIsSwitchedFromAdmin(nextIsSwitched);
+      writeStored({ access_token: body.access_token, expires_at: Math.floor(Date.now() / 1000) + body.expires_in });
+      apply(body.access_token);
+    },
+    [apply, token],
+  );
+
   const signOut = useCallback(async () => {
+    try {
+      localStorage.removeItem("citimart.admin_switched");
+    } catch {}
+    setIsSwitchedFromAdmin(false);
     writeStored(null);
     apply(null);
   }, [apply]);
@@ -120,6 +168,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Let the fetch layers bounce us out on a 401.
   useEffect(() => {
     setUnauthorizedHandler(() => {
+      try {
+        localStorage.removeItem("citimart.admin_switched");
+      } catch {}
+      setIsSwitchedFromAdmin(false);
       writeStored(null);
       apply(null);
     });
@@ -127,8 +179,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [apply]);
 
   const value = useMemo<AuthContextShape>(
-    () => ({ user, token, loading, signIn, signOut }),
-    [user, token, loading, signIn, signOut],
+    () => ({ user, token, loading, isSwitchedFromAdmin, signIn, switchAccount, signOut }),
+    [user, token, loading, isSwitchedFromAdmin, signIn, switchAccount, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

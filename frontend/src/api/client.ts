@@ -190,10 +190,10 @@ export const api = {
   storeTargets: (store: string) =>
     getJSON<StoreTargetsResponse>(`/api/targets?${new URLSearchParams({ store })}`),
 
-  putStoreTarget: (payload: { store: string; date: string; sales_target: number | null }) =>
+  putStoreTarget: (payload: { store: string; date: string; sales_target: number | null; prev_year_net_sales?: number | null }) =>
     putJSON<StoreTargetEntry & { store: string }>("/api/targets", payload),
 
-  bulkStoreTargets: (payload: { store: string; rows: { date: string; sales_target: number | null }[] }) =>
+  bulkStoreTargets: (payload: { store: string; rows: { date: string; sales_target: number | null; prev_year_net_sales?: number | null }[] }) =>
     postJSON<{ store: string; applied: number; entries: StoreTargetEntry[] }>("/api/targets/bulk", payload),
 
   uploadStoreTargets: async (store: string, file: File) => {
@@ -217,7 +217,8 @@ export const api = {
       `/api/targets?${new URLSearchParams({ store, date })}`,
     ),
 
-  landingHero: () => getJSON<LandingHeroResponse>("/api/daily/landing-hero"),
+  landingHero: (date?: string) =>
+    getJSON<LandingHeroResponse>(date ? `/api/daily/landing-hero?${new URLSearchParams({ date })}` : "/api/daily/landing-hero"),
 
   targetAdjustment: (
     store: string,

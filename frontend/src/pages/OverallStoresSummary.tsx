@@ -8,6 +8,7 @@ import { Section } from "@/components/Section";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TargetAdjustmentAlert } from "@/components/TargetAdjustmentAlert";
+import { AtAGlanceCard } from "@/components/AtAGlanceCard";
 import { DAILY_KPI_FORMATTERS, DAILY_KPI_FORMULAS, DAILY_KPI_LABELS, DAILY_KPI_ORDER, todayLocalDate } from "@/lib/format";
 import { getKpiIconConfig } from "@/lib/kpiIcons";
 import { emptyFilterState } from "@/lib/filterParams";
@@ -33,10 +34,21 @@ function resolveKpiStatus(key: DailyKpiKey, rawStatus: StatusColor | undefined, 
   if (!kpis) return rawStatus;
   const hasOperations = (kpis.net_sales ?? 0) > 0 || (kpis.footfall ?? 0) > 0 || (kpis.bill_quantity ?? 0) > 0 || (kpis.nob ?? 0) > 0;
   if (!hasOperations) {
-    if (key === "remaining_pct") {
+    if (key === "remaining_pct" || key === "remaining") {
       return "red";
     }
     return null;
+  }
+  if (rawStatus) return rawStatus;
+  if (key === "net_sales" && kpis.achievement_pct !== undefined) {
+    if ((kpis.achievement_pct ?? 0) >= 100) return "green";
+    if ((kpis.achievement_pct ?? 0) >= 80) return "yellow";
+    return "red";
+  }
+  if (key === "remaining" && kpis.remaining_pct !== undefined) {
+    if ((kpis.remaining_pct ?? 0) <= 20) return "green";
+    if ((kpis.remaining_pct ?? 0) <= 50) return "yellow";
+    return "red";
   }
   return rawStatus;
 }
@@ -57,13 +69,6 @@ export function OverallStoresSummary() {
 
   return (
     <div className="space-y-6">
-      <Section title="All Stores — Today" className="mb-0">
-        <p className="text-muted-foreground text-sm">
-          Blended live KPIs for New Market, Hatibagan and Chowringhee combined. Totals are summed across stores and the
-          ratios (ATV, RPV, Conversion %, Achievement %, …) are recomputed from those totals.
-        </p>
-      </Section>
-
       {/* Target Adjustment Alert */}
       {data?.target_adjustment && (
         <TargetAdjustmentAlert alert={data.target_adjustment} storeCode="ALL" />
@@ -140,6 +145,15 @@ export function OverallStoresSummary() {
 
         </div>
       </div>
+
+      {/* At a Glance with Environmental Context & Granular Lookback Comparison */}
+      <AtAGlanceCard
+        storeCode="ALL"
+        storeName="Consolidated (All 3 Stores)"
+        date={today}
+        data={data}
+        isLoading={isLoading}
+      />
 
       {/* Side-by-Side Store Comparison Table */}
       <Section title="By Store Breakdown">

@@ -29,6 +29,7 @@ import { toast } from "sonner";
 
 import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthProvider";
+import { fmtDateDot } from "@/lib/format";
 import raphaelAvatar from "@/assets/raphael-sir-avatar.jpg";
 import { Button } from "@/components/ui/button";
 import {
@@ -181,14 +182,13 @@ function formatTimestamp(isoStr: string): string {
   if (!isoStr) return "";
   try {
     const d = new Date(isoStr);
-    return d.toLocaleString("en-IN", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
+    if (isNaN(d.getTime())) return isoStr;
+    const time = d.toLocaleTimeString("en-IN", {
       hour: "2-digit",
       minute: "2-digit",
       hour12: true,
     });
+    return `${fmtDateDot(d)}, ${time}`;
   } catch {
     return isoStr;
   }

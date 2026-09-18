@@ -182,6 +182,7 @@ export interface DailyLiveSnapshot {
   kpis: DailyKpis;
   statuses: Partial<Record<DailyKpiKey, StatusColor>>;
   target_adjustment?: TargetAdjustmentAlert | null;
+  timeslot_breakdown?: Record<string, { net_sales: number; bill_quantity: number; footfall: number; nob: number }>;
   // Which of the five overridable ratio KPIs currently carry a manager's
   // hand-entered value (targets.overrides) rather than the computed figure.
   overridden: DailyKpiKey[];
@@ -197,6 +198,7 @@ export interface DailyOverallSnapshot {
   kpis: DailyKpis;
   statuses: Partial<Record<DailyKpiKey, StatusColor>>;
   target_adjustment?: TargetAdjustmentAlert | null;
+  timeslot_breakdown?: Record<string, { net_sales: number; bill_quantity: number; footfall: number; nob: number }>;
   per_store: Record<string, DailyKpis>;
 }
 
@@ -227,6 +229,7 @@ export interface LandingHeroStoreTelemetry {
 export interface LandingHeroResponse {
   recorded_date: string;
   day_name: string;
+  available_dates?: string[];
   stores: Record<string, LandingHeroStoreTelemetry>;
 }
 
@@ -252,8 +255,16 @@ export interface KpiOverrideResult {
 export interface StoreTargetEntry {
   date: string;
   sales_target: number | null;
+  prev_year_net_sales?: number | null;
   net_sales: number | null;
   achievement_pct: number | null;
+  footfall?: number | null;
+  nob?: number | null;
+  bill_quantity?: number | null;
+  atv?: number | null;
+  rpv?: number | null;
+  basket_size?: number | null;
+  conversion_pct?: number | null;
 }
 
 export interface StoreTargetsResponse {

@@ -40,16 +40,16 @@ def _parse_iso_date(value: str) -> date:
         raise HTTPException(status_code=400, detail="date must be YYYY-MM-DD.")
 
 
-def _parse_target(value) -> float | None:
+def _parse_target(value, field_name: str = "sales_target") -> float | None:
     """None / "" -> clear the target. Otherwise a non-negative number."""
     if value is None or value == "":
         return None
     try:
         number = float(value)
     except (TypeError, ValueError):
-        raise HTTPException(status_code=400, detail="sales_target must be a number or null.")
+        raise HTTPException(status_code=400, detail=f"{field_name} must be a number or null.")
     if number < 0:
-        raise HTTPException(status_code=400, detail="sales_target cannot be negative.")
+        raise HTTPException(status_code=400, detail=f"{field_name} cannot be negative.")
     return number
 
 
@@ -67,32 +67,34 @@ def put_target(
     payload: dict = Body(...),
     db: Database = Depends(get_db),
 ):
-    """Body: {store, date, sales_target}. sales_target null/omitted clears the
-    target for that store+date. Returns the refreshed live KPI snapshot."""
+    """Body: {store, date, sales_target, prev_year_net_sales}.
+    Returns the refreshed live KPI snapshot."""
     code = _validate_store(str(payload.get("store", "")))
     date_str = str(payload.get("date", "")).strip()
     if not date_str:
         raise HTTPException(status_code=400, detail="date is required.")
     target_date = _parse_iso_date(date_str)
-    sales_target = _parse_target(payload.get("sales_target"))
+    sales_target = _parse_target(payload.get("sales_target"), "sales_target")
+    has_prev_year = "prev_year_net_sales" in payload
+    prev_year_net_sales = _parse_target(payload.get("prev_year_net_sales"), "prev_year_net_sales") if has_prev_year else None
     try:
-        kpis = daily_dashboard_store.set_store_target(db, code, target_date, sales_target)
+        kpis = daily_dashboard_store.set_store_target(
+            db, code, target_date, sales_target, prev_year_net_sales, update_prev_year=has_prev_year
+        )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
     return {
         "store": code,
         "date": target_date.isoformat(),
         "sales_target": kpis.get("sales_target"),
+        "prev_year_net_sales": prev_year_net_sales,
         "net_sales": kpis.get("net_sales"),
         "achievement_pct": kpis.get("achievement_pct"),
     }
 
 
 def _apply_target_rows(db: Database, code: str, rows: list) -> int:
-    """Apply {date, sales_target} rows to one store in order (a null/blank
-    sales_target clears that date). A bad row 400s before any later row is
-    touched, but rows already applied stay applied -- each write commits
-    immediately, there is no transaction to roll back."""
+    """Apply {date, sales_target, prev_year_net_sales} rows to one store in order."""
     applied = 0
     for row in rows:
         if not isinstance(row, dict):
@@ -101,9 +103,13 @@ def _apply_target_rows(db: Database, code: str, rows: list) -> int:
         if not date_str:
             raise HTTPException(status_code=400, detail="each row needs a date.")
         target_date = _parse_iso_date(date_str)
-        sales_target = _parse_target(row.get("sales_target"))
+        sales_target = _parse_target(row.get("sales_target"), "sales_target")
+        has_prev_year = "prev_year_net_sales" in row
+        prev_year_net_sales = _parse_target(row.get("prev_year_net_sales"), "prev_year_net_sales") if has_prev_year else None
         try:
-            daily_dashboard_store.set_store_target(db, code, target_date, sales_target)
+            daily_dashboard_store.set_store_target(
+                db, code, target_date, sales_target, prev_year_net_sales, update_prev_year=has_prev_year
+            )
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error))
         applied += 1
@@ -115,7 +121,7 @@ def put_targets_bulk(
     payload: dict = Body(...),
     db: Database = Depends(get_db),
 ):
-    """Body: {store, rows: [{date, sales_target}, ...]}. Applies each row with
+    """Body: {store, rows: [{date, sales_target, prev_year_net_sales}, ...]}. Applies each row with
     the same semantics as PUT."""
     code = _validate_store(str(payload.get("store", "")))
     rows = payload.get("rows")
@@ -141,10 +147,10 @@ def upload_targets(
     file: UploadFile = File(...),
     db: Database = Depends(get_db),
 ):
-    """Bulk-set a store's monthly SALES TARGET from a two-column .xlsx
-    (`Date`, `Sales Target`; header row skipped). Same per-row semantics as
-    POST /bulk -- a blank Sales Target clears that date, a negative value or
-    unparseable date 400s. Admin-only (this whole router is)."""
+    """Bulk-set a store's monthly SALES TARGET from a .xlsx.
+    Supports 4-column format (`Previous Year Date`, `Net Sales`, `Present Year Date`, `Sales Target`)
+    as well as 2-column format (`Date`, `Sales Target`).
+    Admin-only."""
     code = _validate_store(store)
     raw = file.file.read()
     try:
@@ -154,14 +160,28 @@ def upload_targets(
     ws = wb.active
     rows: list[dict] = []
     for excel_row in ws.iter_rows(min_row=2, values_only=True):
-        date_cell = excel_row[0] if len(excel_row) > 0 else None
-        target_cell = excel_row[1] if len(excel_row) > 1 else None
-        if date_cell is None and (target_cell is None or target_cell == ""):
-            continue  # trailing blank rows
-        rows.append({"date": _cell_to_iso_date(date_cell), "sales_target": target_cell})
+        if not excel_row or all(c is None or c == "" for c in excel_row):
+            continue
+        # Check if 4 columns provided: Col 0: Prev Year Date, Col 1: Prev Net Sales, Col 2: Present Year Date, Col 3: Sales Target
+        if len(excel_row) >= 4 and excel_row[2] is not None:
+            prev_sales_cell = excel_row[1]
+            date_cell = excel_row[2]
+            target_cell = excel_row[3]
+            rows.append({
+                "date": _cell_to_iso_date(date_cell),
+                "sales_target": target_cell,
+                "prev_year_net_sales": prev_sales_cell,
+            })
+        else:
+            date_cell = excel_row[0] if len(excel_row) > 0 else None
+            target_cell = excel_row[1] if len(excel_row) > 1 else None
+            if date_cell is None and (target_cell is None or target_cell == ""):
+                continue
+            rows.append({"date": _cell_to_iso_date(date_cell), "sales_target": target_cell})
+
     wb.close()
     if not rows:
-        raise HTTPException(status_code=400, detail="No data rows found (expected columns: Date, Sales Target).")
+        raise HTTPException(status_code=400, detail="No data rows found in Excel file.")
     applied = _apply_target_rows(db, code, rows)
     return {"store": code, "applied": applied, "entries": daily_dashboard_store.list_store_targets(db, code)}
 

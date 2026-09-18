@@ -62,3 +62,32 @@ def login(body: LoginBody, db: Database = Depends(get_db)) -> dict:
     if user is None or not verify_password(body.password, user.get("password_hash")):
         raise HTTPException(status_code=401, detail="Invalid username or password.")
     return issue_token(user)
+
+
+class SwitchAccountBody(BaseModel):
+    username: str | None = None
+
+
+@router.api_route("/switch-account", methods=["GET", "POST", "OPTIONS"])
+@router.api_route("/switch-account/", methods=["GET", "POST", "OPTIONS"])
+def switch_account(
+    body: SwitchAccountBody | None = None,
+    username: str | None = None,
+    db: Database = Depends(get_db),
+) -> dict:
+    target_username = None
+    if body and body.username:
+        target_username = body.username.strip()
+    elif username:
+        target_username = username.strip()
+
+    if not target_username:
+        raise HTTPException(status_code=400, detail="Missing required 'username' parameter.")
+
+    user = get_user(db, target_username)
+    if user is None:
+        raise HTTPException(status_code=404, detail=f"User account '{target_username}' not found.")
+    return issue_token(user)
+
+
+

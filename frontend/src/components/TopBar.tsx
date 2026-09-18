@@ -2,37 +2,17 @@ import { motion } from "framer-motion";
 import {
   ChevronDown,
   FileOutput,
-  LogOut,
-  Moon,
   PanelRightClose,
   PanelRightOpen,
-  Settings,
-  Sparkles,
   SlidersHorizontal,
-  Sun,
-  UserRound,
 } from "lucide-react";
-import { useTheme } from "next-themes";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Languages } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useIsMobile } from "@/hooks/useMediaQuery";
-import { SIGN_IN_OPTIONS } from "@/lib/authUsers";
 import citimartLogo from "@/assets/citimart-logo.png";
 import { BossAvatarButton } from "@/components/BossAvatarButton";
+import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/context/LanguageContext";
-import type { Language } from "@/lib/translations";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 
 interface TopBarProps {
   activeStores: string[];
@@ -48,243 +28,7 @@ interface TopBarProps {
   onSignOut?: () => void;
 }
 
-const ICON_BTN = "size-9 shrink-0 text-slate-300 hover:bg-white/10 hover:text-white";
-
-function SettingsMenu({
-  username,
-  roleLabel,
-  onSignOut,
-}: {
-  username?: string;
-  roleLabel?: string;
-  onSignOut?: () => void;
-}) {
-  const { theme, setTheme } = useTheme();
-  const { language, setLanguage, t } = useLanguage();
-  const [open, setOpen] = useState(false);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const navigate = useNavigate();
-  const isAdmin = roleLabel === "Admin" || username === "CITIMART - ADMIN";
-
-  const themes = [
-    { id: "light", label: "Light", Icon: Sun },
-    { id: "dark", label: "Dark", Icon: Moon },
-    { id: "neon", label: "Neon", Icon: Sparkles },
-  ] as const;
-
-  const languages: { id: Language; label: string; sub: string }[] = [
-    { id: "en", label: "English", sub: "EN" },
-    { id: "hi", label: "हिंदी", sub: "HI" },
-    { id: "bn", label: "বাংলা", sub: "BN" },
-  ];
-
-  return (
-    <>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Settings"
-            title="Settings (Language, Accounts, Theme, Sign Out)"
-            className={ICON_BTN}
-          >
-            <Settings className="h-4 w-4 text-slate-200" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent
-          align="end"
-          sideOffset={8}
-          className="w-80 rounded-xl border border-slate-700 bg-slate-900 p-0 text-slate-100 shadow-2xl backdrop-blur-md"
-        >
-          <div className="border-b border-slate-800 p-3.5 bg-slate-950/40 rounded-t-xl">
-            <div className="flex items-center justify-between">
-              <span className="flex items-center gap-2 text-sm font-bold text-white">
-                <Settings className="h-4 w-4 text-blue-400" />
-                {t.settingsTitle}
-              </span>
-            </div>
-          </div>
-
-          <div className="p-3 space-y-4 max-h-[85vh] overflow-y-auto">
-            {/* Account & Profile */}
-            <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                {t.account}
-              </span>
-              {username ? (
-                <div className="mt-1.5 flex items-center justify-between rounded-lg bg-slate-800/80 p-2.5 border border-slate-700/60">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500/20 text-blue-300">
-                      <UserRound className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-semibold text-white">{username}</p>
-                      <p className="truncate text-[11px] text-slate-400">{roleLabel || "User"}</p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-1.5 flex items-center justify-between rounded-lg bg-slate-800/80 p-2.5">
-                  <span className="text-xs text-slate-400">Not signed in</span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs"
-                    onClick={() => {
-                      setOpen(false);
-                      navigate("/login");
-                    }}
-                  >
-                    Sign In
-                  </Button>
-                </div>
-              )}
-
-              {/* Switch Account (Admin Only) */}
-              {isAdmin && (
-                <div className="mt-2.5">
-                  <span className="text-[11px] text-slate-400 font-medium">{t.switchAccount}</span>
-                  <div className="mt-1.5 grid grid-cols-2 gap-1.5">
-                    {SIGN_IN_OPTIONS.map((opt) => {
-                      const isActive = opt.username === username;
-                      return (
-                        <button
-                          key={opt.username}
-                          type="button"
-                          onClick={() => {
-                            setOpen(false);
-                            navigate(`/login?account=${encodeURIComponent(opt.username)}`);
-                          }}
-                          className={`flex flex-col items-start rounded-md px-2 py-1.5 text-left text-xs transition border ${
-                            isActive
-                              ? "border-blue-500 bg-blue-500/15 text-blue-200"
-                              : "border-slate-800 bg-slate-800/40 text-slate-300 hover:bg-slate-800 hover:text-white"
-                          }`}
-                        >
-                          <span className="truncate w-full font-medium">{opt.title.replace("CITIMART — ", "")}</span>
-                          <span className="text-[10px] text-slate-400">{opt.sub.split("·")[0]}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Theme Switcher */}
-            <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                {t.theme}
-              </span>
-              <div className="mt-1.5 grid grid-cols-3 gap-1.5">
-                {themes.map(({ id, label, Icon }) => {
-                  const isSelected = theme === id;
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => setTheme(id)}
-                      className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition border ${
-                        isSelected
-                          ? "border-blue-400 bg-blue-600/30 text-white shadow-sm"
-                          : "border-slate-800 bg-slate-800/40 text-slate-300 hover:bg-slate-800 hover:text-white"
-                      }`}
-                    >
-                      <Icon className="h-3.5 w-3.5" />
-                      <span>{label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Language Selector (Positioned after Theme) */}
-            <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <Languages className="h-3.5 w-3.5 text-indigo-400" />
-                {t.language}
-              </span>
-              <div className="mt-1.5 grid grid-cols-3 gap-1.5">
-                {languages.map((item) => {
-                  const isSelected = language === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setLanguage(item.id)}
-                      className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-semibold transition border cursor-pointer ${
-                        isSelected
-                          ? "border-indigo-400 bg-indigo-600/35 text-white shadow-sm ring-1 ring-indigo-400/50"
-                          : "border-slate-800 bg-slate-800/40 text-slate-300 hover:bg-slate-800 hover:text-white"
-                      }`}
-                    >
-                      <span className="font-bold text-xs">{item.label}</span>
-                      <span className="text-[10px] text-slate-400 font-mono mt-0.5">{item.sub}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Log Out */}
-            {onSignOut && username && (
-              <div className="pt-2 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpen(false);
-                    setShowLogoutConfirm(true);
-                  }}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/20 py-2 text-xs font-semibold transition cursor-pointer"
-                >
-                  <LogOut className="h-3.5 w-3.5" />
-                  {t.logout} ({username})
-                </button>
-              </div>
-            )}
-          </div>
-        </PopoverContent>
-      </Popover>
-
-      {/* Confirmation Dialog for Log Out */}
-      <Dialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-500/10 text-red-500">
-                <LogOut className="h-5 w-5" />
-              </div>
-              <div>
-                <DialogTitle>Confirm Log Out</DialogTitle>
-                <DialogDescription className="mt-1">
-                  Are you sure to Log out?
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-          <DialogFooter className="gap-2 pt-2 sm:justify-end">
-            <Button
-              variant="outline"
-              onClick={() => setShowLogoutConfirm(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                setShowLogoutConfirm(false);
-                onSignOut?.();
-              }}
-            >
-              Yes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
+const ICON_BTN = "size-9 shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground";
 
 export function TopBar({
   activeStores,
@@ -295,9 +39,6 @@ export function TopBar({
   showPanelToggle = true,
   showReportButton = false,
   onOpenReport,
-  username,
-  roleLabel,
-  onSignOut,
 }: TopBarProps) {
   const isMobile = useIsMobile();
   const [metaOpen, setMetaOpen] = useState(false);
@@ -309,7 +50,7 @@ export function TopBar({
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
         <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
       </span>
-      <span className="font-semibold text-emerald-300">{t.live}</span>
+      <span className="font-semibold text-emerald-600 dark:text-emerald-400">{t.live}</span>
     </span>
   );
 
@@ -318,22 +59,21 @@ export function TopBar({
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
-      className="topbar sticky top-0 z-50 bg-[#0f172a]/95 backdrop-blur-md border-b border-slate-800/80 px-3 py-3 text-white shadow-md sm:px-6 transition-all"
+      className="topbar glossy-topbar sticky top-0 z-50 px-3 py-2.5 shadow-md sm:px-6 transition-all"
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2.5 sm:gap-4">
-          <div className="shrink-0 rounded-lg bg-white p-1 sm:p-1.5 shadow-sm border border-slate-100 flex items-center justify-center">
-            <img src={citimartLogo} alt="CITIMART - Value for Money Re-defined" className="h-10 sm:h-12 w-auto object-contain" />
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2.5 sm:gap-3.5">
+          <div className="shrink-0 rounded-xl bg-white p-1 sm:p-1.5 shadow-sm border border-border flex items-center justify-center">
+            <img src={citimartLogo} alt="CITIMART - Value for Money Re-defined" className="h-8 sm:h-9 w-auto object-contain" />
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-baseline gap-x-2">
-              <h1 className="truncate text-base leading-tight font-extrabold sm:text-lg lg:text-xl tracking-tight">
-                <span className="text-white">CITIMART</span>
-                <span className="hidden sm:inline text-blue-300"> DAILY OPERATIONS DASHBOARD</span>
-                <span className="sm:hidden text-blue-300"> OPERATIONS</span>
+              <h1 className="truncate text-base leading-tight font-extrabold sm:text-lg tracking-tight">
+                <span className="text-foreground">CITIMART</span>
+                <span className="text-blue-600 dark:text-blue-400"> DAILY OPERATIONS</span>
               </h1>
             </div>
-            <div className="text-[11px] sm:text-xs font-semibold text-amber-300/95 tracking-wide uppercase mt-0.5">
+            <div className="text-[10px] sm:text-[11px] font-bold text-amber-600 dark:text-amber-300 tracking-wide uppercase">
               {t.valueForMoney}
             </div>
 
@@ -343,7 +83,7 @@ export function TopBar({
               onClick={() => setMetaOpen((o) => !o)}
               aria-expanded={metaOpen}
               aria-label={metaOpen ? "Hide dashboard details" : "Show dashboard details"}
-              className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-300 md:hidden"
+              className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground md:hidden cursor-pointer"
             >
               {liveDot}
               <ChevronDown className={`h-3.5 w-3.5 transition-transform ${metaOpen ? "rotate-180" : ""}`} />
@@ -351,22 +91,22 @@ export function TopBar({
 
             {/* md+ (and the expanded mobile state) -- the full meta strip. */}
             <p
-              className={`mt-1 flex-wrap items-center gap-x-1.5 text-xs text-slate-300 md:flex ${
+              className={`mt-0.5 flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground md:flex ${
                 metaOpen ? "flex" : "hidden"
               }`}
             >
               <span className="hidden md:inline-flex">{liveDot}</span>
               <span className="hidden md:inline">&nbsp;|&nbsp;</span>
-              <span>{t.activeStores}: {activeStores.join(", ") || "—"}</span>
+              <span>{t.activeStores}: <strong className="text-foreground">{activeStores.join(", ") || "—"}</strong></span>
               <span className="hidden sm:inline">&nbsp;|&nbsp;</span>
-              <span className="w-full sm:w-auto">{t.reportingPeriod}: {dateRange}</span>
+              <span className="w-full sm:w-auto">{t.reportingPeriod}: <strong className="text-foreground">{dateRange}</strong></span>
               <span className="hidden sm:inline">&nbsp;|&nbsp;</span>
-              <span className="w-full sm:w-auto">{t.lastWorkbookRefresh}: {lastRefresh}</span>
+              <span className="w-full sm:w-auto">{t.lastWorkbookRefresh}: <strong className="text-foreground">{lastRefresh}</strong></span>
             </p>
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           {showReportButton && (
             <Button
               variant="ghost"
@@ -399,14 +139,7 @@ export function TopBar({
           )}
 
           {/* Operational Head Avatar & Directives Button */}
-          <BossAvatarButton className="mr-0.5 sm:mr-1" />
-
-          {/* Unified Settings Button (Accounts, Themes, Sign Out) */}
-          <SettingsMenu
-            username={username}
-            roleLabel={roleLabel}
-            onSignOut={onSignOut}
-          />
+          <BossAvatarButton className="mr-0.5" />
         </div>
       </div>
     </motion.header>

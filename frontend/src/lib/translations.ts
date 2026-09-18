@@ -179,6 +179,75 @@ export interface Translations {
   trueRollingPolicy: string;
   viewDeficitBuckets: string;
   hideDeficitBuckets: string;
+
+  // Navigation & Stores
+  navDashboard: string;
+  navManualEntry: string;
+  navSalesTarget: string;
+  navHistory: string;
+  navOverallSummary: string;
+  storeNewMarket: string;
+  storeHatibagan: string;
+  storeChowringhee: string;
+
+  // 12 KPI Metric Labels
+  kpiNetSales: string;
+  kpiSalesTarget: string;
+  kpiRemaining: string;
+  kpiAchievementPct: string;
+  kpiRemainingPct: string;
+  kpiFootfall: string;
+  kpiBillQty: string;
+  kpiNob: string;
+  kpiConversionPct: string;
+  kpiAtv: string;
+  kpiRpv: string;
+  kpiBasketSize: string;
+
+  // Gauges
+  gaugesTitle: string;
+  liveDials: string;
+  performanceGauges: string;
+
+  // At a Glance & Context
+  atAGlanceTitle: string;
+  environmentalContext: string;
+  comparisonEngine: string;
+  todayNetSales: string;
+  comparisonNetSales: string;
+  performanceDelta: string;
+  inferredInsight: string;
+  weatherUnavailable: string;
+
+  // Manual Entry Form
+  dateLabel: string;
+  timeStampLabel: string;
+  timeSlotLabel: string;
+  selectTimeSlot: string;
+  finalSubmissionBtn: string;
+  unifiedOperationsEntry: string;
+  netAmount: string;
+  billQuantity: string;
+  nobBuyers: string;
+  updateEntry: string;
+  resetFields: string;
+  saveRemarks: string;
+  clearRemarks: string;
+  remarksLabel: string;
+
+  // History & Table Actions
+  historyTitle: string;
+  singleDay: string;
+  prev7Days: string;
+  prev14Days: string;
+  prev30Days: string;
+  allDates: string;
+  customRange: string;
+  loggedOperations: string;
+  actionEdit: string;
+  actionDelete: string;
+  actionSave: string;
+  actionCancel: string;
 }
 
 
@@ -193,7 +262,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     account: "Account",
     switchAccount: "Switch Account:",
     logout: "Log Out",
-    settingsTitle: "Settings & Preferences",
+    settingsTitle: "Settings",
     valueForMoney: "Value for Money Re-defined",
     live: "Live",
     activeStores: "Active stores",
@@ -354,6 +423,75 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     trueRollingPolicy: "True Rolling",
     viewDeficitBuckets: "View Deficit Buckets",
     hideDeficitBuckets: "Hide Deficit Buckets",
+
+    // Navigation & Stores
+    navDashboard: "Dashboard",
+    navManualEntry: "Manual Data Entry",
+    navSalesTarget: "Sales Target",
+    navHistory: "History",
+    navOverallSummary: "Overall Stores Summary",
+    storeNewMarket: "New Market",
+    storeHatibagan: "Hatibagan",
+    storeChowringhee: "Chowringhee",
+
+    // 12 KPI Metric Labels
+    kpiNetSales: "Net Sales",
+    kpiSalesTarget: "Sales Target",
+    kpiRemaining: "Remaining",
+    kpiAchievementPct: "Achievement %",
+    kpiRemainingPct: "Remaining %",
+    kpiFootfall: "Footfall",
+    kpiBillQty: "Bill Quantity",
+    kpiNob: "NOB (Buyers)",
+    kpiConversionPct: "Conversion %",
+    kpiAtv: "ATV",
+    kpiRpv: "RPV",
+    kpiBasketSize: "Basket Size",
+
+    // Gauges
+    gaugesTitle: "Performance Gauges",
+    liveDials: "Live Dials",
+    performanceGauges: "Consolidated Performance Gauges",
+
+    // At a Glance & Context
+    atAGlanceTitle: "At a Glance · Operational Context & Intuitions",
+    environmentalContext: "Today's Environmental Context",
+    comparisonEngine: "Same Day Historical Comparison Engine",
+    todayNetSales: "Today's Net Sales",
+    comparisonNetSales: "Comparison Net Sales",
+    performanceDelta: "Performance Delta",
+    inferredInsight: "Inferred Floor Insight & Intuition",
+    weatherUnavailable: "Weather information currently unavailable",
+
+    // Manual Entry Form
+    dateLabel: "Date",
+    timeStampLabel: "Time Stamp (System Generated)",
+    timeSlotLabel: "Time Slot",
+    selectTimeSlot: "Choose Time Slot",
+    finalSubmissionBtn: "Final Submission",
+    unifiedOperationsEntry: "Floor Operations Entry (Footfall, Billing & NOB)",
+    netAmount: "Net Amount (₹)",
+    billQuantity: "Bill Quantity (Units Sold)",
+    nobBuyers: "NOB (Number of Buyers)",
+    updateEntry: "Update Entry",
+    resetFields: "Reset Fields",
+    saveRemarks: "Save Remarks",
+    clearRemarks: "Clear Remarks",
+    remarksLabel: "Operational Remarks (optional)",
+
+    // History & Table Actions
+    historyTitle: "Operational History & Performance Digest",
+    singleDay: "Single Day",
+    prev7Days: "Previous 7 Days",
+    prev14Days: "Previous 14 Days",
+    prev30Days: "Previous 30 Days",
+    allDates: "All Available Dates",
+    customRange: "Specific Date Range",
+    loggedOperations: "Logged Floor Operations",
+    actionEdit: "Edit",
+    actionDelete: "Delete",
+    actionSave: "Save",
+    actionCancel: "Cancel",
   },
 
 
@@ -367,7 +505,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     account: "खाता (Account)",
     switchAccount: "खाता बदलें (Switch Account):",
     logout: "लॉग आउट (Log Out)",
-    settingsTitle: "सेटिंग्स और प्राथमिकताएं",
+    settingsTitle: "सेटिंग्स",
     valueForMoney: "वैल्यू फॉर मनी री-डिफाइंड",
     live: "लाइव",
     activeStores: "सक्रिय स्टोर",
@@ -529,6 +667,75 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     trueRollingPolicy: "ट्रू रोलिंग",
     viewDeficitBuckets: "घाटा बकेट देखें",
     hideDeficitBuckets: "घाटा बकेट छिपाएं",
+
+    // Navigation & Stores
+    navDashboard: "डैशबोर्ड (Dashboard)",
+    navManualEntry: "मैन्युअल डेटा प्रविष्टि (Manual Entry)",
+    navSalesTarget: "बिक्री लक्ष्य (Sales Target)",
+    navHistory: "इतिहास (History)",
+    navOverallSummary: "सभी स्टोर का सारांश (Overall Stores)",
+    storeNewMarket: "न्यू मार्केट (New Market)",
+    storeHatibagan: "हाथीबागान (Hatibagan)",
+    storeChowringhee: "चौरंगी (Chowringhee)",
+
+    // 12 KPI Metric Labels
+    kpiNetSales: "नेट बिक्री (Net Sales)",
+    kpiSalesTarget: "बिक्री लक्ष्य (Sales Target)",
+    kpiRemaining: "शेष अंतर (Remaining)",
+    kpiAchievementPct: "उपलब्धि % (Ach. %)",
+    kpiRemainingPct: "शेष % (Remaining %)",
+    kpiFootfall: "फुटफॉल (Footfall)",
+    kpiBillQty: "बिल मात्रा (Bill Qty)",
+    kpiNob: "खरीदार संख्या (NOB)",
+    kpiConversionPct: "रूपांतरण दर (Conversion %)",
+    kpiAtv: "औसत बिल (ATV)",
+    kpiRpv: "प्रति ग्राहक राजस्व (RPV)",
+    kpiBasketSize: "बास्केट साइज (Basket Size)",
+
+    // Gauges
+    gaugesTitle: "प्रदर्शन गेज (Performance Gauges)",
+    liveDials: "लाइव डायल",
+    performanceGauges: "समेकित प्रदर्शन गेज",
+
+    // At a Glance & Context
+    atAGlanceTitle: "एक नज़र में · परिचालन संदर्भ और विश्लेषण",
+    environmentalContext: "आज का पर्यावरणीय संदर्भ (Environmental Context)",
+    comparisonEngine: "समान दिन ऐतिहासिक तुलना इंजन (Same Day Comparison)",
+    todayNetSales: "आज की नेट बिक्री",
+    comparisonNetSales: "तुलनात्मक नेट बिक्री",
+    performanceDelta: "प्रदर्शन अंतर (Performance Delta)",
+    inferredInsight: "फ्लोर विश्लेषण और अंतर्दृष्टि (Inferred Insight)",
+    weatherUnavailable: "मौसम की जानकारी वर्तमान में अनुपलब्ध है",
+
+    // Manual Entry Form
+    dateLabel: "दिनांक (Date)",
+    timeStampLabel: "समय स्टैम्प (स्वचालित)",
+    timeSlotLabel: "टाइम स्लॉट (Time Slot)",
+    selectTimeSlot: "टाइम स्लॉट चुनें",
+    finalSubmissionBtn: "अंतिम सबमिशन (Final Submission)",
+    unifiedOperationsEntry: "फ्लोर परिचालन प्रविष्टि (फुटफॉल, बिलिंग और NOB)",
+    netAmount: "कुल बिक्री राशि (₹)",
+    billQuantity: "बिल मात्रा (बिकी सामग्री)",
+    nobBuyers: "खरीदार संख्या (NOB)",
+    updateEntry: "प्रविष्टि अपडेट करें (Update)",
+    resetFields: "रीसेट करें (Reset)",
+    saveRemarks: "टिप्पणी सुरक्षित करें",
+    clearRemarks: "टिप्पणी हटाएं",
+    remarksLabel: "परिचालन टिप्पणी (वैकल्पिक)",
+
+    // History & Table Actions
+    historyTitle: "परिचालन इतिहास और रिपोर्ट (History & Performance)",
+    singleDay: "एकल दिन (Single Day)",
+    prev7Days: "पिछले 7 दिन",
+    prev14Days: "पिछले 14 दिन",
+    prev30Days: "पिछले 30 दिन",
+    allDates: "सभी उपलब्ध दिनांक",
+    customRange: "कस्टम तिथि सीमा",
+    loggedOperations: "लॉग की गई फ्लोर प्रविष्टियां",
+    actionEdit: "संपादित करें (Edit)",
+    actionDelete: "हटाएं (Delete)",
+    actionSave: "सुरक्षित करें (Save)",
+    actionCancel: "रद्द करें (Cancel)",
   },
 
 
@@ -542,7 +749,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     account: "অ্যাকাউন্ট (Account)",
     switchAccount: "অ্যাকাউন্ট পরিবর্তন করুন:",
     logout: "লগ আউট (Log Out)",
-    settingsTitle: "সেটিংস এবং পছন্দসমূহ",
+    settingsTitle: "সেটিংস",
     valueForMoney: "ভ্যালু ফর মানি রি-ডিফাইনড",
     live: "লাইভ",
     activeStores: "সক্রিয় স্টোর",
@@ -704,6 +911,75 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     trueRollingPolicy: "ট্রু রোলিং",
     viewDeficitBuckets: "ঘাটতি বাকেট দেখুন",
     hideDeficitBuckets: "ঘাটতি বাকেট লুকান",
+
+    // Navigation & Stores
+    navDashboard: "ড্যাশবোর্ড (Dashboard)",
+    navManualEntry: "ম্যানুয়াল ডেটা এন্ট্রি (Manual Entry)",
+    navSalesTarget: "বিক্রয় লক্ষ্যমাত্রা (Sales Target)",
+    navHistory: "ইতিহাস (History)",
+    navOverallSummary: "সকল স্টোরের সারসংক্ষেপ (Overall Stores)",
+    storeNewMarket: "নিউ মার্কেট (New Market)",
+    storeHatibagan: "হাতিবাগান (Hatibagan)",
+    storeChowringhee: "চৌরঙ্গী (Chowringhee)",
+
+    // 12 KPI Metric Labels
+    kpiNetSales: "নেট বিক্রয় (Net Sales)",
+    kpiSalesTarget: "বিক্রয় লক্ষ্যমাত্রা (Sales Target)",
+    kpiRemaining: "অবশিষ্ট ঘাটতি (Remaining)",
+    kpiAchievementPct: "অর্জনের হার % (Ach. %)",
+    kpiRemainingPct: "অবশিষ্ট % (Remaining %)",
+    kpiFootfall: "ফুটফল (Footfall)",
+    kpiBillQty: "বিল পরিমাণ (Bill Qty)",
+    kpiNob: "ক্রেতা সংখ্যা (NOB)",
+    kpiConversionPct: "রূপান্তর হার % (Conversion %)",
+    kpiAtv: "গড় বিল (ATV)",
+    kpiRpv: "প্রতি ক্রেতা রাজস্ব (RPV)",
+    kpiBasketSize: "বাস্কেট সাইজ (Basket Size)",
+
+    // Gauges
+    gaugesTitle: "পারফরম্যান্স গেজ (Performance Gauges)",
+    liveDials: "লাইভ ডায়াল",
+    performanceGauges: "সমন্বিত পারফরম্যান্স গেজ",
+
+    // At a Glance & Context
+    atAGlanceTitle: "এক নজরে · কার্যক্রমের প্রেক্ষাপট ও বিশ্লেষণ",
+    environmentalContext: "আজকের পরিবেশগত প্রেক্ষাপট (Environmental Context)",
+    comparisonEngine: "একই দিনের ঐতিহাসিক তুলনা ইঞ্জিন (Same Day Comparison)",
+    todayNetSales: "আজকের নেট বিক্রয়",
+    comparisonNetSales: "তুলনামূলক নেট বিক্রয়",
+    performanceDelta: "পারফরম্যান্সের পার্থক্য (Performance Delta)",
+    inferredInsight: "ফ্লোর অন্তর্দৃষ্টি ও সিদ্ধান্ত (Inferred Insight)",
+    weatherUnavailable: "আবহাওয়ার তথ্য বর্তমানে উপলব্ধ নয়",
+
+    // Manual Entry Form
+    dateLabel: "তারিখ (Date)",
+    timeStampLabel: "সময় স্ট্যাম্প (স্বয়ংক্রিয়)",
+    timeSlotLabel: "টাইম স্লট (Time Slot)",
+    selectTimeSlot: "টাইম স্লট নির্বাচন করুন",
+    finalSubmissionBtn: "চূড়ান্ত সাবমিশন (Final Submission)",
+    unifiedOperationsEntry: "ফ্লোর কার্যক্রম এন্ট্রি (ফুটফল, বিলিং ও NOB)",
+    netAmount: "মোট বিক্রির টাকা (₹)",
+    billQuantity: "বিক্রীত পণ্যের পরিমাণ",
+    nobBuyers: "ক্রেতার সংখ্যা (NOB)",
+    updateEntry: "এন্ট্রি আপডেট করুন (Update)",
+    resetFields: "রিসেট করুন (Reset)",
+    saveRemarks: "মন্তব্য সংরক্ষণ করুন",
+    clearRemarks: "মন্তব্য মুছুন",
+    remarksLabel: "কার্যক্রম সংক্রান্ত মন্তব্য (ঐচ্ছিক)",
+
+    // History & Table Actions
+    historyTitle: "কার্যক্রমের ইতিহাস ও রিপোর্ট (History & Performance)",
+    singleDay: "নির্দিষ্ট দিন (Single Day)",
+    prev7Days: "বিগত ৭ দিন",
+    prev14Days: "বিগত ১৪ দিন",
+    prev30Days: "বিগত ৩০ দিন",
+    allDates: "সমস্ত উপলব্ধ তারিখ",
+    customRange: "কাস্টম তারিখের পরিসীমা",
+    loggedOperations: "নথিভুক্ত কার্যক্রম",
+    actionEdit: "সম্পাদনা (Edit)",
+    actionDelete: "মুছে ফেলুন (Delete)",
+    actionSave: "সংরক্ষণ (Save)",
+    actionCancel: "বাতিল (Cancel)",
   },
 
 };

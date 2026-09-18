@@ -26,6 +26,7 @@ import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { STORE_NAME_BY_CODE } from "@/lib/authUsers";
+import { fmtDateDot } from "@/lib/format";
 import citimartLogo from "@/assets/citimart-logo.png";
 
 type StoreKey = "all" | "NM" | "HB" | "CHW";
@@ -250,16 +251,20 @@ const itemVariants: Variants = {
 
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
+import { useAuth } from "@/auth/AuthProvider";
 
 export function Landing() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isManager = user?.role === "manager";
   const [activeTab, setActiveTab] = useState<StoreKey>("all");
+  const [selectedDate, setSelectedDate] = useState<string>("");
   const [hoveredPoint, setHoveredPoint] = useState<HourlyPoint | null>(null);
 
   // Fetch authentic previous day / latest telemetry directly from MongoDB
   const { data: heroData } = useQuery({
-    queryKey: ["landing-hero"],
-    queryFn: () => api.landingHero(),
+    queryKey: ["landing-hero", selectedDate],
+    queryFn: () => api.landingHero(selectedDate || undefined),
     staleTime: 60_000,
   });
 
@@ -481,6 +486,44 @@ export function Landing() {
               POS throughput, footfall conversion yield, basket sizes, and automated store performance digests.
             </p>
 
+            {/* 3 Active Stores Badges at a Glance */}
+            <div className="mt-5 rounded-2xl border border-white/15 bg-slate-900/60 p-3.5 backdrop-blur-md shadow-lg">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-blue-300 mb-2 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Store className="h-3.5 w-3.5 text-blue-400" />
+                  <span>3 Flagship Retail Stores · Kolkata</span>
+                </span>
+                <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" /> All Stores Active
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { name: "New Market", code: "NM", sub: "Lindsay Street", border: "border-blue-500/40 hover:border-blue-400", bg: "bg-blue-500/10 hover:bg-blue-500/20" },
+                  { name: "Hatibagan", code: "HB", sub: "Bidhan Sarani", border: "border-emerald-500/40 hover:border-emerald-400", bg: "bg-emerald-500/10 hover:bg-emerald-500/20" },
+                  { name: "Chowringhee", code: "CHW", sub: "JL Nehru Road", border: "border-amber-500/40 hover:border-amber-400", bg: "bg-amber-500/10 hover:bg-amber-500/20" },
+                ].map((s) => (
+                  <button
+                    key={s.code}
+                    type="button"
+                    onClick={() => setActiveTab(s.code as StoreKey)}
+                    className={`group rounded-xl border p-2 text-left transition-all ${s.border} ${s.bg} hover:scale-[1.02] hover:shadow-md cursor-pointer`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-black/50 text-white border border-white/10">
+                        {s.code}
+                      </span>
+                      <span className="h-2 w-2 rounded-full bg-emerald-400 group-hover:scale-125 transition-transform" />
+                    </div>
+                    <div className="mt-1.5 font-bold text-xs text-white group-hover:text-blue-200 transition-colors truncate">
+                      {s.name}
+                    </div>
+                    <div className="text-[10px] text-slate-400 truncate">{s.sub}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Quick Metrics Bar */}
             <div className="mt-6 flex flex-wrap gap-2.5">
               <motion.span
@@ -519,56 +562,113 @@ export function Landing() {
             </div>
           </motion.div>
 
-          {/* Interactive Retail & FMCG Telemetry Showcase Card with Smooth SVG Line Graph */}
-          <motion.div
-            variants={itemVariants}
-            whileHover={{ y: -3 }}
-            transition={{ type: "spring", stiffness: 350, damping: 25 }}
-            className="relative overflow-hidden rounded-2xl border border-white/15 bg-gradient-to-br from-slate-900/90 via-slate-900/70 to-blue-950/50 p-5 sm:p-6 backdrop-blur-xl shadow-2xl transition-shadow hover:shadow-blue-500/10"
-          >
-            {/* Store Tab Switcher */}
-            <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-4">
-              <div className="flex items-center gap-1.5 rounded-lg bg-white/5 p-1 border border-white/10">
-                {(
-                  [
-                    { id: "all", label: "All Stores" },
-                    { id: "NM", label: "New Market" },
-                    { id: "HB", label: "Hatibagan" },
-                    { id: "CHW", label: "Chowringhee" },
-                  ] as const
-                ).map((tab) => {
-                  const active = activeTab === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`relative rounded-md px-2.5 py-1 text-xs font-semibold transition-colors duration-150 ${
-                        active
-                          ? "text-white"
-                          : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
-                      }`}
+          {/* Interactive Retail & FMCG Telemetry Showcase Card with Smooth SVG Line Graph (Admin & Leadership Only) */}
+          {isManager ? (
+            <motion.div
+              variants={itemVariants}
+              whileHover={{ y: -3 }}
+              transition={{ type: "spring", stiffness: 350, damping: 25 }}
+              className="relative overflow-hidden rounded-2xl border border-blue-500/30 bg-gradient-to-br from-slate-900/95 via-slate-900/80 to-blue-950/60 p-6 sm:p-8 backdrop-blur-xl shadow-2xl"
+            >
+              <div className="flex items-center gap-2 rounded-full border border-blue-400/30 bg-blue-500/10 px-3.5 py-1 text-xs font-semibold text-blue-300 w-fit mb-4">
+                <Store className="h-3.5 w-3.5 text-blue-400" />
+                <span>Store Manager Operations Hub</span>
+              </div>
+              <h2 className="text-xl font-bold text-white sm:text-2xl">
+                Welcome, Store Manager
+              </h2>
+              <p className="mt-2 text-sm text-slate-300 leading-relaxed">
+                You are currently signed in with a store manager account. Operational floor data entry, live time-slot logging, floor advisor directives, and store history are managed within your operational portal.
+              </p>
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <Button
+                  size="default"
+                  className="bg-blue-600 font-semibold text-white shadow-lg shadow-blue-600/30 hover:bg-blue-500"
+                  onClick={() => navigate("/app")}
+                >
+                  <Store className="mr-2 h-4 w-4" /> Go to Store Dashboard
+                </Button>
+                <Button
+                  variant="outline"
+                  size="default"
+                  className="border-white/20 text-slate-200 hover:bg-white/10"
+                  onClick={() => navigate("/app", { replace: true })}
+                >
+                  Log Daily Operations
+                </Button>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              variants={itemVariants}
+              whileHover={{ y: -3 }}
+              transition={{ type: "spring", stiffness: 350, damping: 25 }}
+              className="relative overflow-hidden rounded-2xl border border-white/15 bg-gradient-to-br from-slate-900/90 via-slate-900/70 to-blue-950/50 p-5 sm:p-6 backdrop-blur-xl shadow-2xl transition-shadow hover:shadow-blue-500/10"
+            >
+              {/* Store Tab Switcher & MongoDB Date Selector */}
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-white/10 pb-4">
+                <div className="flex items-center gap-1.5 rounded-xl bg-black/40 p-1.5 border border-white/15 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                  {(
+                    [
+                      { id: "all", label: "Consolidated (All)", code: "ALL" },
+                      { id: "NM", label: "New Market", code: "NM" },
+                      { id: "HB", label: "Hatibagan", code: "HB" },
+                      { id: "CHW", label: "Chowringhee", code: "CHW" },
+                    ] as const
+                  ).map((tab) => {
+                    const active = activeTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`relative rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 whitespace-nowrap flex items-center gap-1.5 ${
+                          active
+                            ? "text-white shadow-md"
+                            : "text-slate-300 hover:text-white hover:bg-white/10"
+                        }`}
+                      >
+                        {active && (
+                          <motion.span
+                            layoutId="activeStoreTab"
+                            className="absolute inset-0 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md shadow-blue-500/30 border border-blue-400/40"
+                            transition={{ type: "spring", stiffness: 500, damping: 32 }}
+                          />
+                        )}
+                        <span className={`relative z-10 text-[10px] font-mono px-1 py-0.2 rounded font-bold ${
+                          active ? "bg-white/20 text-white" : "bg-white/10 text-slate-400"
+                        }`}>
+                          {tab.code}
+                        </span>
+                        <span className="relative z-10">{tab.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {heroData?.available_dates && heroData.available_dates.length > 0 && (
+                    <select
+                      value={selectedDate || heroData.recorded_date}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="bg-slate-800/90 text-slate-200 text-xs border border-white/15 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      title="Select date from MongoDB"
                     >
-                      {active && (
-                        <motion.span
-                          layoutId="activeStoreTab"
-                          className="absolute inset-0 rounded-md bg-blue-600 shadow-md shadow-blue-600/40"
-                          transition={{ type: "spring", stiffness: 500, damping: 32 }}
-                        />
-                      )}
-                      <span className="relative z-10">{tab.label}</span>
-                    </button>
-                  );
-                })}
+                      {heroData.available_dates.map((d) => (
+                        <option key={d} value={d} className="bg-slate-900 text-slate-200">
+                          {fmtDateDot(d)}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 whitespace-nowrap">
+                    <Activity className="h-3 w-3 animate-pulse" /> Live Telemetry
+                  </span>
+                </div>
               </div>
 
-              <span className="hidden sm:inline-flex items-center gap-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
-                <Activity className="h-3 w-3 animate-pulse" /> Live Telemetry
-              </span>
-            </div>
-
-            {/* Sub-header info */}
-            <div className="mt-3 flex items-center justify-between">
+              {/* Sub-header info */}
+              <div className="mt-3 flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold text-slate-200">{data.name}</p>
                 <p className="text-[11px] text-slate-400">{data.subtitle}</p>
@@ -783,6 +883,7 @@ export function Landing() {
               </div>
             </div>
           </motion.div>
+          )}
         </section>
 
         {/* Store Network Section */}

@@ -88,17 +88,22 @@ def test_list_store_targets_sorted_and_scoped(db_session):
 def test_put_and_get_target_round_trip(client, admin_headers):
     put = client.put(
         "/api/targets",
-        json={"store": "NM", "date": "2026-08-20", "sales_target": 2_000_000},
+        json={"store": "NM", "date": "2026-08-20", "sales_target": 2_000_000, "prev_year_net_sales": 1_800_000},
         headers=admin_headers,
     )
     assert put.status_code == 200
     assert put.json()["sales_target"] == 2_000_000.0
+    assert put.json()["prev_year_net_sales"] == 1_800_000.0
 
     got = client.get("/api/targets", params={"store": "NM"}, headers=admin_headers)
     assert got.status_code == 200
-    assert got.json()["entries"] == [
-        {"date": "2026-08-20", "sales_target": 2_000_000.0, "net_sales": 0.0, "achievement_pct": 0.0}
-    ]
+    entries = got.json()["entries"]
+    assert len(entries) == 1
+    assert entries[0]["date"] == "2026-08-20"
+    assert entries[0]["sales_target"] == 2_000_000.0
+    assert entries[0]["prev_year_net_sales"] == 1_800_000.0
+    assert entries[0]["net_sales"] == 0.0
+    assert entries[0]["achievement_pct"] == 0.0
 
 
 def test_delete_target_clears_it(client, admin_headers):

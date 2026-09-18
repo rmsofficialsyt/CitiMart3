@@ -3,6 +3,7 @@ import {
   Calendar,
   CalendarClock,
   CalendarRange,
+  Clock,
   Edit2,
   Eye,
   Filter,
@@ -19,8 +20,11 @@ import { toast } from "sonner";
 
 import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthProvider";
+import { ChartPanel } from "@/components/ChartPanel";
 import { DailyExportMenu } from "@/components/DailyExportMenu";
+import { AtAGlanceCard } from "@/components/AtAGlanceCard";
 import { Section } from "@/components/Section";
+import { emptyFilterState } from "@/lib/filterParams";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,9 +40,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { fmtCurrencyOrZero, fmtNumberOrZero, fmtPercentOrZero, fmtTime12Hour } from "@/lib/format";
+import { fmtCurrencyOrZero, fmtDateDot, fmtNumberOrZero, fmtPercentOrZero, fmtTime12Hour, nowTimeHHMM, toTimeHHMM } from "@/lib/format";
+import { timeSlotForHHMM } from "@/lib/timeSlot";
 import { STORE_NAME_BY_CODE } from "@/lib/authUsers";
-import type { BillEntry, FootfallEntry, NobEntry } from "@/lib/types";
+import type { BillEntry, FootfallEntry, NobEntry, DailyLiveSnapshot, DailyOverallSnapshot } from "@/lib/types";
 
 interface HistoryPageProps {
   storeCode?: string; // If undefined and admin, allows selecting store
@@ -209,6 +214,14 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
     enabled: Boolean(effectiveStartDate && effectiveEndDate),
   });
 
+  // Fetch single day snapshot for At a Glance context
+  const { data: singleDaySnapshot } = useQuery<DailyLiveSnapshot | DailyOverallSnapshot>({
+    queryKey: ["daily-live-history", effectiveStore, effectiveStartDate],
+    queryFn: () => (effectiveStore === "ALL" ? api.dailyLiveOverall(effectiveStartDate) : api.dailyLive(effectiveStore, effectiveStartDate)),
+    enabled: Boolean(effectiveStartDate),
+    staleTime: 60_000,
+  });
+
   const kpis = rangeData?.kpis;
   const timeslots = rangeData?.timeslot_breakdown ?? [];
   const dailyBreakdown = rangeData?.daily_breakdown ?? [];
@@ -338,7 +351,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
   const handleOpenAddBill = () => {
     setEditingBill(null);
     setBillFormStore(effectiveStore === "ALL" ? "NM" : effectiveStore);
-    setBillFormTime("12:00");
+    setBillFormTime(nowTimeHHMM());
     setBillFormAmount("");
     setBillFormQuantity("1");
     setBillModalOpen(true);
@@ -347,7 +360,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
   const handleOpenEditBill = (b: BillEntry & { store?: string; date?: string }) => {
     setEditingBill(b);
     setBillFormStore(b.store || (effectiveStore === "ALL" ? "NM" : effectiveStore));
-    setBillFormTime(b.bill_time || "12:00");
+    setBillFormTime(toTimeHHMM(b.bill_time));
     setBillFormAmount(String(b.net_amount));
     setBillFormQuantity(String(b.bill_quantity));
     setBillModalOpen(true);
@@ -356,7 +369,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
   const handleOpenAddFootfall = () => {
     setEditingFootfall(null);
     setFootfallFormStore(effectiveStore === "ALL" ? "NM" : effectiveStore);
-    setFootfallFormTime("12:00");
+    setFootfallFormTime(nowTimeHHMM());
     setFootfallFormCount("");
     setFootfallModalOpen(true);
   };
@@ -364,7 +377,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
   const handleOpenEditFootfall = (f: FootfallEntry & { store?: string; date?: string }) => {
     setEditingFootfall(f);
     setFootfallFormStore(f.store || (effectiveStore === "ALL" ? "NM" : effectiveStore));
-    setFootfallFormTime(f.time || "12:00");
+    setFootfallFormTime(toTimeHHMM(f.time));
     setFootfallFormCount(String(f.footfall));
     setFootfallModalOpen(true);
   };
@@ -372,7 +385,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
   const handleOpenAddNob = () => {
     setEditingNob(null);
     setNobFormStore(effectiveStore === "ALL" ? "NM" : effectiveStore);
-    setNobFormTime("12:00");
+    setNobFormTime(nowTimeHHMM());
     setNobFormCount("");
     setNobModalOpen(true);
   };
@@ -380,7 +393,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
   const handleOpenEditNob = (n: NobEntry & { store?: string; date?: string }) => {
     setEditingNob(n);
     setNobFormStore(n.store || (effectiveStore === "ALL" ? "NM" : effectiveStore));
-    setNobFormTime(n.time || "12:00");
+    setNobFormTime(toTimeHHMM(n.time));
     setNobFormCount(String(n.nob));
     setNobModalOpen(true);
   };
@@ -464,7 +477,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
   return (
     <div className="space-y-6">
       {/* Top Header & Controls Card */}
-      <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4 sm:p-6">
+      <div className="glossy-card flex flex-col gap-4 rounded-3xl p-4 sm:p-6 shadow-2xl border border-white/10">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">Historical Operations Logs</h2>
@@ -501,15 +514,14 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
             {/* Print & Export Actions */}
             <div className="flex items-center gap-2">
               <DailyExportMenu store={effectiveStore === "ALL" ? "NM" : effectiveStore} />
-              <Button
-                variant="outline"
-                size="sm"
+              <button
+                type="button"
                 onClick={() => window.print()}
-                className="h-9 gap-1.5 text-xs font-medium"
+                className="glossy-btn flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-semibold text-foreground transition-all cursor-pointer"
               >
-                <Printer className="h-4 w-4" />
-                Print
-              </Button>
+                <Printer className="h-3.5 w-3.5 text-primary" />
+                <span>Print</span>
+              </button>
             </div>
           </div>
         </div>
@@ -526,10 +538,10 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                   key={preset.id}
                   type="button"
                   onClick={() => setRangeMode(preset.id)}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+                  className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
                     isActive
-                      ? "bg-primary text-primary-foreground shadow-sm cursor-default"
-                      : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
+                      ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25 border border-white/20"
+                      : "glossy-btn text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   {preset.label}
@@ -556,12 +568,12 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                       {datesList && datesList.length > 0 ? (
                         datesList.map((d) => (
                           <SelectItem key={d.date} value={d.date} className="text-xs">
-                            {d.date} ({d.day_name.slice(0, 3)})
+                            {fmtDateDot(d.date)} ({d.day_name.slice(0, 3)})
                           </SelectItem>
                         ))
                       ) : (
                         <SelectItem value={effectiveStartDate} className="text-xs">
-                          {effectiveStartDate}
+                          {fmtDateDot(effectiveStartDate)}
                         </SelectItem>
                       )}
                     </SelectContent>
@@ -608,7 +620,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
               <div className="flex items-center gap-2 rounded-md bg-muted/60 px-3 py-1 text-xs text-foreground font-medium">
                 <CalendarRange className="h-3.5 w-3.5 text-primary" />
                 <span>
-                  {effectiveStartDate} &rarr; {effectiveEndDate} ({daysCount} {daysCount === 1 ? "day" : "days"})
+                  {fmtDateDot(effectiveStartDate)} &rarr; {fmtDateDot(effectiveEndDate)} ({daysCount} {daysCount === 1 ? "day" : "days"})
                 </span>
               </div>
             )}
@@ -618,7 +630,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
 
       {detailsLoading || datesLoading ? (
         <div className="flex h-48 items-center justify-center rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-          Loading history logs for {isMultiDay ? `${effectiveStartDate} to ${effectiveEndDate}` : effectiveStartDate}...
+          Loading history logs for {isMultiDay ? `${fmtDateDot(effectiveStartDate)} to ${fmtDateDot(effectiveEndDate)}` : fmtDateDot(effectiveStartDate)}...
         </div>
       ) : (
         <>
@@ -792,6 +804,58 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
             </motion.div>
           </div>
 
+          {/* At a Glance · Context & Comparative Lookback Analytics */}
+          <AtAGlanceCard
+            storeCode={effectiveStore}
+            storeName={STORE_OPTIONS.find((s) => s.code === effectiveStore)?.name ?? effectiveStore}
+            date={effectiveStartDate}
+            data={singleDaySnapshot}
+            isLoading={detailsLoading}
+          />
+
+          {/* Interactive Historical Operations Visualization Graphs */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+            <Section
+              title={
+                isMultiDay
+                  ? `Revenue Trajectory Trend (${fmtDateDot(effectiveStartDate)} to ${fmtDateDot(effectiveEndDate)})`
+                  : `Hourly Performance by Time Slot (${fmtDateDot(effectiveStartDate)})`
+              }
+              className="mb-0 h-full"
+            >
+              <ChartPanel
+                chartId="daily_timeslot_breakdown"
+                filters={{
+                  ...emptyFilterState(),
+                  stores: effectiveStore === "ALL" ? ["NM", "HB", "CHW"] : [effectiveStore],
+                  start: effectiveStartDate,
+                  end: effectiveEndDate,
+                }}
+                className="h-[320px] sm:h-[400px] w-full"
+              />
+            </Section>
+
+            <Section
+              title={
+                isMultiDay
+                  ? `Footfall vs NOB (Buyers) Yield Trend (${daysCount} Days)`
+                  : `Footfall vs NOB Yield (${fmtDateDot(effectiveStartDate)})`
+              }
+              className="mb-0 h-full"
+            >
+              <ChartPanel
+                chartId="daily_footfall_nob"
+                filters={{
+                  ...emptyFilterState(),
+                  stores: effectiveStore === "ALL" ? ["NM", "HB", "CHW"] : [effectiveStore],
+                  start: effectiveStartDate,
+                  end: effectiveEndDate,
+                }}
+                className="h-[320px] sm:h-[400px] w-full"
+              />
+            </Section>
+          </div>
+
           {/* Multi-Day Daily Breakdown Table */}
           {isMultiDay && dailyBreakdown.length > 0 && (
             <Section title={`Day-Wise Summary Breakdown (${dailyBreakdown.length} Recorded Days)`}>
@@ -818,7 +882,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                   <TableBody>
                     {dailyBreakdown.map((day) => (
                       <TableRow key={day.date} className="hover:bg-muted/30">
-                        <TableCell className="font-mono text-xs font-semibold text-foreground">{day.date}</TableCell>
+                        <TableCell className="font-mono text-xs font-semibold text-foreground">{fmtDateDot(day.date)}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{day.day_name}</TableCell>
                         <TableCell className="text-right font-semibold text-emerald-400">
                           {fmtCurrencyOrZero(day.net_sales)}
@@ -1130,19 +1194,28 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                         <TableRow key={`${b.store ?? effectiveStore}-${b.date ?? ""}-${b.row}`} className="hover:bg-muted/30">
                           <TableCell className="font-mono text-xs text-muted-foreground">{b.row}</TableCell>
                           {isMultiDay && (
-                            <TableCell className="font-mono text-xs text-muted-foreground">{b.date ?? effectiveStartDate}</TableCell>
+                            <TableCell className="font-mono text-xs text-muted-foreground">{fmtDateDot(b.date ?? effectiveStartDate)}</TableCell>
                           )}
                           {effectiveStore === "ALL" && (
-                            <TableCell className="font-semibold text-xs text-blue-300">
+                            <TableCell className="font-semibold text-xs text-blue-600 dark:text-blue-300">
                               {(STORE_NAME_BY_CODE as Record<string, string>)[b.store ?? ""] || b.store}
                             </TableCell>
                           )}
-                          <TableCell className="font-medium text-foreground">{fmtTime12Hour(b.bill_time)}</TableCell>
-                          <TableCell className="text-right font-semibold text-emerald-400">
+                          <TableCell className="font-medium text-foreground">
+                            <span className="font-mono text-xs font-bold text-foreground inline-flex items-center gap-1.5">
+                              <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
+                              {fmtTime12Hour(b.bill_time)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right font-semibold text-emerald-600 dark:text-emerald-400">
                             {fmtCurrencyOrZero(b.net_amount)}
                           </TableCell>
-                          <TableCell className="text-right">{fmtNumberOrZero(b.bill_quantity)}</TableCell>
-                          <TableCell className="text-right text-xs text-muted-foreground">{b.time_slot ?? "—"}</TableCell>
+                          <TableCell className="text-right font-mono font-medium">{fmtNumberOrZero(b.bill_quantity)}</TableCell>
+                          <TableCell className="text-right">
+                            <span className="rounded-md bg-muted/60 border border-border px-2 py-0.5 text-xs text-muted-foreground font-medium">
+                              {b.time_slot || (b.bill_time ? timeSlotForHHMM(toTimeHHMM(b.bill_time)) : null) || "—"}
+                            </span>
+                          </TableCell>
                           {isAdmin && rangeMode === "single" && (
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end gap-1">
@@ -1150,7 +1223,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleOpenEditBill(b)}
-                                  className="h-7 w-7 p-0 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+                                  className="h-7 w-7 p-0 text-blue-500 hover:text-blue-600 hover:bg-blue-500/10 dark:text-blue-400 dark:hover:text-blue-300"
                                   title="Edit this bill log entry"
                                 >
                                   <Edit2 className="h-3.5 w-3.5" />
@@ -1164,7 +1237,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                                       deleteBillMutation.mutate({ store: targetStore, row: b.row });
                                     }
                                   }}
-                                  className="h-7 w-7 p-0 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                                  className="h-7 w-7 p-0 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 dark:text-rose-400 dark:hover:text-rose-300"
                                   title="Delete this bill log entry"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
@@ -1215,18 +1288,27 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                         <TableRow key={`${f.store ?? effectiveStore}-${f.date ?? ""}-${f.row}`} className="hover:bg-muted/30">
                           <TableCell className="font-mono text-xs text-muted-foreground">{f.row}</TableCell>
                           {isMultiDay && (
-                            <TableCell className="font-mono text-xs text-muted-foreground">{f.date ?? effectiveStartDate}</TableCell>
+                            <TableCell className="font-mono text-xs text-muted-foreground">{fmtDateDot(f.date ?? effectiveStartDate)}</TableCell>
                           )}
                           {effectiveStore === "ALL" && (
-                            <TableCell className="font-semibold text-xs text-blue-300">
+                            <TableCell className="font-semibold text-xs text-blue-600 dark:text-blue-300">
                               {(STORE_NAME_BY_CODE as Record<string, string>)[f.store ?? ""] || f.store}
                             </TableCell>
                           )}
-                          <TableCell className="font-medium text-foreground">{fmtTime12Hour(f.time)}</TableCell>
-                          <TableCell className="text-right font-semibold text-indigo-300">
+                          <TableCell className="font-medium text-foreground">
+                            <span className="font-mono text-xs font-bold text-foreground inline-flex items-center gap-1.5">
+                              <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
+                              {fmtTime12Hour(f.time)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right font-semibold text-purple-600 dark:text-purple-300 font-mono">
                             {fmtNumberOrZero(f.footfall)}
                           </TableCell>
-                          <TableCell className="text-right text-xs text-muted-foreground">{f.time_slot ?? "—"}</TableCell>
+                          <TableCell className="text-right">
+                            <span className="rounded-md bg-muted/60 border border-border px-2 py-0.5 text-xs text-muted-foreground font-medium">
+                              {f.time_slot || (f.time ? timeSlotForHHMM(toTimeHHMM(f.time)) : null) || "—"}
+                            </span>
+                          </TableCell>
                           {isAdmin && rangeMode === "single" && (
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end gap-1">
@@ -1234,7 +1316,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleOpenEditFootfall(f)}
-                                  className="h-7 w-7 p-0 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+                                  className="h-7 w-7 p-0 text-blue-500 hover:text-blue-600 hover:bg-blue-500/10 dark:text-blue-400 dark:hover:text-blue-300"
                                   title="Edit this footfall log entry"
                                 >
                                   <Edit2 className="h-3.5 w-3.5" />
@@ -1248,7 +1330,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                                       deleteFootfallMutation.mutate({ store: targetStore, row: f.row });
                                     }
                                   }}
-                                  className="h-7 w-7 p-0 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                                  className="h-7 w-7 p-0 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 dark:text-rose-400 dark:hover:text-rose-300"
                                   title="Delete this footfall log entry"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
@@ -1299,18 +1381,27 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                         <TableRow key={`${n.store ?? effectiveStore}-${n.date ?? ""}-${n.row}`} className="hover:bg-muted/30">
                           <TableCell className="font-mono text-xs text-muted-foreground">{n.row}</TableCell>
                           {isMultiDay && (
-                            <TableCell className="font-mono text-xs text-muted-foreground">{n.date ?? effectiveStartDate}</TableCell>
+                            <TableCell className="font-mono text-xs text-muted-foreground">{fmtDateDot(n.date ?? effectiveStartDate)}</TableCell>
                           )}
                           {effectiveStore === "ALL" && (
-                            <TableCell className="font-semibold text-xs text-blue-300">
+                            <TableCell className="font-semibold text-xs text-blue-600 dark:text-blue-300">
                               {(STORE_NAME_BY_CODE as Record<string, string>)[n.store ?? ""] || n.store}
                             </TableCell>
                           )}
-                          <TableCell className="font-medium text-foreground">{fmtTime12Hour(n.time)}</TableCell>
-                          <TableCell className="text-right font-semibold text-blue-400">
+                          <TableCell className="font-medium text-foreground">
+                            <span className="font-mono text-xs font-bold text-foreground inline-flex items-center gap-1.5">
+                              <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
+                              {fmtTime12Hour(n.time)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right font-semibold text-blue-600 dark:text-blue-400 font-mono">
                             {fmtNumberOrZero(n.nob)}
                           </TableCell>
-                          <TableCell className="text-right text-xs text-muted-foreground">{n.time_slot ?? "—"}</TableCell>
+                          <TableCell className="text-right">
+                            <span className="rounded-md bg-muted/60 border border-border px-2 py-0.5 text-xs text-muted-foreground font-medium">
+                              {n.time_slot || (n.time ? timeSlotForHHMM(toTimeHHMM(n.time)) : null) || "—"}
+                            </span>
+                          </TableCell>
                           {isAdmin && rangeMode === "single" && (
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end gap-1">
@@ -1318,7 +1409,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleOpenEditNob(n)}
-                                  className="h-7 w-7 p-0 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+                                  className="h-7 w-7 p-0 text-blue-500 hover:text-blue-600 hover:bg-blue-500/10 dark:text-blue-400 dark:hover:text-blue-300"
                                   title="Edit this NOB log entry"
                                 >
                                   <Edit2 className="h-3.5 w-3.5" />
@@ -1332,7 +1423,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                                       deleteNobMutation.mutate({ store: targetStore, row: n.row });
                                     }
                                   }}
-                                  className="h-7 w-7 p-0 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                                  className="h-7 w-7 p-0 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 dark:text-rose-400 dark:hover:text-rose-300"
                                   title="Delete this NOB log entry"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
@@ -1369,13 +1460,13 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
 
       {/* 1. BILL ENTRY DIALOG */}
       <Dialog open={billModalOpen} onOpenChange={setBillModalOpen}>
-        <DialogContent className="sm:max-w-md border border-slate-700 bg-slate-900 text-slate-100">
+        <DialogContent className="sm:max-w-md border border-border bg-card text-foreground shadow-2xl rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2">
-              <IndianRupee className="h-4 w-4 text-emerald-400" />
+            <DialogTitle className="text-foreground flex items-center gap-2 font-bold">
+              <IndianRupee className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
               {editingBill ? `Edit Bill Log Entry #${editingBill.row}` : `Add New Bill Log Entry (${effectiveStartDate})`}
             </DialogTitle>
-            <DialogDescription className="text-slate-400">
+            <DialogDescription className="text-muted-foreground text-xs">
               {editingBill
                 ? "Update billing details in MongoDB database for the selected store."
                 : `Record a new sales bill entry for ${effectiveStartDate}.`}
@@ -1385,11 +1476,11 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
           <form onSubmit={handleBillSubmit} className="space-y-4 pt-2">
             {effectiveStore === "ALL" && (
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-300">Store</Label>
+                <Label className="text-xs font-semibold text-foreground">Store</Label>
                 <select
                   value={billFormStore}
                   onChange={(e) => setBillFormStore(e.target.value)}
-                  className="w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-white"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground focus:ring-2 focus:ring-primary"
                   disabled={!!editingBill}
                 >
                   {STORE_TARGET_OPTIONS.map((s) => (
@@ -1401,19 +1492,70 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
               </div>
             )}
 
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-300">Bill Time (HH:MM / 24-Hour)</Label>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-foreground">Bill Time Stamp</Label>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-lg">
+                    {fmtTime12Hour(billFormTime)}
+                  </span>
+                  {timeSlotForHHMM(billFormTime) && (
+                    <span className="text-[10px] font-semibold text-muted-foreground bg-muted/60 border border-border px-2 py-0.5 rounded-lg">
+                      {timeSlotForHHMM(billFormTime)}
+                    </span>
+                  )}
+                </div>
+              </div>
               <Input
                 type="time"
                 value={billFormTime}
                 onChange={(e) => setBillFormTime(e.target.value)}
-                className="bg-slate-800 border-slate-700 text-white text-xs"
+                className="bg-background border-border text-foreground text-xs font-mono"
                 required
               />
+              {/* Quick Time Preset Buttons */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                <span className="text-[10px] text-muted-foreground font-semibold mr-1">Presets:</span>
+                <button
+                  type="button"
+                  onClick={() => setBillFormTime(nowTimeHHMM())}
+                  className="rounded-lg bg-muted/60 hover:bg-muted border border-border px-2 py-0.5 text-[10px] font-semibold text-foreground transition-all cursor-pointer"
+                >
+                  Now
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBillFormTime("12:00")}
+                  className="rounded-lg bg-muted/60 hover:bg-muted border border-border px-2 py-0.5 text-[10px] font-semibold text-foreground transition-all cursor-pointer"
+                >
+                  12:00 PM
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBillFormTime("15:00")}
+                  className="rounded-lg bg-muted/60 hover:bg-muted border border-border px-2 py-0.5 text-[10px] font-semibold text-foreground transition-all cursor-pointer"
+                >
+                  03:00 PM
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBillFormTime("18:00")}
+                  className="rounded-lg bg-muted/60 hover:bg-muted border border-border px-2 py-0.5 text-[10px] font-semibold text-foreground transition-all cursor-pointer"
+                >
+                  06:00 PM
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBillFormTime("21:00")}
+                  className="rounded-lg bg-muted/60 hover:bg-muted border border-border px-2 py-0.5 text-[10px] font-semibold text-foreground transition-all cursor-pointer"
+                >
+                  09:00 PM
+                </button>
+              </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-300">Net Sales Amount (₹)</Label>
+              <Label className="text-xs font-semibold text-foreground">Net Sales Amount (₹)</Label>
               <Input
                 type="number"
                 step="0.01"
@@ -1421,13 +1563,13 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                 placeholder="e.g. 1500.00"
                 value={billFormAmount}
                 onChange={(e) => setBillFormAmount(e.target.value)}
-                className="bg-slate-800 border-slate-700 text-white text-xs"
+                className="bg-background border-border text-foreground text-xs font-mono"
                 required
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-300">Bill Quantity (Units Sold)</Label>
+              <Label className="text-xs font-semibold text-foreground">Bill Quantity (Units Sold)</Label>
               <Input
                 type="number"
                 step="1"
@@ -1435,7 +1577,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                 placeholder="e.g. 2"
                 value={billFormQuantity}
                 onChange={(e) => setBillFormQuantity(e.target.value)}
-                className="bg-slate-800 border-slate-700 text-white text-xs"
+                className="bg-background border-border text-foreground text-xs font-mono"
                 required
               />
             </div>
@@ -1446,7 +1588,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                 variant="outline"
                 size="sm"
                 onClick={() => setBillModalOpen(false)}
-                className="border-slate-700 text-slate-300"
+                className="border-border text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
               >
                 Cancel
               </Button>
@@ -1454,7 +1596,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                 type="submit"
                 size="sm"
                 disabled={addBillMutation.isPending || updateBillMutation.isPending}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer"
               >
                 {editingBill ? "Save Changes" : "Create Entry"}
               </Button>
@@ -1465,13 +1607,13 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
 
       {/* 2. FOOTFALL ENTRY DIALOG */}
       <Dialog open={footfallModalOpen} onOpenChange={setFootfallModalOpen}>
-        <DialogContent className="sm:max-w-md border border-slate-700 bg-slate-900 text-slate-100">
+        <DialogContent className="sm:max-w-md border border-border bg-card text-foreground shadow-2xl rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2">
-              <Footprints className="h-4 w-4 text-purple-400" />
+            <DialogTitle className="text-foreground flex items-center gap-2 font-bold">
+              <Footprints className="h-4 w-4 text-purple-500 dark:text-purple-400" />
               {editingFootfall ? `Edit Footfall Entry #${editingFootfall.row}` : `Add New Footfall Entry (${effectiveStartDate})`}
             </DialogTitle>
-            <DialogDescription className="text-slate-400">
+            <DialogDescription className="text-muted-foreground text-xs">
               {editingFootfall
                 ? "Update hourly customer footfall count in MongoDB database."
                 : `Record footfall count for ${effectiveStartDate}.`}
@@ -1481,11 +1623,11 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
           <form onSubmit={handleFootfallSubmit} className="space-y-4 pt-2">
             {effectiveStore === "ALL" && (
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-300">Store</Label>
+                <Label className="text-xs font-semibold text-foreground">Store</Label>
                 <select
                   value={footfallFormStore}
                   onChange={(e) => setFootfallFormStore(e.target.value)}
-                  className="w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-white"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground focus:ring-2 focus:ring-primary"
                   disabled={!!editingFootfall}
                 >
                   {STORE_TARGET_OPTIONS.map((s) => (
@@ -1497,19 +1639,70 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
               </div>
             )}
 
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-300">Entry Time (HH:MM)</Label>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-foreground">Entry Time Stamp</Label>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-mono text-purple-600 dark:text-purple-400 font-bold bg-purple-500/10 border border-purple-500/30 px-2 py-0.5 rounded-lg">
+                    {fmtTime12Hour(footfallFormTime)}
+                  </span>
+                  {timeSlotForHHMM(footfallFormTime) && (
+                    <span className="text-[10px] font-semibold text-muted-foreground bg-muted/60 border border-border px-2 py-0.5 rounded-lg">
+                      {timeSlotForHHMM(footfallFormTime)}
+                    </span>
+                  )}
+                </div>
+              </div>
               <Input
                 type="time"
                 value={footfallFormTime}
                 onChange={(e) => setFootfallFormTime(e.target.value)}
-                className="bg-slate-800 border-slate-700 text-white text-xs"
+                className="bg-background border-border text-foreground text-xs font-mono"
                 required
               />
+              {/* Quick Time Preset Buttons */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                <span className="text-[10px] text-muted-foreground font-semibold mr-1">Presets:</span>
+                <button
+                  type="button"
+                  onClick={() => setFootfallFormTime(nowTimeHHMM())}
+                  className="rounded-lg bg-muted/60 hover:bg-muted border border-border px-2 py-0.5 text-[10px] font-semibold text-foreground transition-all cursor-pointer"
+                >
+                  Now
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFootfallFormTime("12:00")}
+                  className="rounded-lg bg-muted/60 hover:bg-muted border border-border px-2 py-0.5 text-[10px] font-semibold text-foreground transition-all cursor-pointer"
+                >
+                  12:00 PM
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFootfallFormTime("15:00")}
+                  className="rounded-lg bg-muted/60 hover:bg-muted border border-border px-2 py-0.5 text-[10px] font-semibold text-foreground transition-all cursor-pointer"
+                >
+                  03:00 PM
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFootfallFormTime("18:00")}
+                  className="rounded-lg bg-muted/60 hover:bg-muted border border-border px-2 py-0.5 text-[10px] font-semibold text-foreground transition-all cursor-pointer"
+                >
+                  06:00 PM
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFootfallFormTime("21:00")}
+                  className="rounded-lg bg-muted/60 hover:bg-muted border border-border px-2 py-0.5 text-[10px] font-semibold text-foreground transition-all cursor-pointer"
+                >
+                  09:00 PM
+                </button>
+              </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-300">Footfall Count (Visitors)</Label>
+              <Label className="text-xs font-semibold text-foreground">Footfall Count (Visitors)</Label>
               <Input
                 type="number"
                 step="1"
@@ -1517,7 +1710,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                 placeholder="e.g. 25"
                 value={footfallFormCount}
                 onChange={(e) => setFootfallFormCount(e.target.value)}
-                className="bg-slate-800 border-slate-700 text-white text-xs"
+                className="bg-background border-border text-foreground text-xs font-mono"
                 required
               />
             </div>
@@ -1528,7 +1721,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                 variant="outline"
                 size="sm"
                 onClick={() => setFootfallModalOpen(false)}
-                className="border-slate-700 text-slate-300"
+                className="border-border text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
               >
                 Cancel
               </Button>
@@ -1536,7 +1729,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                 type="submit"
                 size="sm"
                 disabled={addFootfallMutation.isPending || updateFootfallMutation.isPending}
-                className="bg-purple-600 hover:bg-purple-500 text-white font-bold"
+                className="bg-purple-600 hover:bg-purple-500 text-white font-bold cursor-pointer"
               >
                 {editingFootfall ? "Save Changes" : "Create Entry"}
               </Button>
@@ -1547,13 +1740,13 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
 
       {/* 3. NOB ENTRY DIALOG */}
       <Dialog open={nobModalOpen} onOpenChange={setNobModalOpen}>
-        <DialogContent className="sm:max-w-md border border-slate-700 bg-slate-900 text-slate-100">
+        <DialogContent className="sm:max-w-md border border-border bg-card text-foreground shadow-2xl rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2">
-              <PackageCheck className="h-4 w-4 text-blue-400" />
+            <DialogTitle className="text-foreground flex items-center gap-2 font-bold">
+              <PackageCheck className="h-4 w-4 text-blue-500 dark:text-blue-400" />
               {editingNob ? `Edit Sales NOB Entry #${editingNob.row}` : `Add New Sales NOB Entry (${effectiveStartDate})`}
             </DialogTitle>
-            <DialogDescription className="text-slate-400">
+            <DialogDescription className="text-muted-foreground text-xs">
               {editingNob
                 ? "Update Number of Buyers (NOB) in MongoDB database."
                 : `Record buyers count for ${effectiveStartDate}.`}
@@ -1563,11 +1756,11 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
           <form onSubmit={handleNobSubmit} className="space-y-4 pt-2">
             {effectiveStore === "ALL" && (
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-300">Store</Label>
+                <Label className="text-xs font-semibold text-foreground">Store</Label>
                 <select
                   value={nobFormStore}
                   onChange={(e) => setNobFormStore(e.target.value)}
-                  className="w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-white"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground focus:ring-2 focus:ring-primary"
                   disabled={!!editingNob}
                 >
                   {STORE_TARGET_OPTIONS.map((s) => (
@@ -1579,19 +1772,70 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
               </div>
             )}
 
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-300">Entry Time (HH:MM)</Label>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-foreground">Entry Time Stamp</Label>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-mono text-blue-600 dark:text-blue-400 font-bold bg-blue-500/10 border border-blue-500/30 px-2 py-0.5 rounded-lg">
+                    {fmtTime12Hour(nobFormTime)}
+                  </span>
+                  {timeSlotForHHMM(nobFormTime) && (
+                    <span className="text-[10px] font-semibold text-muted-foreground bg-muted/60 border border-border px-2 py-0.5 rounded-lg">
+                      {timeSlotForHHMM(nobFormTime)}
+                    </span>
+                  )}
+                </div>
+              </div>
               <Input
                 type="time"
                 value={nobFormTime}
                 onChange={(e) => setNobFormTime(e.target.value)}
-                className="bg-slate-800 border-slate-700 text-white text-xs"
+                className="bg-background border-border text-foreground text-xs font-mono"
                 required
               />
+              {/* Quick Time Preset Buttons */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                <span className="text-[10px] text-muted-foreground font-semibold mr-1">Presets:</span>
+                <button
+                  type="button"
+                  onClick={() => setNobFormTime(nowTimeHHMM())}
+                  className="rounded-lg bg-muted/60 hover:bg-muted border border-border px-2 py-0.5 text-[10px] font-semibold text-foreground transition-all cursor-pointer"
+                >
+                  Now
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNobFormTime("12:00")}
+                  className="rounded-lg bg-muted/60 hover:bg-muted border border-border px-2 py-0.5 text-[10px] font-semibold text-foreground transition-all cursor-pointer"
+                >
+                  12:00 PM
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNobFormTime("15:00")}
+                  className="rounded-lg bg-muted/60 hover:bg-muted border border-border px-2 py-0.5 text-[10px] font-semibold text-foreground transition-all cursor-pointer"
+                >
+                  03:00 PM
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNobFormTime("18:00")}
+                  className="rounded-lg bg-muted/60 hover:bg-muted border border-border px-2 py-0.5 text-[10px] font-semibold text-foreground transition-all cursor-pointer"
+                >
+                  06:00 PM
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNobFormTime("21:00")}
+                  className="rounded-lg bg-muted/60 hover:bg-muted border border-border px-2 py-0.5 text-[10px] font-semibold text-foreground transition-all cursor-pointer"
+                >
+                  09:00 PM
+                </button>
+              </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-300">Buyers Count (NOB)</Label>
+              <Label className="text-xs font-semibold text-foreground">Buyers Count (NOB)</Label>
               <Input
                 type="number"
                 step="1"
@@ -1599,7 +1843,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                 placeholder="e.g. 12"
                 value={nobFormCount}
                 onChange={(e) => setNobFormCount(e.target.value)}
-                className="bg-slate-800 border-slate-700 text-white text-xs"
+                className="bg-background border-border text-foreground text-xs font-mono"
                 required
               />
             </div>
@@ -1610,7 +1854,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                 variant="outline"
                 size="sm"
                 onClick={() => setNobModalOpen(false)}
-                className="border-slate-700 text-slate-300"
+                className="border-border text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
               >
                 Cancel
               </Button>
@@ -1618,7 +1862,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
                 type="submit"
                 size="sm"
                 disabled={addNobMutation.isPending || updateNobMutation.isPending}
-                className="bg-blue-600 hover:bg-blue-500 text-white font-bold"
+                className="bg-blue-600 hover:bg-blue-500 text-white font-bold cursor-pointer"
               >
                 {editingNob ? "Save Changes" : "Create Entry"}
               </Button>

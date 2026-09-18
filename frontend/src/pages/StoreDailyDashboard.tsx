@@ -12,6 +12,7 @@ import { Section } from "@/components/Section";
 import { ThresholdPopover } from "@/components/ThresholdPopover";
 import { TargetAdjustmentAlert } from "@/components/TargetAdjustmentAlert";
 import { AiStoreAdvisor } from "@/components/AiStoreAdvisor";
+import { AtAGlanceCard } from "@/components/AtAGlanceCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DAILY_KPI_FORMATTERS, DAILY_KPI_FORMULAS, DAILY_KPI_LABELS, DAILY_KPI_ORDER, todayLocalDate } from "@/lib/format";
 import { EDITABLE_THRESHOLDS } from "@/lib/kpiThresholds";
@@ -37,10 +38,21 @@ function resolveKpiStatus(key: DailyKpiKey, rawStatus: StatusColor | undefined, 
   if (!kpis) return rawStatus;
   const hasOperations = (kpis.net_sales ?? 0) > 0 || (kpis.footfall ?? 0) > 0 || (kpis.bill_quantity ?? 0) > 0 || (kpis.nob ?? 0) > 0;
   if (!hasOperations) {
-    if (key === "remaining_pct") {
+    if (key === "remaining_pct" || key === "remaining") {
       return "red";
     }
     return null; // neutral state at day start
+  }
+  if (rawStatus) return rawStatus;
+  if (key === "net_sales" && kpis.achievement_pct !== undefined) {
+    if ((kpis.achievement_pct ?? 0) >= 100) return "green";
+    if ((kpis.achievement_pct ?? 0) >= 80) return "yellow";
+    return "red";
+  }
+  if (key === "remaining" && kpis.remaining_pct !== undefined) {
+    if ((kpis.remaining_pct ?? 0) <= 20) return "green";
+    if ((kpis.remaining_pct ?? 0) <= 50) return "yellow";
+    return "red";
   }
   return rawStatus;
 }
@@ -49,8 +61,8 @@ function resolveKpiStatus(key: DailyKpiKey, rawStatus: StatusColor | undefined, 
  * Level 1: 4x3 KPI Cards matrix and 3x2 Gauges matrix at the exact same horizontal level with an imaginary line separator.
  * Level 2: AI Store Intelligence Decision Advisor & Target Adjustment Alert.
  * Level 3: 2 Time-Slot Charts (Today's Performance & Footfall vs NOB) in 2-column horizontal view with multi-type format switchers.
- * Level 4: Today's Context.
- * Level 5: Logged Footfall and Logged Bills & NOB in horizontal view. */
+ * Level 4: At a Glance with Today's Context & Granular Lookback Comparison.
+ * Level 5: Logged Floor Operations (Unified Logged Daily Entries). */
 function StoreDailyDashboard({ store }: { store: StoreCode }) {
   const today = todayLocalDate();
   const gaugeFilters: FilterState = { ...emptyFilterState(), stores: [store], start: today, end: today };
@@ -84,7 +96,8 @@ function StoreDailyDashboard({ store }: { store: StoreCode }) {
 
   return (
     <div className="space-y-6">
-      <DailyHeroCard storeName={storeName} />
+      <DailyHeroCard storeName={storeName} data={data} />
+
 
       <div className="flex flex-wrap justify-end gap-2">
         <DailyExportMenu store={store} />
@@ -202,58 +215,16 @@ function StoreDailyDashboard({ store }: { store: StoreCode }) {
         </Section>
       </div>
 
-      {/* Level 4: Today's Context */}
-      <Section title="Today's Context" className="mb-0">
-        {isLoading || !data ? (
-          <Skeleton className="h-40 w-full rounded-lg" />
-        ) : (
-          <div className="space-y-4 text-sm">
-            <div className="flex flex-wrap gap-2">
-              <span className="bg-muted rounded-full px-2.5 py-1 text-xs font-semibold">{data.day_name}</span>
-              <span className="bg-muted rounded-full px-2.5 py-1 text-xs font-semibold">{data.day_type}</span>
-              {data.holiday_name && (
-                <span className="bg-status-yellow-bg text-status-yellow rounded-full px-2.5 py-1 text-xs font-semibold">
-                  {data.holiday_name}
-                </span>
-              )}
-              {data.election_name && (
-                <span className="bg-status-yellow-bg text-status-yellow rounded-full px-2.5 py-1 text-xs font-semibold">
-                  {data.election_name}
-                </span>
-              )}
-            </div>
+      {/* Level 4: At a Glance with Today's Context & Granular Lookback Comparison */}
+      <AtAGlanceCard
+        storeCode={store}
+        storeName={storeName}
+        date={today}
+        data={data}
+        isLoading={isLoading}
+      />
 
-            <div>
-              <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">Weather (Kolkata)</div>
-              {data.weather ? (
-                <p className="mt-0.5">
-                  {data.weather.condition}
-                  {data.weather.temp_max_c != null && (
-                    <>
-                      {" "}
-                      · {Math.round(data.weather.temp_max_c)}°C / {Math.round(data.weather.temp_min_c ?? data.weather.temp_max_c)}°C
-                    </>
-                  )}
-                  {data.weather.precipitation_mm != null && data.weather.precipitation_mm > 0 && (
-                    <> · {data.weather.precipitation_mm.toFixed(0)}mm rain</>
-                  )}
-                </p>
-              ) : (
-                <p className="text-muted-foreground mt-0.5">Weather unavailable</p>
-              )}
-            </div>
-
-            {data.reason && (
-              <div>
-                <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">Remarks</div>
-                <p className="mt-0.5">{data.reason}</p>
-              </div>
-            )}
-          </div>
-        )}
-      </Section>
-
-      {/* Level 5: Side-by-Side Horizontal Logged Entries */}
+      {/* Level 5: Logged Floor Operations (Unified Logged Daily Entries) */}
       <LoggedDailyEntries store={store} date={today} />
     </div>
   );

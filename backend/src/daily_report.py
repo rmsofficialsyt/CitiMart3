@@ -273,7 +273,7 @@ def build_daily_report_payload(
     scope_text = "All recorded dates" if scope is None else f"Dates: {scope}"
     meta = ReportMeta(
         title=title,
-        generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        generated_at=datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
         filters_summary_text=f"Store: {store_name} | {scope_text} | Recorded: {span}",
         workbook_note="Figures are live Daily Operations data (MongoDB), not DATASET.xlsx.",
     )

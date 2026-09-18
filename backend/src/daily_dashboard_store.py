@@ -325,6 +325,7 @@ def _blank_target_doc(db: Database, store: str, target_date: date, **fields) -> 
         "store_code": store,
         "entry_date": target_date.isoformat(),
         "sales_target": None,
+        "prev_year_net_sales": None,
         "reason": None,
         "net_sales": None,
         "remaining": None,
@@ -479,13 +480,17 @@ def clear_kpi_override(db: Database, store: str, target_date: date, field: str) 
     return compute_live_kpis(db, store, target_date)
 
 
-def set_store_target(db: Database, store: str, target_date: date, sales_target: float | None) -> dict:
-    """Admin-authoritative SALES TARGET setter for one store+date (the
+def set_store_target(
+    db: Database,
+    store: str,
+    target_date: date,
+    sales_target: float | None,
+    prev_year_net_sales: float | None = None,
+    update_prev_year: bool = False,
+) -> dict:
+    """Admin-authoritative SALES TARGET & PREV YEAR SALES setter for one store+date (the
     "Sales Target" admin view, PUT /api/targets) -- and, since the split into
-    two sub-projects, the ONLY way a target is ever set. The midnight job's
-    old auto-assigned historical-median estimate is gone with DATASET.xlsx,
-    so a store/date with no admin-set target simply keeps a null Achievement %
-    rather than being handed a fabricated one.
+    two sub-projects, the ONLY way a target is ever set.
 
     This overwrites whatever value is currently there (or clears it, when
     sales_target is None), because the admin is the source of truth for the
@@ -501,18 +506,28 @@ def set_store_target(db: Database, store: str, target_date: date, sales_target: 
         if sales_target < 0:
             raise ValueError("sales_target cannot be negative.")
 
+    if prev_year_net_sales is not None:
+        prev_year_net_sales = float(prev_year_net_sales)
+        if prev_year_net_sales < 0:
+            raise ValueError("prev_year_net_sales cannot be negative.")
+
     target = _find_target(db, store, target_date)
+    set_fields: dict = {"sales_target": sales_target}
+    if update_prev_year or prev_year_net_sales is not None:
+        set_fields["prev_year_net_sales"] = prev_year_net_sales
+
     if target is None:
-        db[TARGETS].insert_one(_blank_target_doc(db, store, target_date, sales_target=sales_target))
+        db[TARGETS].insert_one(_blank_target_doc(db, store, target_date, **set_fields))
     else:
-        db[TARGETS].update_one({"_id": target["_id"]}, {"$set": {"sales_target": sales_target}})
+        db[TARGETS].update_one({"_id": target["_id"]}, {"$set": set_fields})
     return save_target_entry(db, store, target_date, None)
 
 
 def list_store_targets(db: Database, store: str) -> list[dict]:
     """Every dated SALES TARGET row for one store, oldest first, each with
-    the latest Net Sales / Achievement % snapshot alongside it so the admin
-    page can show target-vs-actual at a glance. Rows whose sales_target is
+    the latest Net Sales / Achievement % / Footfall / NOB / Bill Qty / ATV / Basket Size /
+    Conversion % snapshot alongside it so the admin page can show target-vs-actual and
+    comprehensive operational KPIs at a glance. Rows whose sales_target is
     still NULL (e.g. one auto-created by a KPI override before any target was
     set) are included with sales_target: None."""
     _validate_store(store)
@@ -521,8 +536,16 @@ def list_store_targets(db: Database, store: str) -> list[dict]:
         {
             "date": doc["entry_date"],
             "sales_target": None if doc.get("sales_target") is None else float(doc["sales_target"]),
+            "prev_year_net_sales": None if doc.get("prev_year_net_sales") is None else float(doc["prev_year_net_sales"]),
             "net_sales": None if doc.get("net_sales") is None else float(doc["net_sales"]),
             "achievement_pct": None if doc.get("achievement_pct") is None else float(doc["achievement_pct"]),
+            "footfall": None if doc.get("footfall") is None else float(doc["footfall"]),
+            "nob": None if doc.get("nob") is None else float(doc["nob"]),
+            "bill_quantity": None if doc.get("bill_quantity") is None else float(doc["bill_quantity"]),
+            "atv": None if doc.get("atv") is None else float(doc["atv"]),
+            "rpv": None if doc.get("rpv") is None else float(doc["rpv"]),
+            "basket_size": None if doc.get("basket_size") is None else float(doc["basket_size"]),
+            "conversion_pct": None if doc.get("conversion_pct") is None else float(doc["conversion_pct"]),
         }
         for doc in cursor
     ]
@@ -909,10 +932,10 @@ def get_target_adjustment_alert(
 
 
 
-def get_landing_hero_telemetry(db: Database) -> dict:
-    """Computes authentic previous-day (or latest recorded day) telemetry
-    for the Landing page Hero section across all stores and consolidated."""
-    # Find most recent recorded date in MongoDB
+def get_landing_hero_telemetry(db: Database, requested_date: date | None = None) -> dict:
+    """Computes authentic telemetry for the Landing page Hero section
+    across all stores and consolidated for requested date (or latest recorded day)."""
+    # Find all recorded dates in MongoDB
     seen_dates: set[str] = set()
     for coll in (BILLS, FOOTFALL, NOB, TARGETS):
         for doc in db[coll].find({}, {"entry_date": 1}):
@@ -921,20 +944,22 @@ def get_landing_hero_telemetry(db: Database) -> dict:
                 seen_dates.add(iso)
 
     today_iso = date.today().isoformat()
-    # Prefer previous day or yesterday if present, otherwise latest recorded past date, otherwise today
     sorted_dates = sorted(seen_dates, reverse=True)
     
-    target_iso = None
-    for d_str in sorted_dates:
-        if d_str < today_iso:
-            target_iso = d_str
-            break
-    if not target_iso and sorted_dates:
-        target_iso = sorted_dates[0]
-    if not target_iso:
-        target_iso = today_iso
-
-    target_date = date.fromisoformat(target_iso)
+    if requested_date:
+        target_iso = requested_date.isoformat()
+        target_date = requested_date
+    else:
+        target_iso = None
+        for d_str in sorted_dates:
+            if d_str <= today_iso:
+                target_iso = d_str
+                break
+        if not target_iso and sorted_dates:
+            target_iso = sorted_dates[0]
+        if not target_iso:
+            target_iso = today_iso
+        target_date = date.fromisoformat(target_iso)
     
     # Store names mapping
     store_meta = {
@@ -947,6 +972,7 @@ def get_landing_hero_telemetry(db: Database) -> dict:
     result = {
         "recorded_date": target_iso,
         "day_name": target_date.strftime("%A"),
+        "available_dates": sorted_dates,
         "stores": {},
     }
 

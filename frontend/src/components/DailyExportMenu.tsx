@@ -60,10 +60,13 @@ export function DailyExportMenu({ store }: { store: string }) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Download className="h-4 w-4" />
-          Export
-        </Button>
+        <button
+          type="button"
+          className="glossy-btn flex items-center gap-2 rounded-xl px-3.5 py-1.5 text-xs font-semibold text-foreground transition-all cursor-pointer"
+        >
+          <Download className="h-3.5 w-3.5 text-primary" />
+          <span>Export Reports</span>
+        </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72">
         <div className="text-xs font-semibold tracking-wide uppercase">Export daily report</div>

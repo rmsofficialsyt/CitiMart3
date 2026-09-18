@@ -31,33 +31,124 @@ export function nowTimeHHMM(): string {
   return IST_TIME_HHMM.format(new Date());
 }
 
-const INDIAN_DATE_DISPLAY = new Intl.DateTimeFormat("en-IN", {
-  timeZone: "Asia/Kolkata",
-  day: "numeric",
-  month: "long",
-  year: "numeric",
-});
-
-// Display-only: renders a YYYY-MM-DD date string (e.g. from todayLocalDate())
-// in Indian format ("21 August 2026"). The ISO string itself stays the
-// wire/API format everywhere -- only the on-screen presentation changes.
-export function fmtDateIndian(isoDate: string): string {
-  return INDIAN_DATE_DISPLAY.format(new Date(`${isoDate}T00:00:00Z`));
+/**
+ * Renders any date string (ISO YYYY-MM-DD, ISO timestamp, or Date) in standardized DD.MM.YYYY format.
+ * Examples: "2026-08-21" -> "21.08.2026", Date -> "21.08.2026"
+ */
+export function fmtDateDot(dateInput: string | Date | null | undefined): string {
+  if (!dateInput) return "—";
+  if (typeof dateInput === "string") {
+    const trimmed = dateInput.trim();
+    if (/^\d{2}\.\d{2}\.\d{4}$/.test(trimmed)) return trimmed;
+    // YYYY-MM-DD
+    const isoMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(trimmed);
+    if (isoMatch) {
+      return `${isoMatch[3]}.${isoMatch[2]}.${isoMatch[1]}`;
+    }
+    // DD/MM/YYYY or DD-MM-YYYY
+    const dmyMatch = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/.exec(trimmed);
+    if (dmyMatch) {
+      return `${dmyMatch[1].padStart(2, "0")}.${dmyMatch[2].padStart(2, "0")}.${dmyMatch[3]}`;
+    }
+    const d = new Date(trimmed.includes("T") ? trimmed : `${trimmed}T00:00:00Z`);
+    if (!isNaN(d.getTime())) {
+      const day = String(d.getUTCDate()).padStart(2, "0");
+      const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const year = d.getUTCFullYear();
+      return `${day}.${month}.${year}`;
+    }
+    return trimmed;
+  }
+  const day = String(dateInput.getDate()).padStart(2, "0");
+  const month = String(dateInput.getMonth() + 1).padStart(2, "0");
+  const year = dateInput.getFullYear();
+  return `${day}.${month}.${year}`;
 }
 
-/** Formats HH:MM (24-hr) or ISO time strings into standardized 12-hour format: e.g. "10.30 am", "2.00 pm", "11.59 pm" */
+// Display-only: renders date in project standard dd.mm.yyyy format
+export function fmtDateIndian(isoDate: string): string {
+  return fmtDateDot(isoDate);
+}
+
+/** Formats HH:MM (24-hr), HH.MM, ISO time strings or existing strings into standardized 12-hour format:
+ * Pattern: "10.30 am", "11.00 am", "12.00 pm", "1.00 pm", "2.00 pm", ..., "11.59 pm" */
 export function fmtTime12Hour(timeStr: string | null | undefined): string {
   if (!timeStr) return "—";
   const trimmed = timeStr.trim();
-  const match = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(trimmed);
+  if (trimmed === "" || trimmed === "—" || trimmed === "-") return "—";
+
+  // Check for ISO timestamp (e.g. "2026-08-20T14:30:00" or "2026-08-20 14:30")
+  if (trimmed.includes("T") || (trimmed.includes("-") && trimmed.includes(":"))) {
+    try {
+      const d = new Date(trimmed);
+      if (!Number.isNaN(d.getTime())) {
+        let h = d.getHours();
+        const m = String(d.getMinutes()).padStart(2, "0");
+        const ap = h >= 12 ? "pm" : "am";
+        h = h % 12;
+        if (h === 0) h = 12;
+        return `${h}.${m} ${ap}`;
+      }
+    } catch {}
+  }
+
+  // Match standard time patterns: e.g. "10:30", "10.30", "14:15", "10:30:00", "1:00 PM", "10.30 am"
+  const match = /^(\d{1,2})[:.](\d{2})(?::(\d{2}))?(?:\s*([aApP][mM]))?$/.exec(trimmed);
   if (!match) return trimmed;
+
   let hours = parseInt(match[1], 10);
   const minutes = match[2];
-  const ampm = hours >= 12 ? "pm" : "am";
-  hours = hours % 12;
-  if (hours === 0) hours = 12;
+  const existingAmPm = match[4]?.toLowerCase();
+
+  let ampm: "am" | "pm";
+  if (existingAmPm) {
+    ampm = existingAmPm === "am" ? "am" : "pm";
+    if (hours === 0) hours = 12;
+    else if (hours > 12) hours = hours % 12;
+  } else {
+    ampm = hours >= 12 ? "pm" : "am";
+    hours = hours % 12;
+    if (hours === 0) hours = 12;
+  }
+
   return `${hours}.${minutes} ${ampm}`;
 }
+
+/** Converts arbitrary time strings (e.g. "10:30", "10.30", "14:15", "10:30:00", "1:00 PM", "10.30 am", ISO timestamps)
+ * into standard 24-hour "HH:MM" format suitable for HTML5 `<input type="time" />`. */
+export function toTimeHHMM(timeStr: string | null | undefined): string {
+  if (!timeStr) return nowTimeHHMM();
+  const trimmed = timeStr.trim();
+  if (!trimmed || trimmed === "—" || trimmed === "-") return nowTimeHHMM();
+
+  // If ISO timestamp (e.g. 2026-09-18T14:30:00 or 2026-09-18 14:30)
+  if (trimmed.includes("T") || (trimmed.includes("-") && trimmed.includes(":"))) {
+    try {
+      const d = new Date(trimmed);
+      if (!Number.isNaN(d.getTime())) {
+        const h = String(d.getHours()).padStart(2, "0");
+        const m = String(d.getMinutes()).padStart(2, "0");
+        return `${h}:${m}`;
+      }
+    } catch {}
+  }
+
+  // Regex to match e.g. "10:30", "10.30", "14:15", "10:30:00", "1:00 PM", "10.30 am", "2.30pm"
+  const match = /^(\d{1,2})[:.](\d{2})(?::(\d{2}))?(?:\s*([aApP][mM]))?$/.exec(trimmed);
+  if (!match) return trimmed.slice(0, 5);
+
+  let hours = parseInt(match[1], 10);
+  const minutes = match[2];
+  const ampm = match[4]?.toLowerCase();
+
+  if (ampm) {
+    if (ampm === "pm" && hours < 12) hours += 12;
+    if (ampm === "am" && hours === 12) hours = 0;
+  }
+
+  return `${String(hours).padStart(2, "0")}:${minutes}`;
+}
+
 
 // All KPI/table figures are rounded to whole numbers for display (the
 // underlying computed values retain full precision -- only presentation

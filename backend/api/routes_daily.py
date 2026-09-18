@@ -77,10 +77,11 @@ def _parse_nonneg_number(payload: dict, field: str) -> float:
 
 
 @router.get("/landing-hero")
-def get_landing_hero(db: Database = Depends(get_db)):
+def get_landing_hero(date: str | None = Query(None, description="Optional YYYY-MM-DD"), db: Database = Depends(get_db)):
     """Public telemetry for the landing page Hero section, fetched authentically
-    from MongoDB across stores for the most recent / previous day."""
-    return daily_dashboard_store.get_landing_hero_telemetry(db)
+    from MongoDB across stores for the requested (or most recent) day."""
+    target_date = _parse_iso_date(date) if date else None
+    return daily_dashboard_store.get_landing_hero_telemetry(db, target_date)
 
 
 @router.get("/live")

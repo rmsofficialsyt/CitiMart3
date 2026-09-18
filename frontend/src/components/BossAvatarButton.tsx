@@ -32,7 +32,7 @@ export function BossAvatarButton({ className = "" }: BossAvatarButtonProps) {
           onClick={() => setModalOpen(true)}
           aria-label="Operational Head - Executive Instructions & Notices"
           title="Operational Head — Executive Directives, Sales Notices & Remarks"
-          className="group relative flex items-center gap-2 rounded-full bg-gradient-to-r from-slate-900 via-slate-800 to-amber-950/50 p-1 pl-1 pr-2.5 sm:pr-3 text-left border border-amber-500/40 shadow-md hover:border-amber-400 hover:shadow-[0_0_18px_rgba(245,158,11,0.35)] transition-all duration-200 cursor-pointer"
+          className="group relative flex items-center gap-2 rounded-full bg-gradient-to-r from-amber-50 via-orange-50/80 to-amber-100/90 dark:from-slate-900 dark:via-slate-800 dark:to-amber-950/50 neon:from-slate-900 neon:via-indigo-950/80 neon:to-amber-950/60 p-1 pl-1 pr-2.5 sm:pr-3 text-left border border-amber-300 dark:border-amber-500/40 neon:border-amber-400 shadow-sm dark:shadow-md hover:border-amber-400 hover:shadow-[0_0_18px_rgba(245,158,11,0.35)] transition-all duration-200 cursor-pointer"
         >
           {/* Avatar Container with Glowing Halo */}
           <div className="relative size-8 sm:size-9 shrink-0 rounded-full">
@@ -44,11 +44,11 @@ export function BossAvatarButton({ className = "" }: BossAvatarButtonProps) {
             <img
               src={raphaelAvatar}
               alt="Operational Head"
-              className="relative size-full rounded-full object-cover border-2 border-amber-400/90 shadow-inner bg-slate-800"
+              className="relative size-full rounded-full object-cover border-2 border-amber-500 dark:border-amber-400/90 neon:border-amber-300 shadow-inner bg-slate-800"
             />
 
             {/* Boss Crown / Badge on Corner */}
-            <span className="absolute -bottom-1 -right-1 flex size-4 items-center justify-center rounded-full bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 shadow-sm border border-slate-900">
+            <span className="absolute -bottom-1 -right-1 flex size-4 items-center justify-center rounded-full bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 shadow-sm border border-white dark:border-slate-900">
               <Crown className="size-2.5 fill-slate-950 stroke-none" />
             </span>
           </div>
@@ -56,16 +56,16 @@ export function BossAvatarButton({ className = "" }: BossAvatarButtonProps) {
           {/* Text Labels (Desktop / Tablet) */}
           <div className="hidden sm:flex flex-col min-w-0 pr-1">
             <div className="flex items-center gap-1.5">
-              <span className="truncate text-xs font-bold text-amber-300 group-hover:text-amber-200 tracking-tight">
+              <span className="truncate text-xs font-bold text-amber-900 dark:text-amber-300 neon:text-amber-300 group-hover:text-amber-700 dark:group-hover:text-amber-200 tracking-tight">
                 Operational Head
               </span>
-              <span className="rounded bg-amber-500/20 px-1 py-0.2 text-[9px] font-black uppercase text-amber-300 border border-amber-500/30">
+              <span className="rounded bg-amber-200/80 dark:bg-amber-500/20 neon:bg-amber-500/30 px-1 py-0.2 text-[9px] font-black uppercase text-amber-900 dark:text-amber-300 neon:text-amber-200 border border-amber-300 dark:border-amber-500/30 neon:border-amber-400/40">
                 BOSS
               </span>
             </div>
-            <span className="truncate text-[10px] text-slate-300/90 font-medium">
+            <span className="truncate text-[10px] text-slate-600 dark:text-slate-300/90 neon:text-slate-200 font-medium">
               {unreadCount > 0 ? (
-                <span className="text-rose-300 font-semibold animate-pulse">
+                <span className="text-rose-600 dark:text-rose-300 font-semibold animate-pulse">
                   {unreadCount} New {unreadCount === 1 ? "Notice" : "Notices"}
                 </span>
               ) : (

@@ -1,16 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Sparkles, Upload, Trash2, ArrowDown } from "lucide-react";
 
 import { api } from "@/api/client";
-import { Section } from "@/components/Section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { STORE_NAME_BY_CODE, type StoreCode } from "@/lib/authUsers";
-import { fmtCurrency, fmtCurrencyOrZero, fmtPercentOrZero, todayLocalDate } from "@/lib/format";
+import {
+  fmtCurrency,
+  fmtCurrencyOrZero,
+  fmtNumberOrZero,
+  fmtPercentOrZero,
+  todayLocalDate,
+} from "@/lib/format";
 import type { StoreTargetEntry } from "@/lib/types";
 
 const MONTH_LABEL = new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", month: "long", year: "numeric" });
@@ -23,7 +29,7 @@ function monthLabel(month: string): string {
 /** Every ISO date ("YYYY-MM-DD") in the given "YYYY-MM" month. */
 function datesInMonth(month: string): string[] {
   const [y, m] = month.split("-").map(Number);
-  const count = new Date(y, m, 0).getDate(); // day 0 of the next month == last day of this one
+  const count = new Date(y, m, 0).getDate();
   return Array.from({ length: count }, (_, i) => `${month}-${String(i + 1).padStart(2, "0")}`);
 }
 
@@ -31,15 +37,6 @@ function dayName(isoDate: string): string {
   return DAY_LABEL.format(new Date(`${isoDate}T00:00:00Z`));
 }
 
-/** Admin-only "Sales Target" view under Daily Operations -> <store>. A whole
- * month of SALES TARGET at once: pick a month, fill an amount for each day,
- * "Save Month" bulk-writes every changed row (POST /api/targets/bulk). Each
- * row is targets.sales_target for that store+date -- the figure the store's
- * Daily Dashboard measures Remaining / Achievement % against -- and the
- * backend refreshes that day's KPI snapshot on every write. A blank cell
- * that previously had a target clears it; a blank cell that was already
- * empty is skipped. Net Sales / Achievement % are shown read-only for
- * target-vs-actual on days the store has already logged sales. */
 function SalesTargetEntry({ store }: { store: string }) {
   const queryClient = useQueryClient();
   const [month, setMonth] = useState(() => todayLocalDate().slice(0, 7));
@@ -57,44 +54,65 @@ function SalesTargetEntry({ store }: { store: string }) {
 
   const days = useMemo(() => datesInMonth(month), [month]);
 
-  // Editable amount per ISO date (as typed). Re-seeded from the saved targets
-  // whenever the month or the fetched data changes.
-  const [values, setValues] = useState<Record<string, string>>({});
+  // Editable target & prev year sales amounts per ISO date
+  const [targetValues, setTargetValues] = useState<Record<string, string>>({});
+  const [prevYearValues, setPrevYearValues] = useState<Record<string, string>>({});
+
   useEffect(() => {
-    const seed: Record<string, string> = {};
+    const targetSeed: Record<string, string> = {};
+    const prevYearSeed: Record<string, string> = {};
     for (const d of days) {
       const ex = existing.get(d);
-      seed[d] = ex && ex.sales_target != null ? String(ex.sales_target) : "";
+      targetSeed[d] = ex && ex.sales_target != null ? String(ex.sales_target) : "";
+      prevYearSeed[d] = ex && ex.prev_year_net_sales != null ? String(ex.prev_year_net_sales) : "";
     }
-    setValues(seed);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month, data]);
+    setTargetValues(targetSeed);
+    setPrevYearValues(prevYearSeed);
+  }, [month, data, days, existing]);
 
-  const savedTotal = days.reduce((sum, d) => {
+  const savedTargetTotal = days.reduce((sum, d) => {
     const ex = existing.get(d);
     return sum + (ex && ex.sales_target != null ? ex.sales_target : 0);
   }, 0);
-  const draftTotal = days.reduce((sum, d) => {
-    const n = Number(values[d]);
+
+  const draftTargetTotal = days.reduce((sum, d) => {
+    const n = Number(targetValues[d]);
+    return sum + (Number.isFinite(n) && n > 0 ? n : 0);
+  }, 0);
+
+  const savedPrevYearTotal = days.reduce((sum, d) => {
+    const ex = existing.get(d);
+    return sum + (ex && ex.prev_year_net_sales != null ? ex.prev_year_net_sales : 0);
+  }, 0);
+
+  const draftPrevYearTotal = days.reduce((sum, d) => {
+    const n = Number(prevYearValues[d]);
     return sum + (Number.isFinite(n) && n > 0 ? n : 0);
   }, 0);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const rows: { date: string; sales_target: number | null }[] = [];
+      const rows: { date: string; sales_target: number | null; prev_year_net_sales: number | null }[] = [];
       for (const d of days) {
-        const raw = (values[d] ?? "").trim();
+        const rawTarget = (targetValues[d] ?? "").trim();
+        const rawPrev = (prevYearValues[d] ?? "").trim();
         const ex = existing.get(d);
-        const current = ex && ex.sales_target != null ? ex.sales_target : null;
-        if (raw === "") {
-          if (current !== null) rows.push({ date: d, sales_target: null });
-          continue;
-        }
-        const n = Number(raw);
-        if (Number.isNaN(n) || n < 0) {
+        const currentTarget = ex && ex.sales_target != null ? ex.sales_target : null;
+        const currentPrev = ex && ex.prev_year_net_sales != null ? ex.prev_year_net_sales : null;
+
+        const targetNum = rawTarget === "" ? null : Number(rawTarget);
+        const prevNum = rawPrev === "" ? null : Number(rawPrev);
+
+        if (targetNum !== null && (Number.isNaN(targetNum) || targetNum < 0)) {
           throw new Error(`${d}: Sales Target must be a non-negative number.`);
         }
-        if (n !== current) rows.push({ date: d, sales_target: n });
+        if (prevNum !== null && (Number.isNaN(prevNum) || prevNum < 0)) {
+          throw new Error(`${d}: Previous Year Net Sales must be a non-negative number.`);
+        }
+
+        if (targetNum !== currentTarget || prevNum !== currentPrev) {
+          rows.push({ date: d, sales_target: targetNum, prev_year_net_sales: prevNum });
+        }
       }
       if (rows.length === 0) return 0;
       await api.bulkStoreTargets({ store, rows });
@@ -114,25 +132,23 @@ function SalesTargetEntry({ store }: { store: string }) {
 
   const clearMutation = useMutation({
     mutationFn: async () => {
-      // Reset the whole visible month: push sales_target: null for every day
-      // that currently has a saved target (a blank cell that was already
-      // empty is skipped -- same semantics as Save Month).
       const rows = days
         .filter((d) => {
           const ex = existing.get(d);
-          return ex && ex.sales_target != null;
+          return ex && (ex.sales_target != null || ex.prev_year_net_sales != null);
         })
-        .map((d) => ({ date: d, sales_target: null }));
+        .map((d) => ({ date: d, sales_target: null, prev_year_net_sales: null }));
       if (rows.length === 0) return 0;
       await api.bulkStoreTargets({ store, rows });
       return rows.length;
     },
     onSuccess: (count) => {
       if (count === 0) {
-        toast.info("No saved targets to clear this month.");
+        toast.info("No saved targets or previous year sales to clear this month.");
         return;
       }
-      setValues(Object.fromEntries(days.map((d) => [d, ""])));
+      setTargetValues(Object.fromEntries(days.map((d) => [d, ""])));
+      setPrevYearValues(Object.fromEntries(days.map((d) => [d, ""])));
       toast.success(`Cleared ${count} day${count === 1 ? "" : "s"} for ${monthLabel(month)}.`);
       queryClient.invalidateQueries({ queryKey: ["store-targets", store] });
       queryClient.invalidateQueries({ queryKey: ["daily-live", store] });
@@ -144,67 +160,116 @@ function SalesTargetEntry({ store }: { store: string }) {
   const uploadMutation = useMutation({
     mutationFn: (file: File) => api.uploadStoreTargets(store, file),
     onSuccess: ({ applied }) => {
-      toast.success(`Uploaded ${applied} day${applied === 1 ? "" : "s"} of Sales Target.`);
+      toast.success(`Uploaded ${applied} day${applied === 1 ? "" : "s"} of targets & previous year sales.`);
       queryClient.invalidateQueries({ queryKey: ["store-targets", store] });
       queryClient.invalidateQueries({ queryKey: ["daily-live", store] });
     },
     onError: (error) => toast.error(`Upload failed: ${(error as Error).message}`),
   });
 
-  function fillDown() {
-    // Copy the first non-empty value into every later blank cell -- quick way
-    // to set a flat month then tweak the exceptions.
-    const first = days.map((d) => (values[d] ?? "").trim()).find((v) => v !== "");
+  function fillDownTargets() {
+    const first = days.map((d) => (targetValues[d] ?? "").trim()).find((v) => v !== "");
     if (!first) {
-      toast.error("Enter an amount on the first day, then Fill Down.");
+      toast.error("Enter a Sales Target on the first day, then Fill Down.");
       return;
     }
-    setValues((prev) => {
+    setTargetValues((prev) => {
       const next = { ...prev };
       for (const d of days) if ((next[d] ?? "").trim() === "") next[d] = first;
       return next;
     });
+    toast.success("Sales Targets filled down across month.");
+  }
+
+  function fillDownPrevYear() {
+    const first = days.map((d) => (prevYearValues[d] ?? "").trim()).find((v) => v !== "");
+    if (!first) {
+      toast.error("Enter a Previous Year Net Sales figure on the first day, then Fill Down.");
+      return;
+    }
+    setPrevYearValues((prev) => {
+      const next = { ...prev };
+      for (const d of days) if ((next[d] ?? "").trim() === "") next[d] = first;
+      return next;
+    });
+    toast.success("Previous Year Net Sales filled down across month.");
   }
 
   return (
-    <div>
-      <Section title="Monthly Sales Target" className="mb-4">
-        <p className="text-muted-foreground mb-3 text-sm">
-          {STORE_NAME_BY_CODE[store as StoreCode] ?? store} — set one target per day for the selected month, then Save
-          Month. Editing a day that already has a target overwrites it; clearing a cell removes that day's target.
-        </p>
-        {/* Two-up on a phone (the four controls would otherwise be four full
-            lines), inline from `sm` up. */}
-        <div className="grid grid-cols-2 items-end gap-2 sm:flex sm:flex-wrap sm:gap-3">
-          <div className="col-span-2 sm:col-auto">
-            <Label className="text-muted-foreground mb-1 text-xs font-semibold tracking-wide uppercase">Month</Label>
+    <div className="space-y-6">
+      {/* Top Banner Control Section */}
+      <div className="rounded-3xl border border-border bg-card/90 dark:bg-[#18181D]/90 p-5 sm:p-6 shadow-xl backdrop-blur-xl">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-4 mb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold text-foreground tracking-tight sm:text-xl">
+                Monthly Sales Target & Comparative Planning
+              </h2>
+              <span className="rounded-full bg-primary/15 border border-primary/30 px-3 py-0.5 text-xs font-semibold text-primary">
+                {STORE_NAME_BY_CODE[store as StoreCode] ?? store}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Active manual data entry for Sales Targets & Previous Year Net Sales with comprehensive store KPI tracking.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Month:</Label>
             <input
               type="month"
-              className="border-input bg-background w-full rounded-md border px-2 py-1.5 text-sm sm:w-auto"
+              className="rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary shadow-xs"
               value={month}
               onChange={(e) => setMonth(e.target.value || todayLocalDate().slice(0, 7))}
             />
           </div>
-          <Button variant="outline" onClick={fillDown} disabled={saveMutation.isPending || clearMutation.isPending}>
-            Fill Down
+        </div>
+
+        {/* Action Controls */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fillDownTargets}
+            disabled={saveMutation.isPending || clearMutation.isPending}
+            className="rounded-xl border-border text-xs font-semibold cursor-pointer hover:bg-muted"
+          >
+            <ArrowDown className="mr-1.5 h-3.5 w-3.5 text-orange-500 dark:text-orange-400" />
+            Fill Target Down
           </Button>
           <Button
+            variant="outline"
+            size="sm"
+            onClick={fillDownPrevYear}
+            disabled={saveMutation.isPending || clearMutation.isPending}
+            className="rounded-xl border-border text-xs font-semibold cursor-pointer hover:bg-muted"
+          >
+            <ArrowDown className="mr-1.5 h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400" />
+            Fill Prev. Sales Down
+          </Button>
+          <Button
+            size="sm"
             onClick={() => saveMutation.mutate()}
             disabled={saveMutation.isPending || clearMutation.isPending}
+            className="rounded-xl bg-gradient-to-r from-orange-500 to-coral-500 text-white font-bold text-xs shadow-md shadow-orange-500/20 cursor-pointer"
           >
-            {saveMutation.isPending ? "Saving..." : "Save Month"}
+            {saveMutation.isPending ? "Saving Changes..." : "Save Month Targets"}
           </Button>
           <Button
             variant="destructive"
+            size="sm"
             onClick={() => {
-              if (window.confirm(`Clear every saved Sales Target for ${monthLabel(month)}? This cannot be undone.`)) {
+              if (window.confirm(`Clear every saved Sales Target & Previous Year figure for ${monthLabel(month)}?`)) {
                 clearMutation.mutate();
               }
             }}
             disabled={saveMutation.isPending || clearMutation.isPending}
+            className="rounded-xl text-xs font-semibold cursor-pointer"
           >
+            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
             {clearMutation.isPending ? "Clearing..." : "Clear Month"}
           </Button>
+
           <input
             ref={fileInputRef}
             type="file"
@@ -212,65 +277,180 @@ function SalesTargetEntry({ store }: { store: string }) {
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
-              e.target.value = ""; // allow re-selecting the same file
+              e.target.value = "";
               if (file) uploadMutation.mutate(file);
             }}
           />
           <Button
             variant="outline"
+            size="sm"
             onClick={() => fileInputRef.current?.click()}
             disabled={saveMutation.isPending || clearMutation.isPending || uploadMutation.isPending}
+            className="rounded-xl border-border text-xs font-semibold ml-auto cursor-pointer hover:bg-muted"
           >
-            {uploadMutation.isPending ? "Uploading..." : "Upload Excel"}
+            <Upload className="mr-1.5 h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400" />
+            {uploadMutation.isPending ? "Uploading..." : "Upload Excel (.xlsx)"}
           </Button>
         </div>
-        <p className="text-muted-foreground mt-3 text-sm">
-          Month target (typed): <span className="text-foreground font-semibold">{fmtCurrency(draftTotal)}</span>
-          {" · "}Currently saved: <span className="text-foreground font-semibold">{fmtCurrency(savedTotal)}</span>
-        </p>
-        <p className="text-muted-foreground mt-1 text-xs">
-          Upload Excel: a <code>.xlsx</code> with two columns — <code>Date</code> (YYYY-MM-DD) and{" "}
-          <code>Sales Target</code>. The header row is skipped; a blank target clears that day. Rows for any month are
-          applied, not just the one shown.
-        </p>
-      </Section>
 
-      <Section title={monthLabel(month)}>
+        {/* Monthly Summary Statistics Pills */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mt-4 pt-4 border-t border-border">
+          <div className="rounded-2xl border border-border/80 bg-muted/40 dark:bg-black/25 p-3">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Month Target (Typed)</div>
+            <div className="mt-1 font-mono text-base font-extrabold text-orange-600 dark:text-orange-400 sm:text-lg">
+              {fmtCurrency(draftTargetTotal)}
+            </div>
+            <div className="text-[10px] text-muted-foreground">Saved: {fmtCurrency(savedTargetTotal)}</div>
+          </div>
+
+          <div className="rounded-2xl border border-border/80 bg-muted/40 dark:bg-black/25 p-3">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Prev. Year Total (Typed)</div>
+            <div className="mt-1 font-mono text-base font-extrabold text-cyan-600 dark:text-cyan-400 sm:text-lg">
+              {fmtCurrency(draftPrevYearTotal)}
+            </div>
+            <div className="text-[10px] text-muted-foreground">Saved: {fmtCurrency(savedPrevYearTotal)}</div>
+          </div>
+
+          <div className="rounded-2xl border border-border/80 bg-muted/40 dark:bg-black/25 p-3">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Target vs Prev Growth</div>
+            <div className="mt-1 font-mono text-base font-extrabold text-foreground sm:text-lg">
+              {draftPrevYearTotal > 0
+                ? `${(((draftTargetTotal - draftPrevYearTotal) / draftPrevYearTotal) * 100).toFixed(1)}%`
+                : "—"}
+            </div>
+            <div className="text-[10px] text-muted-foreground">Planned Growth Pace</div>
+          </div>
+
+          <div className="rounded-2xl border border-border/80 bg-muted/40 dark:bg-black/25 p-3">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Excel Format Support</div>
+            <div className="mt-1 text-xs font-semibold text-foreground">
+              4-Col or 2-Col
+            </div>
+            <div className="text-[10px] text-muted-foreground">Auto Date Matching</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Target Table with Active Data Entry & All KPIs */}
+      <div className="rounded-3xl border border-border bg-card/90 dark:bg-[#18181D]/90 p-4 sm:p-6 shadow-xl backdrop-blur-xl">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-foreground flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-orange-500 dark:text-orange-400" />
+            Target Plan & Full KPI Matrix: {monthLabel(month)}
+          </h3>
+          <span className="text-xs text-muted-foreground">Showing {days.length} Days</span>
+        </div>
+
         {isLoading ? (
-          <Skeleton className="h-64 w-full" />
+          <Skeleton className="h-96 w-full rounded-2xl" />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto rounded-2xl border border-border">
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Day</TableHead>
-                  <TableHead>Sales Target (₹)</TableHead>
-                  <TableHead>Net Sales</TableHead>
-                  <TableHead>Achievement %</TableHead>
+              <TableHeader className="bg-muted/60 dark:bg-black/40">
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableHead className="font-bold text-muted-foreground text-xs">Prev. Date</TableHead>
+                  <TableHead className="font-bold text-cyan-600 dark:text-cyan-400 text-xs min-w-[140px]">
+                    Net Sales (Prev. Year) (₹)
+                  </TableHead>
+                  <TableHead className="font-bold text-foreground text-xs">Date</TableHead>
+                  <TableHead className="font-bold text-muted-foreground text-xs">Day</TableHead>
+                  <TableHead className="font-bold text-orange-600 dark:text-orange-400 text-xs min-w-[140px]">
+                    Sales Target (₹)
+                  </TableHead>
+                  <TableHead className="text-right font-bold text-foreground text-xs min-w-[110px]">
+                    Present Net Sales
+                  </TableHead>
+                  <TableHead className="text-right font-bold text-indigo-600 dark:text-indigo-400 text-xs">
+                    Ach %
+                  </TableHead>
+                  <TableHead className="text-right font-bold text-muted-foreground text-xs">
+                    Footfall
+                  </TableHead>
+                  <TableHead className="text-right font-bold text-muted-foreground text-xs">
+                    NOB
+                  </TableHead>
+                  <TableHead className="text-right font-bold text-muted-foreground text-xs">
+                    Bill Qty
+                  </TableHead>
+                  <TableHead className="text-right font-bold text-muted-foreground text-xs">
+                    ATV
+                  </TableHead>
+                  <TableHead className="text-right font-bold text-muted-foreground text-xs">
+                    Basket Size
+                  </TableHead>
+                  <TableHead className="text-right font-bold text-muted-foreground text-xs">
+                    Conv %
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {days.map((d) => {
                   const ex = existing.get(d);
                   const isWeekend = [0, 6].includes(new Date(`${d}T00:00:00Z`).getUTCDay());
+                  const [y, m, dayNum] = d.split("-").map(Number);
+                  const prevYearDate = `${y - 1}-${String(m).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
+                  const prevYearDisplay = prevYearDate.split("-").reverse().join(".");
+                  const presentYearDisplay = d.split("-").reverse().join(".");
+
                   return (
-                    <TableRow key={d}>
-                      <TableCell className="whitespace-nowrap tabular-nums">{d.split("-").reverse().join(".")}</TableCell>
-                      <TableCell className={isWeekend ? "text-muted-foreground" : ""}>{dayName(d)}</TableCell>
+                    <TableRow key={d} className="border-border/60 hover:bg-muted/40 transition-colors">
+                      <TableCell className="whitespace-nowrap font-mono text-xs text-muted-foreground">
+                        {prevYearDisplay}
+                      </TableCell>
                       <TableCell>
                         <Input
                           type="number"
                           min={0}
                           step="any"
                           inputMode="decimal"
-                          className="h-8 max-w-[12rem]"
-                          value={values[d] ?? ""}
-                          onChange={(e) => setValues((prev) => ({ ...prev, [d]: e.target.value }))}
+                          className="h-8 max-w-[12rem] rounded-xl border-cyan-500/40 bg-cyan-500/10 dark:bg-cyan-950/20 font-mono font-bold text-cyan-800 dark:text-cyan-300 text-xs focus:ring-2 focus:ring-cyan-500"
+                          placeholder="0"
+                          value={prevYearValues[d] ?? ""}
+                          onChange={(e) => setPrevYearValues((prev) => ({ ...prev, [d]: e.target.value }))}
                         />
                       </TableCell>
-                      <TableCell>{ex ? fmtCurrencyOrZero(ex.net_sales) : <span className="text-muted-foreground">—</span>}</TableCell>
-                      <TableCell>{ex ? fmtPercentOrZero(ex.achievement_pct) : <span className="text-muted-foreground">—</span>}</TableCell>
+                      <TableCell className="whitespace-nowrap font-mono text-xs font-bold text-foreground">
+                        {presentYearDisplay}
+                      </TableCell>
+                      <TableCell className={`text-xs font-semibold ${isWeekend ? "text-amber-600 dark:text-amber-400 font-bold" : "text-muted-foreground"}`}>
+                        {dayName(d)}
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min={0}
+                          step="any"
+                          inputMode="decimal"
+                          className="h-8 max-w-[12rem] rounded-xl border-orange-500/40 bg-orange-500/10 dark:bg-orange-950/20 font-mono font-bold text-orange-800 dark:text-orange-300 text-xs focus:ring-2 focus:ring-orange-500"
+                          placeholder="0"
+                          value={targetValues[d] ?? ""}
+                          onChange={(e) => setTargetValues((prev) => ({ ...prev, [d]: e.target.value }))}
+                        />
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs font-bold text-foreground">
+                        {ex && ex.net_sales != null ? fmtCurrencyOrZero(ex.net_sales) : <span className="text-muted-foreground/40">—</span>}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                        {ex && ex.achievement_pct != null ? fmtPercentOrZero(ex.achievement_pct) : <span className="text-muted-foreground/40">—</span>}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs text-foreground/80 dark:text-slate-300">
+                        {ex && ex.footfall != null ? fmtNumberOrZero(ex.footfall) : <span className="text-muted-foreground/40">—</span>}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs text-foreground/80 dark:text-slate-300">
+                        {ex && ex.nob != null ? fmtNumberOrZero(ex.nob) : <span className="text-muted-foreground/40">—</span>}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs text-foreground/80 dark:text-slate-300">
+                        {ex && ex.bill_quantity != null ? fmtNumberOrZero(ex.bill_quantity) : <span className="text-muted-foreground/40">—</span>}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs text-foreground/80 dark:text-slate-300">
+                        {ex && ex.atv != null ? fmtCurrencyOrZero(ex.atv) : <span className="text-muted-foreground/40">—</span>}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs text-foreground/80 dark:text-slate-300">
+                        {ex && ex.basket_size != null ? ex.basket_size.toFixed(2) : <span className="text-muted-foreground/40">—</span>}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs text-foreground/80 dark:text-slate-300">
+                        {ex && ex.conversion_pct != null ? fmtPercentOrZero(ex.conversion_pct) : <span className="text-muted-foreground/40">—</span>}
+                      </TableCell>
                     </TableRow>
                   );
                 })}
@@ -278,7 +458,7 @@ function SalesTargetEntry({ store }: { store: string }) {
             </Table>
           </div>
         )}
-      </Section>
+      </div>
     </div>
   );
 }
