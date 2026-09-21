@@ -428,7 +428,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     navDashboard: "Dashboard",
     navManualEntry: "Manual Data Entry",
     navSalesTarget: "Sales Target",
-    navHistory: "History",
+    navHistory: "History and Analysis",
     navOverallSummary: "Overall Stores Summary",
     storeNewMarket: "New Market",
     storeHatibagan: "Hatibagan",
@@ -480,7 +480,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     remarksLabel: "Operational Remarks (optional)",
 
     // History & Table Actions
-    historyTitle: "Operational History & Performance Digest",
+    historyTitle: "Operational History & Performance Analysis",
     singleDay: "Single Day",
     prev7Days: "Previous 7 Days",
     prev14Days: "Previous 14 Days",
@@ -672,7 +672,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     navDashboard: "डैशबोर्ड (Dashboard)",
     navManualEntry: "मैन्युअल डेटा प्रविष्टि (Manual Entry)",
     navSalesTarget: "बिक्री लक्ष्य (Sales Target)",
-    navHistory: "इतिहास (History)",
+    navHistory: "इतिहास और विश्लेषण (History & Analysis)",
     navOverallSummary: "सभी स्टोर का सारांश (Overall Stores)",
     storeNewMarket: "न्यू मार्केट (New Market)",
     storeHatibagan: "हाथीबागान (Hatibagan)",
@@ -724,7 +724,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     remarksLabel: "परिचालन टिप्पणी (वैकल्पिक)",
 
     // History & Table Actions
-    historyTitle: "परिचालन इतिहास और रिपोर्ट (History & Performance)",
+    historyTitle: "परिचालन इतिहास और प्रदर्शन विश्लेषण (History & Analysis)",
     singleDay: "एकल दिन (Single Day)",
     prev7Days: "पिछले 7 दिन",
     prev14Days: "पिछले 14 दिन",
@@ -916,7 +916,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     navDashboard: "ড্যাশবোর্ড (Dashboard)",
     navManualEntry: "ম্যানুয়াল ডেটা এন্ট্রি (Manual Entry)",
     navSalesTarget: "বিক্রয় লক্ষ্যমাত্রা (Sales Target)",
-    navHistory: "ইতিহাস (History)",
+    navHistory: "ইতিহাস ও বিশ্লেষণ (History & Analysis)",
     navOverallSummary: "সকল স্টোরের সারসংক্ষেপ (Overall Stores)",
     storeNewMarket: "নিউ মার্কেট (New Market)",
     storeHatibagan: "হাতিবাগান (Hatibagan)",
@@ -968,7 +968,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     remarksLabel: "কার্যক্রম সংক্রান্ত মন্তব্য (ঐচ্ছিক)",
 
     // History & Table Actions
-    historyTitle: "কার্যক্রমের ইতিহাস ও রিপোর্ট (History & Performance)",
+    historyTitle: "কার্যক্রমের ইতিহাস ও বিশ্লেষণ (History & Analysis)",
     singleDay: "নির্দিষ্ট দিন (Single Day)",
     prev7Days: "বিগত ৭ দিন",
     prev14Days: "বিগত ১৪ দিন",

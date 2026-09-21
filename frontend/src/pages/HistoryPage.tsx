@@ -40,7 +40,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { fmtCurrencyOrZero, fmtDateDot, fmtNumberOrZero, fmtPercentOrZero, fmtTime12Hour, nowTimeHHMM, toTimeHHMM } from "@/lib/format";
+import { fmtCurrencyOrZero, fmtDateDot, fmtNumberOrZero, fmtPercentOrZero, fmtTime12Hour, nowTimeHHMM, toTimeHHMM, addDaysISO, todayLocalDate } from "@/lib/format";
 import { timeSlotForHHMM } from "@/lib/timeSlot";
 import { STORE_NAME_BY_CODE } from "@/lib/authUsers";
 import type { BillEntry, FootfallEntry, NobEntry, DailyLiveSnapshot, DailyOverallSnapshot } from "@/lib/types";
@@ -74,9 +74,7 @@ const PRESET_OPTIONS: { id: HistoryRangePreset; label: string }[] = [
 ];
 
 function computeDaysAgo(isoDate: string, days: number): string {
-  const d = new Date(isoDate + "T00:00:00");
-  d.setDate(d.getDate() - days);
-  return d.toISOString().split("T")[0];
+  return addDaysISO(isoDate, -days);
 }
 
 export function HistoryPage({ storeCode }: HistoryPageProps) {
@@ -130,7 +128,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
     queryFn: () => api.historyDates(effectiveStore),
   });
 
-  const today = useMemo(() => new Date().toISOString().split("T")[0], []);
+  const today = useMemo(() => todayLocalDate(), []);
 
   // Reference (latest) date and earliest available date
   const latestDate = useMemo(() => {
@@ -164,6 +162,9 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
   }, [datesList, selectedDate, customEndDate, customStartDate, today]);
 
   // Compute effective start and end dates based on active preset mode
+  // "Previous N Days" means N actual days ending at yesterday (today excluded)
+  const yesterday = useMemo(() => computeDaysAgo(today, 1), [today]);
+
   const { effectiveStartDate, effectiveEndDate } = useMemo(() => {
     const baseEnd = selectedDate || latestDate;
     if (rangeMode === "single") {
@@ -171,21 +172,24 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
       return { effectiveStartDate: d, effectiveEndDate: d };
     }
     if (rangeMode === "7days") {
+      // 7 days ending yesterday: yesterday - 6 → yesterday
       return {
-        effectiveStartDate: computeDaysAgo(latestDate, 6),
-        effectiveEndDate: latestDate,
+        effectiveStartDate: computeDaysAgo(yesterday, 6),
+        effectiveEndDate: yesterday,
       };
     }
     if (rangeMode === "14days") {
+      // 14 days ending yesterday: yesterday - 13 → yesterday
       return {
-        effectiveStartDate: computeDaysAgo(latestDate, 13),
-        effectiveEndDate: latestDate,
+        effectiveStartDate: computeDaysAgo(yesterday, 13),
+        effectiveEndDate: yesterday,
       };
     }
     if (rangeMode === "30days") {
+      // 30 days ending yesterday: yesterday - 29 → yesterday
       return {
-        effectiveStartDate: computeDaysAgo(latestDate, 29),
-        effectiveEndDate: latestDate,
+        effectiveStartDate: computeDaysAgo(yesterday, 29),
+        effectiveEndDate: yesterday,
       };
     }
     if (rangeMode === "all") {
@@ -203,9 +207,10 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
     }
     const d = selectedDate || latestDate;
     return { effectiveStartDate: d, effectiveEndDate: d };
-  }, [rangeMode, selectedDate, latestDate, earliestDate, customStartDate, customEndDate]);
+  }, [rangeMode, selectedDate, latestDate, earliestDate, customStartDate, customEndDate, yesterday]);
 
   const isMultiDay = effectiveStartDate !== effectiveEndDate;
+  const referenceDateForSnapshot = isMultiDay ? effectiveEndDate : effectiveStartDate;
 
   // Fetch range data from backend
   const { data: rangeData, isLoading: detailsLoading } = useQuery({
@@ -216,9 +221,9 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
 
   // Fetch single day snapshot for At a Glance context
   const { data: singleDaySnapshot } = useQuery<DailyLiveSnapshot | DailyOverallSnapshot>({
-    queryKey: ["daily-live-history", effectiveStore, effectiveStartDate],
-    queryFn: () => (effectiveStore === "ALL" ? api.dailyLiveOverall(effectiveStartDate) : api.dailyLive(effectiveStore, effectiveStartDate)),
-    enabled: Boolean(effectiveStartDate),
+    queryKey: ["daily-live-history", effectiveStore, referenceDateForSnapshot],
+    queryFn: () => (effectiveStore === "ALL" ? api.dailyLiveOverall(referenceDateForSnapshot) : api.dailyLive(effectiveStore, referenceDateForSnapshot)),
+    enabled: Boolean(referenceDateForSnapshot),
     staleTime: 60_000,
   });
 
@@ -480,9 +485,9 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
       <div className="glossy-card flex flex-col gap-4 rounded-3xl p-4 sm:p-6 shadow-2xl border border-white/10">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">Historical Operations Logs</h2>
+            <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">Operational History & Performance Analysis</h2>
             <p className="text-xs text-muted-foreground sm:text-sm">
-              Time-slot-wise breakdown and detailed footfall, billing, and sales logs for previous & current days.
+              Time-slot-wise performance breakdown, multi-day trend analysis, and comprehensive operations logs.
               {isAdmin && rangeMode === "single" && (
                 <span className="ml-1.5 font-semibold text-amber-500 dark:text-amber-400">
                   (Admin Single-Day Edit & Delete Active)
@@ -808,7 +813,7 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
           <AtAGlanceCard
             storeCode={effectiveStore}
             storeName={STORE_OPTIONS.find((s) => s.code === effectiveStore)?.name ?? effectiveStore}
-            date={effectiveStartDate}
+            date={referenceDateForSnapshot}
             data={singleDaySnapshot}
             isLoading={detailsLoading}
           />
@@ -1126,332 +1131,328 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
               </div>
             }
           >
-            <Tabs defaultValue="bills" className="w-full">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5">
-                <TabsList>
-                  <TabsTrigger value="bills" className="text-xs">
-                    Billing Details ({filteredBills.length})
-                  </TabsTrigger>
-                  <TabsTrigger value="footfall" className="text-xs">
-                    Footfall Logs ({filteredFootfall.length})
-                  </TabsTrigger>
-                  <TabsTrigger value="nob" className="text-xs">
-                    Sales / NOB Logs ({filteredNob.length})
-                  </TabsTrigger>
-                </TabsList>
+            {(() => {
+              const billColSpan = 4 + (isMultiDay ? 1 : 0) + (effectiveStore === "ALL" ? 1 : 0) + (isAdmin && rangeMode === "single" ? 1 : 0);
+              const footfallColSpan = 3 + (isMultiDay ? 1 : 0) + (effectiveStore === "ALL" ? 1 : 0) + (isAdmin && rangeMode === "single" ? 1 : 0);
+              const nobColSpan = 3 + (isMultiDay ? 1 : 0) + (effectiveStore === "ALL" ? 1 : 0) + (isAdmin && rangeMode === "single" ? 1 : 0);
 
-                {/* Admin-Only Single Day Quick Action Add Buttons */}
-                {isAdmin && rangeMode === "single" && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      size="sm"
-                      onClick={handleOpenAddBill}
-                      className="h-8 gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-xs"
-                    >
-                      <PlusCircle className="h-3.5 w-3.5" />
-                      Add Bill Entry
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={handleOpenAddFootfall}
-                      className="h-8 gap-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold shadow-xs"
-                    >
-                      <PlusCircle className="h-3.5 w-3.5" />
-                      Add Footfall Entry
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={handleOpenAddNob}
-                      className="h-8 gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-xs"
-                    >
-                      <PlusCircle className="h-3.5 w-3.5" />
-                      Add NOB Entry
-                    </Button>
+              return (
+                <Tabs defaultValue="bills" className="w-full">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5">
+                    <TabsList>
+                      <TabsTrigger value="bills" className="text-xs">
+                        Billing Details ({filteredBills.length})
+                      </TabsTrigger>
+                      <TabsTrigger value="footfall" className="text-xs">
+                        Footfall Logs ({filteredFootfall.length})
+                      </TabsTrigger>
+                      <TabsTrigger value="nob" className="text-xs">
+                        Sales / NOB Logs ({filteredNob.length})
+                      </TabsTrigger>
+                    </TabsList>
+
+                    {/* Admin-Only Single Day Quick Action Add Buttons */}
+                    {isAdmin && rangeMode === "single" && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          size="sm"
+                          onClick={handleOpenAddBill}
+                          className="h-8 gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-xs"
+                        >
+                          <PlusCircle className="h-3.5 w-3.5" />
+                          Add Bill Entry
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={handleOpenAddFootfall}
+                          className="h-8 gap-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold shadow-xs"
+                        >
+                          <PlusCircle className="h-3.5 w-3.5" />
+                          Add Footfall Entry
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={handleOpenAddNob}
+                          className="h-8 gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-xs"
+                        >
+                          <PlusCircle className="h-3.5 w-3.5" />
+                          Add NOB Entry
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
 
-              {/* Billing Details Tab */}
-              <TabsContent value="bills">
-                <div className="overflow-x-auto rounded-lg border border-border">
-                  <Table>
-                    <TableHeader className="bg-muted/50">
-                      <TableRow>
-                        <TableHead className="w-16">Row #</TableHead>
-                        {isMultiDay && <TableHead>Date</TableHead>}
-                        {effectiveStore === "ALL" && <TableHead>Store</TableHead>}
-                        <TableHead>Bill Time</TableHead>
-                        <TableHead className="text-right">Net Sales Amount (₹)</TableHead>
-                        <TableHead className="text-right">Bill Quantity (units sold)</TableHead>
-                        <TableHead className="text-right">Time Slot</TableHead>
-                        {isAdmin && rangeMode === "single" && (
-                          <TableHead className="text-right w-24">Actions</TableHead>
-                        )}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredBills.map((b) => (
-                        <TableRow key={`${b.store ?? effectiveStore}-${b.date ?? ""}-${b.row}`} className="hover:bg-muted/30">
-                          <TableCell className="font-mono text-xs text-muted-foreground">{b.row}</TableCell>
-                          {isMultiDay && (
-                            <TableCell className="font-mono text-xs text-muted-foreground">{fmtDateDot(b.date ?? effectiveStartDate)}</TableCell>
+                  {/* Billing Details Tab */}
+                  <TabsContent value="bills">
+                    <div className="overflow-x-auto rounded-lg border border-border">
+                      <Table>
+                        <TableHeader className="bg-muted/50">
+                          <TableRow>
+                            <TableHead className="w-16">Row #</TableHead>
+                            {isMultiDay && <TableHead>Date</TableHead>}
+                            {effectiveStore === "ALL" && <TableHead>Store</TableHead>}
+                            <TableHead>Bill Time</TableHead>
+                            <TableHead className="text-right">Net Sales Amount (₹)</TableHead>
+                            <TableHead className="text-right">Bill Quantity (units sold)</TableHead>
+                            <TableHead className="text-right">Time Slot</TableHead>
+                            {isAdmin && rangeMode === "single" && (
+                              <TableHead className="text-right w-24">Actions</TableHead>
+                            )}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredBills.map((b) => (
+                            <TableRow key={`${b.store ?? effectiveStore}-${b.date ?? ""}-${b.row}`} className="hover:bg-muted/30">
+                              <TableCell className="font-mono text-xs text-muted-foreground">{b.row}</TableCell>
+                              {isMultiDay && (
+                                <TableCell className="font-mono text-xs text-muted-foreground">{fmtDateDot(b.date ?? effectiveStartDate)}</TableCell>
+                              )}
+                              {effectiveStore === "ALL" && (
+                                <TableCell className="font-semibold text-xs text-blue-600 dark:text-blue-300">
+                                  {(STORE_NAME_BY_CODE as Record<string, string>)[b.store ?? ""] || b.store}
+                                </TableCell>
+                              )}
+                              <TableCell className="font-medium text-foreground">
+                                <span className="font-mono text-xs font-bold text-foreground inline-flex items-center gap-1.5">
+                                  <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
+                                  {fmtTime12Hour(b.bill_time)}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right font-semibold text-emerald-600 dark:text-emerald-400">
+                                {fmtCurrencyOrZero(b.net_amount)}
+                              </TableCell>
+                              <TableCell className="text-right font-mono font-medium">{fmtNumberOrZero(b.bill_quantity)}</TableCell>
+                              <TableCell className="text-right">
+                                <span className="rounded-md bg-muted/60 border border-border px-2 py-0.5 text-xs text-muted-foreground font-medium">
+                                  {b.time_slot || (b.bill_time ? timeSlotForHHMM(toTimeHHMM(b.bill_time)) : null) || "—"}
+                                </span>
+                              </TableCell>
+                              {isAdmin && rangeMode === "single" && (
+                                <TableCell className="text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleOpenEditBill(b)}
+                                      className="h-7 w-7 p-0 text-blue-500 hover:text-blue-600 hover:bg-blue-500/10 dark:text-blue-400 dark:hover:text-blue-300"
+                                      title="Edit this bill log entry"
+                                    >
+                                      <Edit2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        const targetStore = b.store || (effectiveStore === "ALL" ? "NM" : effectiveStore);
+                                        if (confirm(`Delete bill entry #${b.row} (${fmtCurrencyOrZero(b.net_amount)}) from store ${targetStore}?`)) {
+                                          deleteBillMutation.mutate({ store: targetStore, row: b.row });
+                                        }
+                                      }}
+                                      className="h-7 w-7 p-0 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 dark:text-rose-400 dark:hover:text-rose-300"
+                                      title="Delete this bill log entry"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              )}
+                            </TableRow>
+                          ))}
+                          {filteredBills.length === 0 && (
+                            <TableRow>
+                              <TableCell
+                                colSpan={billColSpan}
+                                className="h-20 text-center text-muted-foreground text-xs"
+                              >
+                                No billing entries logged for this date / filter.
+                              </TableCell>
+                            </TableRow>
                           )}
-                          {effectiveStore === "ALL" && (
-                            <TableCell className="font-semibold text-xs text-blue-600 dark:text-blue-300">
-                              {(STORE_NAME_BY_CODE as Record<string, string>)[b.store ?? ""] || b.store}
-                            </TableCell>
-                          )}
-                          <TableCell className="font-medium text-foreground">
-                            <span className="font-mono text-xs font-bold text-foreground inline-flex items-center gap-1.5">
-                              <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
-                              {fmtTime12Hour(b.bill_time)}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right font-semibold text-emerald-600 dark:text-emerald-400">
-                            {fmtCurrencyOrZero(b.net_amount)}
-                          </TableCell>
-                          <TableCell className="text-right font-mono font-medium">{fmtNumberOrZero(b.bill_quantity)}</TableCell>
-                          <TableCell className="text-right">
-                            <span className="rounded-md bg-muted/60 border border-border px-2 py-0.5 text-xs text-muted-foreground font-medium">
-                              {b.time_slot || (b.bill_time ? timeSlotForHHMM(toTimeHHMM(b.bill_time)) : null) || "—"}
-                            </span>
-                          </TableCell>
-                          {isAdmin && rangeMode === "single" && (
-                            <TableCell className="text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleOpenEditBill(b)}
-                                  className="h-7 w-7 p-0 text-blue-500 hover:text-blue-600 hover:bg-blue-500/10 dark:text-blue-400 dark:hover:text-blue-300"
-                                  title="Edit this bill log entry"
-                                >
-                                  <Edit2 className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    const targetStore = b.store || (effectiveStore === "ALL" ? "NM" : effectiveStore);
-                                    if (confirm(`Delete bill entry #${b.row} (${fmtCurrencyOrZero(b.net_amount)}) from store ${targetStore}?`)) {
-                                      deleteBillMutation.mutate({ store: targetStore, row: b.row });
-                                    }
-                                  }}
-                                  className="h-7 w-7 p-0 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 dark:text-rose-400 dark:hover:text-rose-300"
-                                  title="Delete this bill log entry"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          )}
-                        </TableRow>
-                      ))}
-                      {filteredBills.length === 0 && (
-                        <TableRow>
-                          <TableCell
-                            colSpan={
-                              effectiveStore === "ALL"
-                                ? (isMultiDay ? 7 : (isAdmin && rangeMode === "single" ? 7 : 6))
-                                : (isMultiDay ? 6 : (isAdmin && rangeMode === "single" ? 6 : 5))
-                            }
-                            className="h-20 text-center text-muted-foreground text-xs"
-                          >
-                            No billing entries logged for this date / filter.
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </TabsContent>
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </TabsContent>
 
-              {/* Footfall Logs Tab */}
-              <TabsContent value="footfall">
-                <div className="overflow-x-auto rounded-lg border border-border">
-                  <Table>
-                    <TableHeader className="bg-muted/50">
-                      <TableRow>
-                        <TableHead className="w-16">Row #</TableHead>
-                        {isMultiDay && <TableHead>Date</TableHead>}
-                        {effectiveStore === "ALL" && <TableHead>Store</TableHead>}
-                        <TableHead>Entry Time</TableHead>
-                        <TableHead className="text-right">Footfall Count</TableHead>
-                        <TableHead className="text-right">Time Slot</TableHead>
-                        {isAdmin && rangeMode === "single" && (
-                          <TableHead className="text-right w-24">Actions</TableHead>
-                        )}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredFootfall.map((f) => (
-                        <TableRow key={`${f.store ?? effectiveStore}-${f.date ?? ""}-${f.row}`} className="hover:bg-muted/30">
-                          <TableCell className="font-mono text-xs text-muted-foreground">{f.row}</TableCell>
-                          {isMultiDay && (
-                            <TableCell className="font-mono text-xs text-muted-foreground">{fmtDateDot(f.date ?? effectiveStartDate)}</TableCell>
+                  {/* Footfall Logs Tab */}
+                  <TabsContent value="footfall">
+                    <div className="overflow-x-auto rounded-lg border border-border">
+                      <Table>
+                        <TableHeader className="bg-muted/50">
+                          <TableRow>
+                            <TableHead className="w-16">Row #</TableHead>
+                            {isMultiDay && <TableHead>Date</TableHead>}
+                            {effectiveStore === "ALL" && <TableHead>Store</TableHead>}
+                            <TableHead>Entry Time</TableHead>
+                            <TableHead className="text-right">Footfall Count</TableHead>
+                            <TableHead className="text-right">Time Slot</TableHead>
+                            {isAdmin && rangeMode === "single" && (
+                              <TableHead className="text-right w-24">Actions</TableHead>
+                            )}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredFootfall.map((f) => (
+                            <TableRow key={`${f.store ?? effectiveStore}-${f.date ?? ""}-${f.row}`} className="hover:bg-muted/30">
+                              <TableCell className="font-mono text-xs text-muted-foreground">{f.row}</TableCell>
+                              {isMultiDay && (
+                                <TableCell className="font-mono text-xs text-muted-foreground">{fmtDateDot(f.date ?? effectiveStartDate)}</TableCell>
+                              )}
+                              {effectiveStore === "ALL" && (
+                                <TableCell className="font-semibold text-xs text-blue-600 dark:text-blue-300">
+                                  {(STORE_NAME_BY_CODE as Record<string, string>)[f.store ?? ""] || f.store}
+                                </TableCell>
+                              )}
+                              <TableCell className="font-medium text-foreground">
+                                <span className="font-mono text-xs font-bold text-foreground inline-flex items-center gap-1.5">
+                                  <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
+                                  {fmtTime12Hour(f.time)}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right font-semibold text-purple-600 dark:text-purple-300 font-mono">
+                                {fmtNumberOrZero(f.footfall)}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <span className="rounded-md bg-muted/60 border border-border px-2 py-0.5 text-xs text-muted-foreground font-medium">
+                                  {f.time_slot || (f.time ? timeSlotForHHMM(toTimeHHMM(f.time)) : null) || "—"}
+                                </span>
+                              </TableCell>
+                              {isAdmin && rangeMode === "single" && (
+                                <TableCell className="text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleOpenEditFootfall(f)}
+                                      className="h-7 w-7 p-0 text-blue-500 hover:text-blue-600 hover:bg-blue-500/10 dark:text-blue-400 dark:hover:text-blue-300"
+                                      title="Edit this footfall log entry"
+                                    >
+                                      <Edit2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        const targetStore = f.store || (effectiveStore === "ALL" ? "NM" : effectiveStore);
+                                        if (confirm(`Delete footfall entry #${f.row} (${f.footfall} visitors) from store ${targetStore}?`)) {
+                                          deleteFootfallMutation.mutate({ store: targetStore, row: f.row });
+                                        }
+                                      }}
+                                      className="h-7 w-7 p-0 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 dark:text-rose-400 dark:hover:text-rose-300"
+                                      title="Delete this footfall log entry"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              )}
+                            </TableRow>
+                          ))}
+                          {filteredFootfall.length === 0 && (
+                            <TableRow>
+                              <TableCell
+                                colSpan={footfallColSpan}
+                                className="h-20 text-center text-muted-foreground text-xs"
+                              >
+                                No footfall entries logged for this date / filter.
+                              </TableCell>
+                            </TableRow>
                           )}
-                          {effectiveStore === "ALL" && (
-                            <TableCell className="font-semibold text-xs text-blue-600 dark:text-blue-300">
-                              {(STORE_NAME_BY_CODE as Record<string, string>)[f.store ?? ""] || f.store}
-                            </TableCell>
-                          )}
-                          <TableCell className="font-medium text-foreground">
-                            <span className="font-mono text-xs font-bold text-foreground inline-flex items-center gap-1.5">
-                              <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
-                              {fmtTime12Hour(f.time)}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right font-semibold text-purple-600 dark:text-purple-300 font-mono">
-                            {fmtNumberOrZero(f.footfall)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <span className="rounded-md bg-muted/60 border border-border px-2 py-0.5 text-xs text-muted-foreground font-medium">
-                              {f.time_slot || (f.time ? timeSlotForHHMM(toTimeHHMM(f.time)) : null) || "—"}
-                            </span>
-                          </TableCell>
-                          {isAdmin && rangeMode === "single" && (
-                            <TableCell className="text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleOpenEditFootfall(f)}
-                                  className="h-7 w-7 p-0 text-blue-500 hover:text-blue-600 hover:bg-blue-500/10 dark:text-blue-400 dark:hover:text-blue-300"
-                                  title="Edit this footfall log entry"
-                                >
-                                  <Edit2 className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    const targetStore = f.store || (effectiveStore === "ALL" ? "NM" : effectiveStore);
-                                    if (confirm(`Delete footfall entry #${f.row} (${f.footfall} visitors) from store ${targetStore}?`)) {
-                                      deleteFootfallMutation.mutate({ store: targetStore, row: f.row });
-                                    }
-                                  }}
-                                  className="h-7 w-7 p-0 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 dark:text-rose-400 dark:hover:text-rose-300"
-                                  title="Delete this footfall log entry"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          )}
-                        </TableRow>
-                      ))}
-                      {filteredFootfall.length === 0 && (
-                        <TableRow>
-                          <TableCell
-                            colSpan={
-                              effectiveStore === "ALL"
-                                ? (isMultiDay ? 6 : (isAdmin && rangeMode === "single" ? 6 : 5))
-                                : (isMultiDay ? 5 : (isAdmin && rangeMode === "single" ? 5 : 4))
-                            }
-                            className="h-20 text-center text-muted-foreground text-xs"
-                          >
-                            No footfall entries logged for this date / filter.
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </TabsContent>
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </TabsContent>
 
-              {/* Sales / NOB Logs Tab */}
-              <TabsContent value="nob">
-                <div className="overflow-x-auto rounded-lg border border-border">
-                  <Table>
-                    <TableHeader className="bg-muted/50">
-                      <TableRow>
-                        <TableHead className="w-16">Row #</TableHead>
-                        {isMultiDay && <TableHead>Date</TableHead>}
-                        {effectiveStore === "ALL" && <TableHead>Store</TableHead>}
-                        <TableHead>Entry Time</TableHead>
-                        <TableHead className="text-right">NOB (Buyers) Count</TableHead>
-                        <TableHead className="text-right">Time Slot</TableHead>
-                        {isAdmin && rangeMode === "single" && (
-                          <TableHead className="text-right w-24">Actions</TableHead>
-                        )}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredNob.map((n) => (
-                        <TableRow key={`${n.store ?? effectiveStore}-${n.date ?? ""}-${n.row}`} className="hover:bg-muted/30">
-                          <TableCell className="font-mono text-xs text-muted-foreground">{n.row}</TableCell>
-                          {isMultiDay && (
-                            <TableCell className="font-mono text-xs text-muted-foreground">{fmtDateDot(n.date ?? effectiveStartDate)}</TableCell>
+                  {/* Sales / NOB Logs Tab */}
+                  <TabsContent value="nob">
+                    <div className="overflow-x-auto rounded-lg border border-border">
+                      <Table>
+                        <TableHeader className="bg-muted/50">
+                          <TableRow>
+                            <TableHead className="w-16">Row #</TableHead>
+                            {isMultiDay && <TableHead>Date</TableHead>}
+                            {effectiveStore === "ALL" && <TableHead>Store</TableHead>}
+                            <TableHead>Entry Time</TableHead>
+                            <TableHead className="text-right">NOB (Buyers) Count</TableHead>
+                            <TableHead className="text-right">Time Slot</TableHead>
+                            {isAdmin && rangeMode === "single" && (
+                              <TableHead className="text-right w-24">Actions</TableHead>
+                            )}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredNob.map((n) => (
+                            <TableRow key={`${n.store ?? effectiveStore}-${n.date ?? ""}-${n.row}`} className="hover:bg-muted/30">
+                              <TableCell className="font-mono text-xs text-muted-foreground">{n.row}</TableCell>
+                              {isMultiDay && (
+                                <TableCell className="font-mono text-xs text-muted-foreground">{fmtDateDot(n.date ?? effectiveStartDate)}</TableCell>
+                              )}
+                              {effectiveStore === "ALL" && (
+                                <TableCell className="font-semibold text-xs text-blue-600 dark:text-blue-300">
+                                  {(STORE_NAME_BY_CODE as Record<string, string>)[n.store ?? ""] || n.store}
+                                </TableCell>
+                              )}
+                              <TableCell className="font-medium text-foreground">
+                                <span className="font-mono text-xs font-bold text-foreground inline-flex items-center gap-1.5">
+                                  <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
+                                  {fmtTime12Hour(n.time)}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right font-semibold text-blue-600 dark:text-blue-400 font-mono">
+                                {fmtNumberOrZero(n.nob)}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <span className="rounded-md bg-muted/60 border border-border px-2 py-0.5 text-xs text-muted-foreground font-medium">
+                                  {n.time_slot || (n.time ? timeSlotForHHMM(toTimeHHMM(n.time)) : null) || "—"}
+                                </span>
+                              </TableCell>
+                              {isAdmin && rangeMode === "single" && (
+                                <TableCell className="text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleOpenEditNob(n)}
+                                      className="h-7 w-7 p-0 text-blue-500 hover:text-blue-600 hover:bg-blue-500/10 dark:text-blue-400 dark:hover:text-blue-300"
+                                      title="Edit this NOB log entry"
+                                    >
+                                      <Edit2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        const targetStore = n.store || (effectiveStore === "ALL" ? "NM" : effectiveStore);
+                                        if (confirm(`Delete NOB entry #${n.row} (${n.nob} buyers) from store ${targetStore}?`)) {
+                                          deleteNobMutation.mutate({ store: targetStore, row: n.row });
+                                        }
+                                      }}
+                                      className="h-7 w-7 p-0 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 dark:text-rose-400 dark:hover:text-rose-300"
+                                      title="Delete this NOB log entry"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              )}
+                            </TableRow>
+                          ))}
+                          {filteredNob.length === 0 && (
+                            <TableRow>
+                              <TableCell
+                                colSpan={nobColSpan}
+                                className="h-20 text-center text-muted-foreground text-xs"
+                              >
+                                No NOB / sales buyer entries logged for this date / filter.
+                              </TableCell>
+                            </TableRow>
                           )}
-                          {effectiveStore === "ALL" && (
-                            <TableCell className="font-semibold text-xs text-blue-600 dark:text-blue-300">
-                              {(STORE_NAME_BY_CODE as Record<string, string>)[n.store ?? ""] || n.store}
-                            </TableCell>
-                          )}
-                          <TableCell className="font-medium text-foreground">
-                            <span className="font-mono text-xs font-bold text-foreground inline-flex items-center gap-1.5">
-                              <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
-                              {fmtTime12Hour(n.time)}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right font-semibold text-blue-600 dark:text-blue-400 font-mono">
-                            {fmtNumberOrZero(n.nob)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <span className="rounded-md bg-muted/60 border border-border px-2 py-0.5 text-xs text-muted-foreground font-medium">
-                              {n.time_slot || (n.time ? timeSlotForHHMM(toTimeHHMM(n.time)) : null) || "—"}
-                            </span>
-                          </TableCell>
-                          {isAdmin && rangeMode === "single" && (
-                            <TableCell className="text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleOpenEditNob(n)}
-                                  className="h-7 w-7 p-0 text-blue-500 hover:text-blue-600 hover:bg-blue-500/10 dark:text-blue-400 dark:hover:text-blue-300"
-                                  title="Edit this NOB log entry"
-                                >
-                                  <Edit2 className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    const targetStore = n.store || (effectiveStore === "ALL" ? "NM" : effectiveStore);
-                                    if (confirm(`Delete NOB entry #${n.row} (${n.nob} buyers) from store ${targetStore}?`)) {
-                                      deleteNobMutation.mutate({ store: targetStore, row: n.row });
-                                    }
-                                  }}
-                                  className="h-7 w-7 p-0 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 dark:text-rose-400 dark:hover:text-rose-300"
-                                  title="Delete this NOB log entry"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          )}
-                        </TableRow>
-                      ))}
-                      {filteredNob.length === 0 && (
-                        <TableRow>
-                          <TableCell
-                            colSpan={
-                              effectiveStore === "ALL"
-                                ? (isMultiDay ? 6 : (isAdmin && rangeMode === "single" ? 6 : 5))
-                                : (isMultiDay ? 5 : (isAdmin && rangeMode === "single" ? 5 : 4))
-                            }
-                            className="h-20 text-center text-muted-foreground text-xs"
-                          >
-                            No NOB / sales buyer entries logged for this date / filter.
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </TabsContent>
-            </Tabs>
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              );
+            })()}
           </Section>
         </>
       )}

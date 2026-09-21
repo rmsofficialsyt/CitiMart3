@@ -103,7 +103,7 @@ export function NavigationSidebar({
     { id: "dashboard", label: t.navDashboard || "Dashboard", Icon: LayoutDashboard, tag: "Live" },
     ...(!isAdmin && !isOverall ? [{ id: "manual" as DailyView, label: t.navManualEntry || "Manual Data Entry", Icon: FileSpreadsheet, tag: "Form" }] : []),
     ...(isAdmin && !isOverall ? [{ id: "target" as DailyView, label: t.navSalesTarget || "Sales Target", Icon: Target, tag: "Admin" }] : []),
-    { id: "history", label: t.navHistory || "History", Icon: History, tag: "Audit" },
+    { id: "history", label: t.navHistory || "History and Analysis", Icon: History, tag: "Analysis" },
   ];
 
   const userInitial = user?.username ? user.username.charAt(0).toUpperCase() : "U";

@@ -13,6 +13,18 @@ export function todayLocalDate(): string {
   return IST_ISO_DATE.format(new Date());
 }
 
+/**
+ * Timezone-safe date arithmetic for YYYY-MM-DD ISO strings.
+ * Avoids any local timezone/UTC midnight boundary shifts.
+ */
+export function addDaysISO(isoDate: string, days: number): string {
+  if (!isoDate) return todayLocalDate();
+  const [y, m, d] = isoDate.split("-").map(Number);
+  if (!y || !m || !d) return todayLocalDate();
+  const date = new Date(Date.UTC(y, m - 1, d + days));
+  return date.toISOString().split("T")[0];
+}
+
 const IST_TIME_HHMM = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Asia/Kolkata",
   hour: "2-digit",
