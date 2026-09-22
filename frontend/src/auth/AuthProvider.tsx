@@ -8,6 +8,7 @@ export interface AuthUser {
   username: string;
   role: Role;
   storeCode: StoreCode | null;
+  switchedFrom?: string | null;
 }
 
 interface AuthContextShape {
@@ -16,7 +17,7 @@ interface AuthContextShape {
   loading: boolean;
   isSwitchedFromAdmin: boolean;
   signIn: (username: string, password: string) => Promise<void>;
-  switchAccount: (targetUsername: string) => Promise<void>;
+  switchAccount: (targetUsername?: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -47,6 +48,7 @@ function userFromToken(token: string): AuthUser | null {
     username: (claims?.username as string) ?? "",
     role,
     storeCode: role === "manager" ? ((claims?.store_code as StoreCode) ?? null) : null,
+    switchedFrom: (claims?.switched_from as string) ?? null,
   };
 }
 
@@ -96,13 +98,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [apply]);
 
-  const [isSwitchedFromAdmin, setIsSwitchedFromAdmin] = useState(() => {
-    try {
-      return localStorage.getItem("citimart.admin_switched") === "true";
-    } catch {
-      return false;
-    }
-  });
+  // Derived directly from the cryptographic JWT claims in the user object
+  const isSwitchedFromAdmin = Boolean(user?.switchedFrom);
 
   const signIn = useCallback(
     async (username: string, password: string) => {
@@ -116,10 +113,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(body?.detail ?? "Invalid username or password.");
       }
       const body = (await res.json()) as { access_token: string; expires_in: number };
-      try {
-        localStorage.removeItem("citimart.admin_switched");
-      } catch {}
-      setIsSwitchedFromAdmin(false);
       writeStored({ access_token: body.access_token, expires_at: Math.floor(Date.now() / 1000) + body.expires_in });
       apply(body.access_token);
     },
@@ -127,29 +120,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const switchAccount = useCallback(
-    async (targetUsername: string) => {
+    async (targetUsername?: string) => {
+      const payload = targetUsername ? { username: targetUsername } : {};
       const res = await fetch(apiUrl("/api/auth/switch-account"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ username: targetUsername }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { detail?: string } | null;
         throw new Error(body?.detail ?? "Failed to switch account.");
       }
       const body = (await res.json()) as { access_token: string; expires_in: number };
-      const nextIsSwitched = targetUsername !== "ADMINISTRATOR";
-      try {
-        if (nextIsSwitched) {
-          localStorage.setItem("citimart.admin_switched", "true");
-        } else {
-          localStorage.removeItem("citimart.admin_switched");
-        }
-      } catch {}
-      setIsSwitchedFromAdmin(nextIsSwitched);
       writeStored({ access_token: body.access_token, expires_at: Math.floor(Date.now() / 1000) + body.expires_in });
       apply(body.access_token);
     },
@@ -157,10 +142,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
-    try {
-      localStorage.removeItem("citimart.admin_switched");
-    } catch {}
-    setIsSwitchedFromAdmin(false);
     writeStored(null);
     apply(null);
   }, [apply]);
@@ -168,10 +149,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Let the fetch layers bounce us out on a 401.
   useEffect(() => {
     setUnauthorizedHandler(() => {
-      try {
-        localStorage.removeItem("citimart.admin_switched");
-      } catch {}
-      setIsSwitchedFromAdmin(false);
       writeStored(null);
       apply(null);
     });

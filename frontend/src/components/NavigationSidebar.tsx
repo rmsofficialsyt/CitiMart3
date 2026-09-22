@@ -150,8 +150,8 @@ export function NavigationSidebar({
                   try {
                     await switchAccount("ADMINISTRATOR");
                     toast.success("Returned to Administrator view");
-                  } catch {
-                    toast.error("Failed to return to Administrator");
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : "Failed to return to Administrator");
                   }
                 }}
                 className="shrink-0 rounded-lg bg-amber-500 hover:bg-amber-400 px-2.5 py-1 text-[11px] font-bold text-slate-950 shadow transition cursor-pointer"

@@ -129,7 +129,7 @@ def test_switch_account_flow(client, admin_headers, nw_headers):
 
     switched_hb_headers = {"Authorization": f"Bearer {hb_data['access_token']}"}
 
-    # 5. Switched manager can RETURN to Administrator
+    # 5. Switched manager can RETURN to Administrator (explicit uppercase)
     return_admin = client.post(
         "/api/auth/switch-account",
         headers=switched_hb_headers,
@@ -139,3 +139,21 @@ def test_switch_account_flow(client, admin_headers, nw_headers):
     admin_data = return_admin.json()
     assert admin_data["user"]["role"] == "admin"
     assert admin_data["user"].get("switched_from") is None
+
+    # 6. Switched manager can RETURN to Administrator with empty payload (defaults to root admin)
+    return_admin_empty = client.post(
+        "/api/auth/switch-account",
+        headers=switched_hb_headers,
+        json={},
+    )
+    assert return_admin_empty.status_code == 200
+    assert return_admin_empty.json()["user"]["role"] == "admin"
+
+    # 7. Switched manager can RETURN to Administrator with lowercase 'administrator'
+    return_admin_lower = client.post(
+        "/api/auth/switch-account",
+        headers=switched_hb_headers,
+        json={"username": "administrator"},
+    )
+    assert return_admin_lower.status_code == 200
+    assert return_admin_lower.json()["user"]["role"] == "admin"

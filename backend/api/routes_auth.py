@@ -101,6 +101,10 @@ def switch_account(
     elif username:
         target_username = username.strip()
 
+    # If no target username is provided and the caller is in a switched session, default to returning to the root admin
+    if not target_username and switched_from:
+        target_username = switched_from
+
     if not target_username:
         raise HTTPException(status_code=400, detail="Missing required 'username' parameter.")
 
