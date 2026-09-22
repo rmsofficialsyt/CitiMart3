@@ -38,10 +38,15 @@ class CurrentUser:
     username: str
     role: str
     store_code: str | None  # None for admin
+    switched_from: str | None = None  # Original admin username if switched
 
     @property
     def is_admin(self) -> bool:
         return self.role == "admin"
+
+    @property
+    def is_switched(self) -> bool:
+        return bool(self.switched_from)
 
     def allowed_stores(self, all_codes: list[str]) -> list[str]:
         """Admin -> every store in the dataset. Manager -> exactly their one."""
@@ -71,6 +76,7 @@ def get_current_user(
     role = claims.get("role")
     store_code = claims.get("store_code")
     username = claims.get("username") or ""
+    switched_from = claims.get("switched_from")
 
     if role not in _ROLES:
         raise HTTPException(status_code=403, detail="Account has no role assigned.")
@@ -79,7 +85,13 @@ def get_current_user(
     if role == "admin":
         store_code = None
 
-    return CurrentUser(sub=str(claims["sub"]), username=str(username), role=role, store_code=store_code)
+    return CurrentUser(
+        sub=str(claims["sub"]),
+        username=str(username),
+        role=role,
+        store_code=store_code,
+        switched_from=str(switched_from) if switched_from else None,
+    )
 
 
 def require_admin(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:

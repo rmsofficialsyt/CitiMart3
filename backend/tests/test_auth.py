@@ -90,3 +90,52 @@ def test_manager_blocked_from_admin_only_router(client, nw_headers):
 
 def test_admin_allowed_on_admin_only_router(client, admin_headers):
     assert client.get("/api/kpi-thresholds", headers=admin_headers).status_code == 200
+
+
+def test_switch_account_flow(client, admin_headers, nw_headers):
+    # 1. Unauthenticated request -> 401
+    unauth = client.post("/api/auth/switch-account", json={"username": "CITIMART - NEW MARKET"})
+    assert unauth.status_code == 401
+
+    # 2. Standard manager attempting to switch -> 403
+    mgr_switch = client.post("/api/auth/switch-account", headers=nw_headers, json={"username": "ADMINISTRATOR"})
+    assert mgr_switch.status_code == 403
+
+    # 3. Admin switches to Manager account -> 200 with switched token
+    admin_to_nm = client.post(
+        "/api/auth/switch-account",
+        headers=admin_headers,
+        json={"username": "CITIMART - NEW MARKET"},
+    )
+    assert admin_to_nm.status_code == 200
+    nm_data = admin_to_nm.json()
+    assert nm_data["user"]["role"] == "manager"
+    assert nm_data["user"]["store_code"] == "NM"
+    assert nm_data["user"]["switched_from"] == "ADMINISTRATOR"
+
+    switched_nm_headers = {"Authorization": f"Bearer {nm_data['access_token']}"}
+
+    # 4. Switched manager can switch to another manager (HB)
+    nm_to_hb = client.post(
+        "/api/auth/switch-account",
+        headers=switched_nm_headers,
+        json={"username": "CITIMART - HATIBAGAN"},
+    )
+    assert nm_to_hb.status_code == 200
+    hb_data = nm_to_hb.json()
+    assert hb_data["user"]["role"] == "manager"
+    assert hb_data["user"]["store_code"] == "HB"
+    assert hb_data["user"]["switched_from"] == "ADMINISTRATOR"
+
+    switched_hb_headers = {"Authorization": f"Bearer {hb_data['access_token']}"}
+
+    # 5. Switched manager can RETURN to Administrator
+    return_admin = client.post(
+        "/api/auth/switch-account",
+        headers=switched_hb_headers,
+        json={"username": "ADMINISTRATOR"},
+    )
+    assert return_admin.status_code == 200
+    admin_data = return_admin.json()
+    assert admin_data["user"]["role"] == "admin"
+    assert admin_data["user"].get("switched_from") is None

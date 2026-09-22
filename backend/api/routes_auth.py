@@ -35,7 +35,7 @@ class LoginBody(BaseModel):
     password: str
 
 
-def issue_token(user: dict) -> dict:
+def issue_token(user: dict, switched_from: str | None = None) -> dict:
     """Build the login response for an authenticated `users` document."""
     now = int(time.time())
     ttl = env.jwt_ttl_seconds
@@ -47,16 +47,21 @@ def issue_token(user: dict) -> dict:
         "role": user["role"],
         "store_code": user.get("store_code"),
     }
+    if switched_from:
+        claims["switched_from"] = switched_from
     token = jwt.encode(claims, env.jwt_secret, algorithm="HS256")
+    user_payload = {
+        "username": user["username"],
+        "role": user["role"],
+        "store_code": user.get("store_code"),
+    }
+    if switched_from:
+        user_payload["switched_from"] = switched_from
     return {
         "access_token": token,
         "token_type": "bearer",
         "expires_in": ttl,
-        "user": {
-            "username": user["username"],
-            "role": user["role"],
-            "store_code": user.get("store_code"),
-        },
+        "user": user_payload,
     }
 
 
@@ -69,31 +74,47 @@ def login(body: LoginBody, db: Database = Depends(get_db)) -> dict:
 
 
 class SwitchAccountBody(BaseModel):
-    username: str
+    username: str | None = None
 
 
 @router.post("/switch-account")
 @router.post("/switch-account/")
 def switch_account(
-    body: SwitchAccountBody,
+    body: SwitchAccountBody | None = None,
+    username: str | None = None,
     db: Database = Depends(get_db),
     caller: CurrentUser = Depends(get_current_user),
 ) -> dict:
-    """Switch to another account's context. Requires an authenticated admin
-    caller — password-less account switching is an admin-only privilege used
-    for the "View as Store Manager" feature in the frontend. A manager
-    calling this gets 403."""
-    if not caller.is_admin:
+    """Switch to another account's context. Requires either:
+    1) An authenticated admin caller (caller.is_admin is True), OR
+    2) An active switched session originally initiated by an admin (caller.switched_from is set).
+    A standard manager account calling this without being in a switched admin session gets 403."""
+    is_admin = caller.is_admin
+    switched_from = caller.switched_from
+
+    if not is_admin and not switched_from:
         raise HTTPException(status_code=403, detail="Only administrators can switch accounts.")
 
-    target_username = body.username.strip()
+    target_username = ""
+    if body and body.username:
+        target_username = body.username.strip()
+    elif username:
+        target_username = username.strip()
+
     if not target_username:
         raise HTTPException(status_code=400, detail="Missing required 'username' parameter.")
 
     user = get_user(db, target_username)
     if user is None:
         raise HTTPException(status_code=404, detail=f"User account '{target_username}' not found.")
-    return issue_token(user)
+
+    # Root admin identity
+    root_admin = caller.username if is_admin else switched_from
+
+    # If switching back to the admin account, clear the switched_from flag
+    new_switched_from = None if user.get("role") == "admin" else root_admin
+
+    return issue_token(user, switched_from=new_switched_from)
 
 
 
