@@ -1,4 +1,4 @@
-"""Auth endpoints -- mounted WITHOUT the global auth gate (app.py).
+"""Auth endpoints -- login is public; switch-account requires an admin JWT.
 
 `POST /api/auth/login` -- validates a username + password against the MongoDB
                           `users` collection (src/user_store.py) and, on
@@ -6,6 +6,9 @@
                           env.jwt_ttl_seconds) carrying role / store_code /
                           username. api/auth.py verifies that token on every
                           subsequent request with no further DB access.
+
+`POST /api/auth/switch-account` -- admin-only password-less account switching
+                                   for the "View as Store Manager" UI feature.
 
 There is exactly one auth mode now: MongoDB-backed credentials + local JWT.
 (The earlier Supabase path has been removed.)
@@ -22,6 +25,7 @@ from pymongo.database import Database
 from config.env import env
 from db.session import get_db
 from src.user_store import get_user, verify_password
+from api.auth import CurrentUser, get_current_user
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -65,22 +69,24 @@ def login(body: LoginBody, db: Database = Depends(get_db)) -> dict:
 
 
 class SwitchAccountBody(BaseModel):
-    username: str | None = None
+    username: str
 
 
-@router.api_route("/switch-account", methods=["GET", "POST", "OPTIONS"])
-@router.api_route("/switch-account/", methods=["GET", "POST", "OPTIONS"])
+@router.post("/switch-account")
+@router.post("/switch-account/")
 def switch_account(
-    body: SwitchAccountBody | None = None,
-    username: str | None = None,
+    body: SwitchAccountBody,
     db: Database = Depends(get_db),
+    caller: CurrentUser = Depends(get_current_user),
 ) -> dict:
-    target_username = None
-    if body and body.username:
-        target_username = body.username.strip()
-    elif username:
-        target_username = username.strip()
+    """Switch to another account's context. Requires an authenticated admin
+    caller — password-less account switching is an admin-only privilege used
+    for the "View as Store Manager" feature in the frontend. A manager
+    calling this gets 403."""
+    if not caller.is_admin:
+        raise HTTPException(status_code=403, detail="Only administrators can switch accounts.")
 
+    target_username = body.username.strip()
     if not target_username:
         raise HTTPException(status_code=400, detail="Missing required 'username' parameter.")
 

@@ -457,4 +457,99 @@ export interface UpdateDirectivePayload {
   active?: boolean;
 }
 
+// ==========================================
+// Required Product Requisition Types
+// ==========================================
+
+export interface RequisitionItem {
+  sl_no: number;
+  division: string;
+  section: string;
+  department: string;
+  product_required: string;
+  barcode_details: string;
+  brand: string;
+  mrp: string;
+  time_required: string;
+  remarks: string;
+}
+
+export type RequisitionStatus = "Pending" | "In Review" | "Approved" | "In Transit" | "Fulfilled" | "Rejected";
+
+export interface RequisitionSlip {
+  _id: number;
+  req_code: string;
+  store_code: "NM" | "HB" | "CHW";
+  store_name: string;
+  store_name_full: string;
+  date: string;
+  created_at: string;
+  updated_at: string;
+  created_by_user: string;
+  created_by_name: string;
+  created_by_role: string;
+  target_recipient: string;
+  priority: "Urgent" | "High" | "Normal";
+  status: RequisitionStatus;
+  remarks_general: string;
+  items: RequisitionItem[];
+  item_count: number;
+  admin_remarks: string;
+  actioned_by?: string;
+  actioned_at?: string;
+}
+
+export interface RequisitionsListResponse {
+  status: string;
+  count: number;
+  requisitions: RequisitionSlip[];
+}
+
+export interface RequisitionLineOption {
+  division: string;
+  section: string;
+  department: string;
+  label: string;
+  raw: string;
+}
+
+export interface CategoryHierarchyResponse {
+  tree: Record<string, Record<string, string[]>>;
+  divisions: string[];
+  sections: string[];
+  departments: string[];
+  lines?: RequisitionLineOption[];
+  dept_meta?: Record<string, { division: string; section: string }>;
+  sec_meta?: Record<string, string[]>;
+  total_divisions?: number;
+  total_sections?: number;
+  total_departments?: number;
+  total_lines?: number;
+}
+
+export interface CreateRequisitionPayload {
+  store_code: "NM" | "HB" | "CHW";
+  date?: string;
+  items: {
+    sl_no?: number;
+    division: string;
+    section: string;
+    department: string;
+    product_required?: string;
+    barcode_details: string;
+    brand: string;
+    mrp?: string;
+    time_required: string;
+    remarks?: string;
+  }[];
+  priority?: "Urgent" | "High" | "Normal";
+  remarks_general?: string;
+}
+
+export interface UpdateRequisitionStatusPayload {
+  status: RequisitionStatus;
+  admin_remarks?: string;
+}
+
+
 

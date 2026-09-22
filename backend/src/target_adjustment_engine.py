@@ -109,12 +109,11 @@ def compute_target_adjustment(
         rolling_start = target_date - timedelta(days=max(60, recovery_window * 2))
         horizon_start = max(rolling_start, policy_start_date)
 
-    # Also check earliest recorded date in DB
-    all_recorded_dates = _get_recorded_dates(db, store, horizon_start, target_date)
-    if not all_recorded_dates:
-        today_target, today_sales = _get_store_day_facts(db, store, target_date)
-        if today_target is None and today_sales == 0.0:
-            return None
+    # Pre-fetch all targets and sales in a single batch across the entire horizon
+    date_facts = _batch_get_store_day_facts(db, store, horizon_start, target_date)
+    has_any_data = any(t is not None or s > 0 for t, s in date_facts.values())
+    if not has_any_data:
+        return None
 
     # Ensure all intermediate dates from horizon_start to target_date exist sequentially
     cur = horizon_start
@@ -131,7 +130,7 @@ def compute_target_adjustment(
 
     for d in date_sequence:
         d_iso = d.isoformat()
-        orig_target, net_sales = _get_store_day_facts(db, store, d)
+        orig_target, net_sales = date_facts.get(d_iso, (None, 0.0))
         is_today = (d == target_date)
 
         # A. Filter and evaluate active buckets for date d
@@ -366,34 +365,55 @@ def compute_target_adjustment(
     }
 
 
+def _batch_get_store_day_facts(
+    db: Database, store: str, start_date: date, end_date: date
+) -> dict[str, tuple[float | None, float]]:
+    """Batch-fetches (original_target, net_sales) for all dates in [start_date, end_date]
+    using only 2 database queries total instead of 2 queries per day.
+    """
+    start_iso = start_date.isoformat()
+    end_iso = end_date.isoformat()
+    target_query: dict = {"entry_date": {"$gte": start_iso, "$lte": end_iso}}
+    bill_match: dict = {"entry_date": {"$gte": start_iso, "$lte": end_iso}}
+    if store != "ALL":
+        target_query["store_code"] = store
+        bill_match["store_code"] = store
+
+    # 1. Fetch all targets in date range
+    targets_by_date: dict[str, list[float]] = {}
+    for doc in db[TARGETS].find(target_query, {"entry_date": 1, "sales_target": 1}):
+        d_iso = doc.get("entry_date")
+        st = doc.get("sales_target")
+        if d_iso and st is not None:
+            targets_by_date.setdefault(d_iso, []).append(float(st))
+
+    # 2. Aggregate all bill sales grouped by entry_date in date range
+    pipeline = [
+        {"$match": bill_match},
+        {"$group": {"_id": "$entry_date", "total_sales": {"$sum": "$net_amount"}}},
+    ]
+    sales_by_date: dict[str, float] = {
+        res["_id"]: float(res["total_sales"]) for res in db[BILLS].aggregate(pipeline) if res.get("_id")
+    }
+
+    result: dict[str, tuple[float | None, float]] = {}
+    cur = start_date
+    while cur <= end_date:
+        d_iso = cur.isoformat()
+        t_list = targets_by_date.get(d_iso)
+        t_val = sum(t_list) if t_list is not None else None
+        s_val = sales_by_date.get(d_iso, 0.0)
+        result[d_iso] = (t_val, s_val)
+        cur += timedelta(days=1)
+    return result
+
+
 def _get_store_day_facts(db: Database, store: str, target_date: date) -> tuple[float | None, float]:
     """Returns (original_target, net_sales) for a store on a given date.
     Supports individual stores ('NM', 'HB', 'CHW') and 'ALL' consolidated.
     """
-    iso_date = target_date.isoformat()
-    if store == "ALL":
-        target_docs = list(db[TARGETS].find({"entry_date": iso_date}))
-        targets = [float(doc["sales_target"]) for doc in target_docs if doc.get("sales_target") is not None]
-        total_target = sum(targets) if targets else None
-
-        pipeline = [
-            {"$match": {"entry_date": iso_date}},
-            {"$group": {"_id": None, "total_sales": {"$sum": "$net_amount"}}},
-        ]
-        res = list(db[BILLS].aggregate(pipeline))
-        total_sales = float(res[0]["total_sales"]) if res else 0.0
-        return total_target, total_sales
-    else:
-        doc = db[TARGETS].find_one({"store_code": store, "entry_date": iso_date})
-        target_val = float(doc["sales_target"]) if doc is not None and doc.get("sales_target") is not None else None
-
-        pipeline = [
-            {"$match": {"store_code": store, "entry_date": iso_date}},
-            {"$group": {"_id": None, "total_sales": {"$sum": "$net_amount"}}},
-        ]
-        res = list(db[BILLS].aggregate(pipeline))
-        sales_val = float(res[0]["total_sales"]) if res else 0.0
-        return target_val, sales_val
+    res = _batch_get_store_day_facts(db, store, target_date, target_date)
+    return res.get(target_date.isoformat(), (None, 0.0))
 
 
 def _get_recorded_dates(db: Database, store: str, start_date: date, end_date: date) -> set[date]:

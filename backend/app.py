@@ -30,6 +30,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from starlette.middleware.gzip import GZipMiddleware
+
 from api.auth import get_current_user, require_admin
 from api.routes_auth import router as auth_router
 from api.routes_charts import router as charts_router
@@ -38,9 +40,11 @@ from api.routes_daily import router as daily_router
 from api.routes_directives import router as directives_router
 from api.routes_kpi_thresholds import router as kpi_thresholds_router
 from api.routes_meta import router as meta_router
+from api.routes_requisitions import router as requisitions_router
 from api.routes_targets import router as targets_router
 from config.env import assert_production_secrets, env
 from config.settings import PROJECT_ROOT
+from db.engine import warmup_database
 from src.daily_midnight_job import run_midnight_finalizer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -51,13 +55,7 @@ APP_STARTED_AT = datetime.now()
 
 def _seed_accounts_best_effort() -> None:
     """Idempotently ensure the four fixed accounts exist in MongoDB so a fresh
-    deployment can log in immediately.
-
-    Best-effort and *per account*: a missing/unreachable MONGODB_URI logs a
-    warning rather than blocking startup, and one account whose
-    <SUFFIX>_INITIAL_PASSWORD fails src/password_policy.py is named, skipped,
-    and never blocks seeding the other three. Fix the environment and
-    redeploy, or run scripts/seed_users.py, to seed whatever was skipped."""
+    deployment can log in immediately."""
     try:
         from config.auth_users import AUTH_USERS, ENV_PASSWORD_SUFFIX
         from db.session import session_scope
@@ -99,10 +97,6 @@ async def lifespan(app: FastAPI):
 
     app.state.background_tasks = []
 
-    # Seeding touches the network (Atlas), so it's offloaded rather than run
-    # inline: uvicorn doesn't open the listening port until lifespan startup
-    # returns, and a slow/unreachable cluster would otherwise make the
-    # platform's port scan time out and fail the deploy.
     async def _keep_alive() -> None:
         """Self-ping every 10 minutes to prevent Render free instance from spinning down due to inactivity."""
         await asyncio.sleep(60)  # Wait 1 minute after boot
@@ -118,6 +112,8 @@ async def lifespan(app: FastAPI):
             await asyncio.sleep(600)  # Ping every 10 minutes
 
     async def _warmup() -> None:
+        # Pre-warm DB connection pool and seed accounts in background
+        await asyncio.to_thread(warmup_database)
         await asyncio.to_thread(_seed_accounts_best_effort)
         app.state.background_tasks.append(asyncio.create_task(run_midnight_finalizer()))
         app.state.background_tasks.append(asyncio.create_task(_keep_alive()))
@@ -132,8 +128,11 @@ async def lifespan(app: FastAPI):
             await task
 
 
-
 app = FastAPI(title="CITIMART Daily Operations", lifespan=lifespan)
+
+# High-efficiency GZip compression middleware:
+# Automatically compresses responses > 500 bytes, dramatically decreasing payload transfer times
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # Cross-origin access, off unless explicitly configured (config/env.py). The
 # two supported frontend deployments differ here: serving ../frontend/dist
@@ -213,6 +212,7 @@ _admin_only = [Depends(get_current_user), Depends(require_admin)]
 app.include_router(auth_router)  # public: POST /api/auth/login
 
 app.include_router(daily_router, dependencies=_authed)
+app.include_router(requisitions_router, dependencies=_authed)
 app.include_router(chat_router, dependencies=_authed)
 app.include_router(directives_router, dependencies=_authed)
 app.include_router(charts_router, dependencies=_authed)
@@ -249,11 +249,11 @@ else:
 
 
 if __name__ == "__main__":
-    # `python app.py` -- the only launch path that reads HOST/PORT from
-    # backend/.env (config/env.py). The uvicorn CLI never imports this block, so
-    # `uvicorn app:app` keeps its own defaults/flags; this is an addition, not a
-    # replacement. Passed as the import string "app:app" rather than the `app`
-    # object so reload=True still works.
+    import os
     import uvicorn
 
-    uvicorn.run("app:app", host=env.host, port=env.port, reload=False)
+    # Support multi-worker load balancing via WEB_CONCURRENCY (standard on Render/cloud)
+    workers_str = os.environ.get("WEB_CONCURRENCY") or os.environ.get("UVICORN_WORKERS") or "1"
+    workers = int(workers_str) if workers_str.isdigit() else 1
+
+    uvicorn.run("app:app", host=env.host, port=env.port, workers=workers, reload=False)

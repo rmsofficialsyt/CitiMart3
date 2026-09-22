@@ -30,12 +30,33 @@ def get_client() -> MongoClient:
         # Network Access not allowing the app's egress IP -- a host without a
         # static outbound IP forces that list to be 0.0.0.0/0 (auth is
         # still SCRAM + TLS; TLS is implied by the mongodb+srv:// Atlas URI).
+        # High-performance connection pool configuration:
+        # Pre-warmed connection pool avoids SSL/TLS handshake latency on burst requests.
+        # minPoolSize keeps active connections hot; maxPoolSize allows concurrent worker throughput.
         _client = MongoClient(
             env.mongodb_uri,
-            serverSelectionTimeoutMS=10_000,
-            connectTimeoutMS=10_000,
+            minPoolSize=5,
+            maxPoolSize=50,
+            maxIdleTimeMS=60_000,
+            serverSelectionTimeoutMS=8_000,
+            connectTimeoutMS=8_000,
+            socketTimeoutMS=15_000,
+            retryWrites=True,
+            retryReads=True,
+            compressors="zlib",
         )
     return _client
+
+
+def warmup_database() -> bool:
+    """Best-effort connection warmup on startup so the first request doesn't pay
+    the TLS handshake latency."""
+    try:
+        db = get_database()
+        db.command("ping")
+        return True
+    except Exception:
+        return False
 
 
 def get_database() -> Database:

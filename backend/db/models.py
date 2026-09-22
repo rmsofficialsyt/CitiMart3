@@ -63,6 +63,8 @@ TARGETS = "targets"
 COUNTERS = "counters"
 USERS = "users"
 DIRECTIVES = "directives"
+REQUISITIONS = "requisitions"
+CUSTOM_CATEGORIES = "custom_categories"
 
 
 def ensure_indexes(db: Database) -> None:
@@ -70,13 +72,32 @@ def ensure_indexes(db: Database) -> None:
     with the same spec. Called once per Database, the first time db/session.py
     hands one out (replaces what Alembic's migrations/versions/ used to
     provision for Postgres)."""
+    # Core multi-key and compound indexes for fast lookups & range queries
     db[BILLS].create_index([("store_code", 1), ("entry_date", 1)])
+    db[BILLS].create_index([("entry_date", 1)])
+    db[BILLS].create_index([("entry_date", 1), ("store_code", 1)])
+    db[BILLS].create_index([("store_code", 1), ("entry_date", 1), ("time_slot", 1)])
+
     db[FOOTFALL].create_index([("store_code", 1), ("entry_date", 1)])
+    db[FOOTFALL].create_index([("entry_date", 1)])
+    db[FOOTFALL].create_index([("entry_date", 1), ("store_code", 1)])
+    db[FOOTFALL].create_index([("store_code", 1), ("entry_date", 1), ("time_slot", 1)])
+
     db[NOB].create_index([("store_code", 1), ("entry_date", 1)])
+    db[NOB].create_index([("entry_date", 1)])
+    db[NOB].create_index([("entry_date", 1), ("store_code", 1)])
+    db[NOB].create_index([("store_code", 1), ("entry_date", 1), ("time_slot", 1)])
+
     db[TARGETS].create_index([("store_code", 1), ("entry_date", 1)], unique=True)
+    db[TARGETS].create_index([("entry_date", 1)])
+
     db[USERS].create_index([("username", 1)], unique=True)
     db[DIRECTIVES].create_index([("created_at", -1)])
     db[DIRECTIVES].create_index([("active", 1)])
+    db[REQUISITIONS].create_index([("store_code", 1), ("date", 1)])
+    db[REQUISITIONS].create_index([("created_at", -1)])
+    db[REQUISITIONS].create_index([("status", 1)])
+    db[CUSTOM_CATEGORIES].create_index([("division", 1), ("section", 1), ("department", 1)], unique=True)
 
 
 def next_id(db: Database, collection_name: str) -> int:

@@ -15,6 +15,7 @@ import { DAILY_STORE_ID_BY_CODE } from "@/lib/authUsers";
 import { HistoryPage } from "@/pages/HistoryPage";
 import { ManualEntryCHW, ManualEntryHB, ManualEntryNM } from "@/pages/ManualEntryDashboard";
 import { OverallStoresSummary } from "@/pages/OverallStoresSummary";
+import { ProductRequisitionPage } from "@/pages/ProductRequisitionPage";
 import { SalesTargetCHW, SalesTargetHB, SalesTargetNM } from "@/pages/SalesTargetEntry";
 import { DailyDashboardCHW, DailyDashboardHB, DailyDashboardNM } from "@/pages/StoreDailyDashboard";
 
@@ -50,6 +51,9 @@ export default function App() {
   const targetStoreCode = isManager && user?.storeCode ? user.storeCode : isOverall ? "ALL" : storeEntry?.code ?? "ALL";
 
   const renderActivePage = () => {
+    if (effectiveView === "requisition") {
+      return <ProductRequisitionPage initialStoreCode={targetStoreCode} />;
+    }
     if (effectiveView === "history") {
       return <HistoryPage storeCode={targetStoreCode} />;
     }

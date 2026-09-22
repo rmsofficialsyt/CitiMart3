@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   LogOut,
   Moon,
+  PackagePlus,
   Radio,
   Settings,
   ShieldCheck,
@@ -41,7 +42,7 @@ import type { Language } from "@/lib/translations";
 export type DailyStoreId = "nm" | "hb" | "chw";
 export const OVERALL_STORE_ID = "overall" as const;
 export type DailyStoreSel = DailyStoreId | typeof OVERALL_STORE_ID;
-export type DailyView = "dashboard" | "manual" | "target" | "history";
+export type DailyView = "dashboard" | "manual" | "target" | "history" | "requisition";
 
 interface NavigationSidebarProps {
   effectiveStore: DailyStoreSel;
@@ -104,6 +105,7 @@ export function NavigationSidebar({
     ...(!isAdmin && !isOverall ? [{ id: "manual" as DailyView, label: t.navManualEntry || "Manual Data Entry", Icon: FileSpreadsheet, tag: "Form" }] : []),
     ...(isAdmin && !isOverall ? [{ id: "target" as DailyView, label: t.navSalesTarget || "Sales Target", Icon: Target, tag: "Admin" }] : []),
     { id: "history", label: t.navHistory || "History and Analysis", Icon: History, tag: "Analysis" },
+    { id: "requisition", label: "Product Requisition", Icon: PackagePlus, tag: "Slip" },
   ];
 
   const userInitial = user?.username ? user.username.charAt(0).toUpperCase() : "U";

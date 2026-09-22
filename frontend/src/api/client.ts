@@ -270,4 +270,56 @@ export const api = {
       store: string;
       date: string;
     }>("/api/daily/chat", payload),
+
+  // Product Requisitions
+  requisitionCategories: () =>
+    getJSON<import("@/lib/types").CategoryHierarchyResponse>("/api/daily/requisitions/categories"),
+
+  requisitionsList: (params?: {
+    store_code?: string;
+    start_date?: string;
+    end_date?: string;
+    status?: string;
+    search?: string;
+    limit?: number;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.store_code) q.set("store_code", params.store_code);
+    if (params?.start_date) q.set("start_date", params.start_date);
+    if (params?.end_date) q.set("end_date", params.end_date);
+    if (params?.status) q.set("status", params.status);
+    if (params?.search) q.set("search", params.search);
+    if (params?.limit) q.set("limit", String(params.limit));
+    const qs = q.toString();
+    return getJSON<import("@/lib/types").RequisitionsListResponse>(qs ? `/api/daily/requisitions?${qs}` : "/api/daily/requisitions");
+  },
+
+  createRequisition: (payload: import("@/lib/types").CreateRequisitionPayload) =>
+    postJSON<{ status: string; requisition: import("@/lib/types").RequisitionSlip }>("/api/daily/requisitions", payload),
+
+  getRequisition: (reqId: number) =>
+    getJSON<{ status: string; requisition: import("@/lib/types").RequisitionSlip }>(`/api/daily/requisitions/${reqId}`),
+
+  updateRequisitionStatus: (reqId: number, payload: import("@/lib/types").UpdateRequisitionStatusPayload) =>
+    putJSON<{ status: string; requisition: import("@/lib/types").RequisitionSlip }>(`/api/daily/requisitions/${reqId}/status`, payload),
+
+  deleteRequisition: (reqId: number) =>
+    deleteJSON<{ status: string; deleted: boolean }>(`/api/daily/requisitions/${reqId}`),
+
+  getRequisitionExportUrl: (params?: {
+    store_code?: string;
+    start_date?: string;
+    end_date?: string;
+    status?: string;
+    search?: string;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.store_code) q.set("store_code", params.store_code);
+    if (params?.start_date) q.set("start_date", params.start_date);
+    if (params?.end_date) q.set("end_date", params.end_date);
+    if (params?.status) q.set("status", params.status);
+    if (params?.search) q.set("search", params.search);
+    const qs = q.toString();
+    return apiUrl(qs ? `/api/daily/requisitions/export/xlsx?${qs}` : "/api/daily/requisitions/export/xlsx");
+  },
 };

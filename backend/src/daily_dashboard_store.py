@@ -28,6 +28,8 @@ to filter out.
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
+import threading
+import time as _time
 
 from pymongo import ReturnDocument
 from pymongo.database import Database
@@ -35,6 +37,35 @@ from pymongo.database import Database
 from config.settings import STORE_CODE_TO_NAME, TIME_SLOT_ORDER, time_slot_for_time
 from db.models import BILLS, FOOTFALL, NOB, TARGETS, next_id
 from src.kpi_engine import safe_divide
+
+# High-speed in-memory TTL caching layer for heavy read aggregation endpoints
+_CACHE_LOCK = threading.Lock()
+_CACHE: dict[str, tuple[float, object]] = {}
+_CACHE_TTL_SECONDS = 30.0
+
+
+def _get_from_cache(key: str) -> object | None:
+    now = _time.time()
+    with _CACHE_LOCK:
+        item = _CACHE.get(key)
+        if item is not None:
+            expires_at, val = item
+            if now < expires_at:
+                return val
+            _CACHE.pop(key, None)
+    return None
+
+
+def _set_in_cache(key: str, val: object, ttl: float = _CACHE_TTL_SECONDS) -> None:
+    now = _time.time()
+    with _CACHE_LOCK:
+        _CACHE[key] = (now + ttl, val)
+
+
+def invalidate_dashboard_cache() -> None:
+    """Invalidates the in-memory aggregated dashboard cache upon any write."""
+    with _CACHE_LOCK:
+        _CACHE.clear()
 
 
 def _validate_store(store: str) -> None:
@@ -70,6 +101,7 @@ def add_bill_entry(db: Database, store: str, target_date: date, bill_time: time,
         "time_slot": time_slot_for_time(bill_time),
     }
     db[BILLS].insert_one(doc)
+    invalidate_dashboard_cache()
     return _bill_to_dict(doc)
 
 
@@ -80,7 +112,10 @@ def list_bill_entries(db: Database, store: str, target_date: date) -> list[dict]
 
 def delete_bill_entry(db: Database, store: str, row: int) -> bool:
     result = db[BILLS].delete_one({"_id": row, "store_code": store})
-    return result.deleted_count == 1
+    if result.deleted_count == 1:
+        invalidate_dashboard_cache()
+        return True
+    return False
 
 
 def update_bill_entry(db: Database, store: str, row: int, bill_time: time, net_amount: float, bill_quantity: float) -> dict | None:
@@ -104,7 +139,10 @@ def update_bill_entry(db: Database, store: str, row: int, bill_time: time, net_a
         },
         return_document=ReturnDocument.AFTER,
     )
-    return _bill_to_dict(doc) if doc is not None else None
+    if doc is not None:
+        invalidate_dashboard_cache()
+        return _bill_to_dict(doc)
+    return None
 
 
 def sum_bill_log(db: Database, store: str, target_date: date) -> tuple[float, float]:
@@ -153,6 +191,7 @@ def _add_timed_entry(
         value_field: value,
     }
     db[collection].insert_one(doc)
+    invalidate_dashboard_cache()
     return _timed_entry_to_dict(doc, value_field)
 
 
@@ -163,7 +202,10 @@ def _list_timed_entries(db: Database, collection: str, value_field: str, store: 
 
 def _delete_timed_entry(db: Database, collection: str, store: str, row: int) -> bool:
     result = db[collection].delete_one({"_id": row, "store_code": store})
-    return result.deleted_count == 1
+    if result.deleted_count == 1:
+        invalidate_dashboard_cache()
+        return True
+    return False
 
 
 def _update_timed_entry(
@@ -181,7 +223,10 @@ def _update_timed_entry(
         },
         return_document=ReturnDocument.AFTER,
     )
-    return _timed_entry_to_dict(doc, value_field) if doc is not None else None
+    if doc is not None:
+        invalidate_dashboard_cache()
+        return _timed_entry_to_dict(doc, value_field)
+    return None
 
 
 def _sum_timed_log(db: Database, collection: str, value_field: str, store: str, target_date: date) -> float:
@@ -242,26 +287,43 @@ def compute_live_timeslot_breakdown(
     breakdown: dict[str, dict[str, float]] = {
         slot: {"net_sales": 0.0, "bill_quantity": 0.0, "footfall": 0.0, "nob": 0.0} for slot in TIME_SLOT_ORDER
     }
-    cur_date = target_date
-    final_date = end_date or target_date
-    stores_to_query = list(STORE_CODE_TO_NAME) if store == "ALL" else [store]
+    start_iso = target_date.isoformat()
+    end_iso = (end_date or target_date).isoformat()
+    match_q: dict = {"entry_date": {"$gte": start_iso, "$lte": end_iso}} if start_iso != end_iso else {"entry_date": start_iso}
+    if store != "ALL":
+        match_q["store_code"] = store
 
-    while cur_date <= final_date:
-        for s in stores_to_query:
-            for entry in list_bill_entries(db, s, cur_date):
-                slot = entry.get("time_slot")
-                if slot in breakdown:
-                    breakdown[slot]["net_sales"] += entry.get("net_amount") or 0.0
-                    breakdown[slot]["bill_quantity"] += entry.get("bill_quantity") or 0.0
-            for entry in list_footfall_entries(db, s, cur_date):
-                slot = entry.get("time_slot")
-                if slot in breakdown:
-                    breakdown[slot]["footfall"] += entry.get("footfall") or 0.0
-            for entry in list_nob_entries(db, s, cur_date):
-                slot = entry.get("time_slot")
-                if slot in breakdown:
-                    breakdown[slot]["nob"] += entry.get("nob") or 0.0
-        cur_date += timedelta(days=1)
+    # 1. Bills aggregation grouped by time_slot
+    bill_pipe = [
+        {"$match": match_q},
+        {"$group": {"_id": "$time_slot", "net_sales": {"$sum": "$net_amount"}, "bill_quantity": {"$sum": "$bill_quantity"}}},
+    ]
+    for doc in db[BILLS].aggregate(bill_pipe):
+        slot = doc.get("_id")
+        if slot in breakdown:
+            breakdown[slot]["net_sales"] = float(doc.get("net_sales", 0.0) or 0.0)
+            breakdown[slot]["bill_quantity"] = float(doc.get("bill_quantity", 0.0) or 0.0)
+
+    # 2. Footfall aggregation grouped by time_slot
+    ff_pipe = [
+        {"$match": match_q},
+        {"$group": {"_id": "$time_slot", "footfall": {"$sum": "$footfall"}}},
+    ]
+    for doc in db[FOOTFALL].aggregate(ff_pipe):
+        slot = doc.get("_id")
+        if slot in breakdown:
+            breakdown[slot]["footfall"] = float(doc.get("footfall", 0.0) or 0.0)
+
+    # 3. NOB aggregation grouped by time_slot
+    nob_pipe = [
+        {"$match": match_q},
+        {"$group": {"_id": "$time_slot", "nob": {"$sum": "$nob"}}},
+    ]
+    for doc in db[NOB].aggregate(nob_pipe):
+        slot = doc.get("_id")
+        if slot in breakdown:
+            breakdown[slot]["nob"] = float(doc.get("nob", 0.0) or 0.0)
+
     return breakdown
 
 
@@ -465,6 +527,7 @@ def set_kpi_override(db: Database, store: str, target_date: date, field: str, va
         db[TARGETS].insert_one(_blank_target_doc(db, store, target_date, overrides={field: float(value)}))
     else:
         db[TARGETS].update_one({"_id": target["_id"]}, {"$set": {f"overrides.{field}": float(value)}})
+    invalidate_dashboard_cache()
     return compute_live_kpis(db, store, target_date)
 
 
@@ -477,6 +540,7 @@ def clear_kpi_override(db: Database, store: str, target_date: date, field: str) 
     target = _find_target(db, store, target_date)
     if target is not None:
         db[TARGETS].update_one({"_id": target["_id"]}, {"$unset": {f"overrides.{field}": ""}})
+        invalidate_dashboard_cache()
     return compute_live_kpis(db, store, target_date)
 
 
@@ -520,6 +584,7 @@ def set_store_target(
         db[TARGETS].insert_one(_blank_target_doc(db, store, target_date, **set_fields))
     else:
         db[TARGETS].update_one({"_id": target["_id"]}, {"$set": set_fields})
+    invalidate_dashboard_cache()
     return save_target_entry(db, store, target_date, None)
 
 
@@ -573,6 +638,8 @@ def save_target_entry(db: Database, store: str, target_date: date, reason: str |
     else:
         db[TARGETS].update_one({"_id": target["_id"]}, {"$set": snapshot})
 
+    invalidate_dashboard_cache()
+
     # Echo back only the reason this call was given (None when omitted) --
     # callers that need the persisted note read it from compute_live_kpis /
     # GET /api/daily/live, not from this return value.
@@ -583,8 +650,13 @@ def save_target_entry(db: Database, store: str, target_date: date, reason: str |
 
 def list_all_history_dates(db: Database, store: str) -> list[dict]:
     """Retrieves all recorded dates across BILLS, FOOTFALL, NOB, and TARGETS
-    for the given store (or across all stores if store == 'ALL'). Returns a list
-    sorted descending (newest date first) with daily summary statistics for each date."""
+    for the given store (or across all stores if store == 'ALL').
+    Optimized with 4 batch pipeline queries and in-memory TTL caching."""
+    cache_key = f"history_dates_{store}"
+    cached = _get_from_cache(cache_key)
+    if cached is not None:
+        return cached  # type: ignore
+
     query = {} if store == "ALL" else {"store_code": store}
     seen_dates: set[str] = set()
     for coll in (BILLS, FOOTFALL, NOB, TARGETS):
@@ -596,28 +668,139 @@ def list_all_history_dates(db: Database, store: str) -> list[dict]:
     if not seen_dates:
         seen_dates.add(date.today().isoformat())
 
-    results = []
-    for iso in sorted(seen_dates, reverse=True):
-        d = date.fromisoformat(iso)
-        if store == "ALL":
-            combined_res = compute_live_kpis_all_stores(db, d)
-            kpis = combined_res["combined"]
-        else:
-            kpis = compute_live_kpis(db, store, d)
+    sorted_isos = sorted(seen_dates, reverse=True)
+    if not sorted_isos:
+        return []
 
-        results.append({
-            "date": iso,
-            "day_name": d.strftime("%A"),
-            "store": store,
-            "net_sales": kpis.get("net_sales", 0.0),
-            "footfall": kpis.get("footfall", 0.0),
-            "bill_quantity": kpis.get("bill_quantity", 0.0),
-            "nob": kpis.get("nob", 0.0),
-            "sales_target": kpis.get("sales_target"),
-            "achievement_pct": kpis.get("achievement_pct"),
-            "atv": kpis.get("atv"),
-            "conversion_pct": kpis.get("conversion_pct"),
-        })
+    # Batch aggregation across all dates in 4 single pipeline queries:
+    match_filter = {} if store == "ALL" else {"store_code": store}
+
+    # A. BILLS
+    bill_pipe = [
+        {"$match": match_filter},
+        {"$group": {"_id": {"entry_date": "$entry_date", "store_code": "$store_code"}, "net_sales": {"$sum": "$net_amount"}, "bill_quantity": {"$sum": "$bill_quantity"}}},
+    ]
+    bills_data: dict[tuple[str, str], tuple[float, float]] = {}
+    for doc in db[BILLS].aggregate(bill_pipe):
+        if doc.get("_id"):
+            key = (doc["_id"].get("entry_date", ""), doc["_id"].get("store_code", ""))
+            bills_data[key] = (float(doc.get("net_sales", 0.0) or 0.0), float(doc.get("bill_quantity", 0.0) or 0.0))
+
+    # B. FOOTFALL
+    ff_pipe = [
+        {"$match": match_filter},
+        {"$group": {"_id": {"entry_date": "$entry_date", "store_code": "$store_code"}, "footfall": {"$sum": "$footfall"}}},
+    ]
+    ff_data: dict[tuple[str, str], float] = {}
+    for doc in db[FOOTFALL].aggregate(ff_pipe):
+        if doc.get("_id"):
+            key = (doc["_id"].get("entry_date", ""), doc["_id"].get("store_code", ""))
+            ff_data[key] = float(doc.get("footfall", 0.0) or 0.0)
+
+    # C. NOB
+    nob_pipe = [
+        {"$match": match_filter},
+        {"$group": {"_id": {"entry_date": "$entry_date", "store_code": "$store_code"}, "nob": {"$sum": "$nob"}}},
+    ]
+    nob_data: dict[tuple[str, str], float] = {}
+    for doc in db[NOB].aggregate(nob_pipe):
+        if doc.get("_id"):
+            key = (doc["_id"].get("entry_date", ""), doc["_id"].get("store_code", ""))
+            nob_data[key] = float(doc.get("nob", 0.0) or 0.0)
+
+    # D. TARGETS
+    targets_data: dict[tuple[str, str], dict] = {}
+    for doc in db[TARGETS].find(match_filter):
+        key = (doc.get("entry_date", ""), doc.get("store_code", ""))
+        targets_data[key] = doc
+
+    results = []
+    stores_list = list(STORE_CODE_TO_NAME.keys()) if store == "ALL" else [store]
+
+    for iso in sorted_isos:
+        try:
+            d = date.fromisoformat(iso)
+        except ValueError:
+            continue
+
+        if store == "ALL":
+            tot_ns = 0.0
+            tot_bq = 0.0
+            tot_ff = 0.0
+            tot_nob = 0.0
+            targets_list = []
+            for s in stores_list:
+                ns, bq = bills_data.get((iso, s), (0.0, 0.0))
+                ff = ff_data.get((iso, s), 0.0)
+                nb = nob_data.get((iso, s), 0.0)
+                tg = targets_data.get((iso, s))
+                st = float(tg["sales_target"]) if tg and tg.get("sales_target") is not None else None
+                if st is not None:
+                    targets_list.append(st)
+                tot_ns += ns
+                tot_bq += bq
+                tot_ff += ff
+                tot_nob += nb
+
+            combined_st = sum(targets_list) if targets_list else None
+            ach_ratio = safe_divide(tot_ns, combined_st)
+            ach_pct = ach_ratio * 100 if ach_ratio is not None else None
+            results.append({
+                "date": iso,
+                "day_name": d.strftime("%A"),
+                "store": store,
+                "net_sales": tot_ns,
+                "footfall": tot_ff,
+                "bill_quantity": tot_bq,
+                "nob": tot_nob,
+                "sales_target": combined_st,
+                "achievement_pct": ach_pct,
+                "atv": safe_divide(tot_ns, tot_nob),
+                "conversion_pct": (safe_divide(tot_nob, tot_ff) * 100) if safe_divide(tot_nob, tot_ff) is not None else None,
+            })
+        else:
+            ns, bq = bills_data.get((iso, store), (0.0, 0.0))
+            ff = ff_data.get((iso, store), 0.0)
+            nb = nob_data.get((iso, store), 0.0)
+            tg = targets_data.get((iso, store))
+            st = float(tg["sales_target"]) if tg and tg.get("sales_target") is not None else None
+            overrides = (tg.get("overrides") or {}) if tg else {}
+
+            ach_ratio = safe_divide(ns, st)
+            ach_pct = ach_ratio * 100 if ach_ratio is not None else None
+            conv_ratio = safe_divide(nb, ff)
+            conv_pct = conv_ratio * 100 if conv_ratio is not None else None
+
+            kpis = {
+                "sales_target": st,
+                "net_sales": ns,
+                "bill_quantity": bq,
+                "footfall": ff,
+                "nob": nb,
+                "atv": safe_divide(ns, nb),
+                "conversion_pct": conv_pct,
+                "achievement_pct": ach_pct,
+            }
+            if overrides:
+                for k in OVERRIDABLE_KPIS:
+                    if k in overrides and overrides[k] is not None:
+                        kpis[k] = float(overrides[k])
+
+            results.append({
+                "date": iso,
+                "day_name": d.strftime("%A"),
+                "store": store,
+                "net_sales": kpis["net_sales"],
+                "footfall": kpis["footfall"],
+                "bill_quantity": kpis["bill_quantity"],
+                "nob": kpis["nob"],
+                "sales_target": kpis["sales_target"],
+                "achievement_pct": kpis["achievement_pct"],
+                "atv": kpis["atv"],
+                "conversion_pct": kpis["conversion_pct"],
+            })
+
+    _set_in_cache(cache_key, results)
     return results
 
 
@@ -629,34 +812,30 @@ def _clean(value):
 
 def get_history_details(db: Database, store: str, target_date: date) -> dict:
     """Returns comprehensive time-slot-wise history details and individual logs
-    for a specific date and store (or ALL stores)."""
+    for a specific date and store (or ALL stores). Batch-fetched."""
     iso_date = target_date.isoformat()
-    stores_to_fetch = list(STORE_CODE_TO_NAME.keys()) if store == "ALL" else [store]
+    match_query: dict = {"entry_date": iso_date}
+    if store != "ALL":
+        match_query["store_code"] = store
 
-    bill_logs: list[dict] = []
-    footfall_logs: list[dict] = []
-    nob_logs: list[dict] = []
+    # Batch retrieve bill, footfall, and nob logs
+    bill_cursor = db[BILLS].find(match_query).sort("bill_time", 1)
+    bill_logs = [
+        {**_bill_to_dict(b), **({"store": b["store_code"]} if store == "ALL" else {})}
+        for b in bill_cursor
+    ]
 
-    for s in stores_to_fetch:
-        for b in list_bill_entries(db, s, target_date):
-            item = dict(b)
-            if store == "ALL":
-                item["store"] = s
-            bill_logs.append(item)
-        for f in list_footfall_entries(db, s, target_date):
-            item = dict(f)
-            if store == "ALL":
-                item["store"] = s
-            footfall_logs.append(item)
-        for n in list_nob_entries(db, s, target_date):
-            item = dict(n)
-            if store == "ALL":
-                item["store"] = s
-            nob_logs.append(item)
+    ff_cursor = db[FOOTFALL].find(match_query).sort("entry_time", 1)
+    footfall_logs = [
+        {**_timed_entry_to_dict(f, "footfall"), **({"store": f["store_code"]} if store == "ALL" else {})}
+        for f in ff_cursor
+    ]
 
-    bill_logs.sort(key=lambda x: x.get("bill_time", ""))
-    footfall_logs.sort(key=lambda x: x.get("time", ""))
-    nob_logs.sort(key=lambda x: x.get("time", ""))
+    nob_cursor = db[NOB].find(match_query).sort("entry_time", 1)
+    nob_logs = [
+        {**_timed_entry_to_dict(n, "nob"), **({"store": n["store_code"]} if store == "ALL" else {})}
+        for n in nob_cursor
+    ]
 
     if store == "ALL":
         all_kpis = compute_live_kpis_all_stores(db, target_date)
@@ -705,7 +884,6 @@ def get_history_details(db: Database, store: str, target_date: date) -> dict:
         bq = cell["bill_quantity"]
         ff = cell["footfall"]
         nob = cell["nob"]
-        bc = cell["bill_count"]
 
         cell["sales_target"] = sales_target
         cell["remaining"] = round(sales_target - ns, 2) if sales_target is not None else None
@@ -732,18 +910,54 @@ def get_history_details(db: Database, store: str, target_date: date) -> dict:
 
 def get_history_range_details(db: Database, store: str, start_date: date, end_date: date) -> dict:
     """Returns comprehensive historical operations metrics, daily breakdowns,
-    aggregated time-slot breakdowns, and logs across a specified date range [start_date, end_date]."""
+    aggregated time-slot breakdowns, and logs across a specified date range [start_date, end_date].
+    Optimized with batch range queries."""
     if start_date > end_date:
         start_date, end_date = end_date, start_date
 
     stores_to_fetch = list(STORE_CODE_TO_NAME.keys()) if store == "ALL" else [store]
-    
+    start_iso = start_date.isoformat()
+    end_iso = end_date.isoformat()
+    match_range: dict = {"entry_date": {"$gte": start_iso, "$lte": end_iso}}
+    if store != "ALL":
+        match_range["store_code"] = store
+
+    # 1. Fetch all bill logs in range
+    all_bill_logs = [
+        {**_bill_to_dict(b), **({"store": b["store_code"]} if store == "ALL" else {})}
+        for b in db[BILLS].find(match_range).sort("bill_time", 1)
+    ]
+    # 2. Fetch all footfall logs in range
+    all_footfall_logs = [
+        {**_timed_entry_to_dict(f, "footfall"), **({"store": f["store_code"]} if store == "ALL" else {})}
+        for f in db[FOOTFALL].find(match_range).sort("entry_time", 1)
+    ]
+    # 3. Fetch all nob logs in range
+    all_nob_logs = [
+        {**_timed_entry_to_dict(n, "nob"), **({"store": n["store_code"]} if store == "ALL" else {})}
+        for n in db[NOB].find(match_range).sort("entry_time", 1)
+    ]
+    # 4. Fetch all targets in range
+    targets_map: dict[tuple[str, str], dict] = {
+        (t.get("entry_date", ""), t.get("store_code", "")): t
+        for t in db[TARGETS].find(match_range)
+    }
+
+    # Group logs by date and store in memory
+    bills_by_date: dict[str, list[dict]] = {}
+    for b in all_bill_logs:
+        bills_by_date.setdefault(b["date"], []).append(b)
+
+    ff_by_date: dict[str, list[dict]] = {}
+    for f in all_footfall_logs:
+        ff_by_date.setdefault(f["date"], []).append(f)
+
+    nob_by_date: dict[str, list[dict]] = {}
+    for n in all_nob_logs:
+        nob_by_date.setdefault(n["date"], []).append(n)
+
     total_days = (end_date - start_date).days + 1
     daily_breakdown: list[dict] = []
-    
-    all_bill_logs: list[dict] = []
-    all_footfall_logs: list[dict] = []
-    all_nob_logs: list[dict] = []
 
     timeslot_summary: dict[str, dict[str, float]] = {
         slot: {
@@ -771,17 +985,51 @@ def get_history_range_details(db: Database, store: str, start_date: date, end_da
     cur_d = start_date
     while cur_d <= end_date:
         iso_d = cur_d.isoformat()
-        if store == "ALL":
-            all_kpis = compute_live_kpis_all_stores(db, cur_d)
-            kpis = all_kpis["combined"]
-        else:
-            kpis = compute_live_kpis(db, store, cur_d)
+        day_bills = bills_by_date.get(iso_d, [])
+        day_ff = ff_by_date.get(iso_d, [])
+        day_nob = nob_by_date.get(iso_d, [])
 
-        ns = kpis.get("net_sales", 0.0) or 0.0
-        bq = kpis.get("bill_quantity", 0.0) or 0.0
-        ff = kpis.get("footfall", 0.0) or 0.0
-        nb = kpis.get("nob", 0.0) or 0.0
-        st = kpis.get("sales_target")
+        ns = sum(b.get("net_amount", 0.0) or 0.0 for b in day_bills)
+        bq = sum(b.get("bill_quantity", 0.0) or 0.0 for b in day_bills)
+        ff = sum(f.get("footfall", 0.0) or 0.0 for f in day_ff)
+        nb = sum(n.get("nob", 0.0) or 0.0 for n in day_nob)
+
+        # Targets for this date
+        if store == "ALL":
+            day_targets = [
+                float(targets_map[(iso_d, s)]["sales_target"])
+                for s in stores_to_fetch
+                if (iso_d, s) in targets_map and targets_map[(iso_d, s)].get("sales_target") is not None
+            ]
+            st = sum(day_targets) if day_targets else None
+            overrides = {}
+        else:
+            tg = targets_map.get((iso_d, store))
+            st = float(tg["sales_target"]) if tg and tg.get("sales_target") is not None else None
+            overrides = (tg.get("overrides") or {}) if tg else {}
+
+        ach_ratio = safe_divide(ns, st)
+        ach_pct = ach_ratio * 100 if ach_ratio is not None else None
+        rem = (st - ns) if st is not None else None
+        atv_val = safe_divide(ns, nb) or 0.0
+        rpv_val = safe_divide(ns, ff) or 0.0
+        bs_val = safe_divide(bq, nb) or 0.0
+        conv_ratio = safe_divide(nb, ff)
+        conv_pct = (conv_ratio * 100) if conv_ratio is not None else 0.0
+
+        if overrides:
+            if "atv" in overrides and overrides["atv"] is not None:
+                atv_val = float(overrides["atv"])
+            if "rpv" in overrides and overrides["rpv"] is not None:
+                rpv_val = float(overrides["rpv"])
+            if "basket_size" in overrides and overrides["basket_size"] is not None:
+                bs_val = float(overrides["basket_size"])
+            if "conversion_pct" in overrides and overrides["conversion_pct"] is not None:
+                conv_pct = float(overrides["conversion_pct"])
+            if "achievement_pct" in overrides and overrides["achievement_pct"] is not None:
+                ach_pct = float(overrides["achievement_pct"])
+                if st is not None:
+                    rem = st - (st * ach_pct / 100.0)
 
         total_net_sales += ns
         total_bill_quantity += bq
@@ -792,37 +1040,20 @@ def get_history_range_details(db: Database, store: str, start_date: date, end_da
             total_sales_target += st
             has_any_target = True
 
-        for s in stores_to_fetch:
-            for b in list_bill_entries(db, s, cur_d):
-                item = dict(b)
-                if store == "ALL":
-                    item["store"] = s
-                all_bill_logs.append(item)
-            for f in list_footfall_entries(db, s, cur_d):
-                item = dict(f)
-                if store == "ALL":
-                    item["store"] = s
-                all_footfall_logs.append(item)
-            for n in list_nob_entries(db, s, cur_d):
-                item = dict(n)
-                if store == "ALL":
-                    item["store"] = s
-                all_nob_logs.append(item)
-
         daily_breakdown.append({
             "date": iso_d,
             "day_name": cur_d.strftime("%A"),
             "net_sales": round(ns, 2),
             "sales_target": st,
-            "achievement_pct": kpis.get("achievement_pct"),
-            "remaining": kpis.get("remaining"),
+            "achievement_pct": ach_pct,
+            "remaining": rem,
             "bill_quantity": bq,
             "footfall": ff,
             "nob": nb,
-            "basket_size": kpis.get("basket_size", 0.0) or 0.0,
-            "atv": kpis.get("atv", 0.0) or 0.0,
-            "rpv": kpis.get("rpv", 0.0) or 0.0,
-            "conversion_pct": kpis.get("conversion_pct", 0.0) or 0.0,
+            "basket_size": bs_val,
+            "atv": atv_val,
+            "rpv": rpv_val,
+            "conversion_pct": conv_pct,
         })
         cur_d += timedelta(days=1)
 
@@ -856,7 +1087,6 @@ def get_history_range_details(db: Database, store: str, start_date: date, end_da
         bq = cell["bill_quantity"]
         ff = cell["footfall"]
         nob = cell["nob"]
-        bc = cell["bill_count"]
 
         cell["sales_target"] = final_sales_target
         cell["remaining"] = round(final_sales_target - ns, 2) if final_sales_target is not None else None
@@ -931,10 +1161,16 @@ def get_target_adjustment_alert(
     )
 
 
-
 def get_landing_hero_telemetry(db: Database, requested_date: date | None = None) -> dict:
     """Computes authentic telemetry for the Landing page Hero section
-    across all stores and consolidated for requested date (or latest recorded day)."""
+    across all stores and consolidated for requested date (or latest recorded day).
+    Cached in-memory for instant landing page loads."""
+    req_key = requested_date.isoformat() if requested_date else "latest"
+    cache_key = f"landing_hero_{req_key}"
+    cached = _get_from_cache(cache_key)
+    if cached is not None:
+        return cached  # type: ignore
+
     # Find all recorded dates in MongoDB
     seen_dates: set[str] = set()
     for coll in (BILLS, FOOTFALL, NOB, TARGETS):
@@ -980,6 +1216,17 @@ def get_landing_hero_telemetry(db: Database, requested_date: date | None = None)
     all_kpis_bundle = compute_live_kpis_all_stores(db, target_date)
     all_kpis = all_kpis_bundle["combined"]
 
+    # Pre-fetch time slot sales for target date in one aggregation query
+    slot_pipe = [
+        {"$match": {"entry_date": target_iso}},
+        {"$group": {"_id": {"store_code": "$store_code", "time_slot": "$time_slot"}, "net_amount": {"$sum": "$net_amount"}}},
+    ]
+    slot_data_map: dict[tuple[str, str], float] = {}
+    for doc in db[BILLS].aggregate(slot_pipe):
+        if doc.get("_id"):
+            key = (doc["_id"].get("store_code", ""), doc["_id"].get("time_slot", ""))
+            slot_data_map[key] = float(doc.get("net_amount", 0.0) or 0.0)
+
     # Build per-store + all telemetry
     for store_key in ("all", "NM", "HB", "CHW"):
         if store_key == "all":
@@ -1006,10 +1253,8 @@ def get_landing_hero_telemetry(db: Database, requested_date: date | None = None)
         # Calculate time slot distribution
         slot_sales = {slot: 0.0 for slot in TIME_SLOT_ORDER}
         for s in stores_to_fetch:
-            for b in list_bill_entries(db, s, target_date):
-                ts = b.get("time_slot")
-                if ts in slot_sales:
-                    slot_sales[ts] += b.get("net_amount", 0.0) or 0.0
+            for slot in TIME_SLOT_ORDER:
+                slot_sales[slot] += slot_data_map.get((s, slot), 0.0)
 
         max_slot_val = max(slot_sales.values()) if slot_sales and max(slot_sales.values()) > 0 else 1.0
 
@@ -1048,5 +1293,6 @@ def get_landing_hero_telemetry(db: Database, requested_date: date | None = None)
             "hourlyPoints": hourly_points,
         }
 
+    _set_in_cache(cache_key, result)
     return result
 
