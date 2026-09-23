@@ -75,6 +75,29 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
   // Convert backend traces to normalized Recharts tabular structures
   const { rechartsData, seriesConfigs } = useMemo(() => {
     if (!traces || traces.length === 0) {
+      if (isTimeslotChart) {
+        const defaultSlots = [
+          "11.00 AM - 01.59 PM",
+          "02.00 PM - 04.59 PM",
+          "05.00 PM - 07.59 PM",
+          "08.00 PM - 10.30 PM",
+        ];
+        if (chartId === "daily_footfall_nob") {
+          return {
+            rechartsData: defaultSlots.map((slot) => ({ name: slot, series_0: 0, series_1: 0 })),
+            seriesConfigs: [
+              { key: "series_0", name: "Footfall", color: MODERN_PALETTE.cyan },
+              { key: "series_1", name: "NOB", color: MODERN_PALETTE.coral },
+            ],
+          };
+        }
+        return {
+          rechartsData: defaultSlots.map((slot) => ({ name: slot, series_0: 0 })),
+          seriesConfigs: [
+            { key: "series_0", name: "Net Sales (₹)", color: MODERN_PALETTE.coral },
+          ],
+        };
+      }
       return { rechartsData: [] as RechartDataPoint[], seriesConfigs: [] as SeriesConfig[] };
     }
 
@@ -105,7 +128,7 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
     });
 
     return { rechartsData: points, seriesConfigs: configs };
-  }, [traces, chartId, isCurrency]);
+  }, [traces, chartId, isCurrency, isTimeslotChart]);
 
   // Donut chart formatted data
   const donutData = useMemo(() => {

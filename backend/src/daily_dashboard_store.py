@@ -370,7 +370,7 @@ OVERRIDABLE_KPIS = ("atv", "rpv", "basket_size", "conversion_pct", "achievement_
 # opposed to admin-set sales_target, manually-typed reason, or the overrides
 # sub-doc). save_target_entry / the midnight job refresh exactly these.
 _TARGET_SNAPSHOT_FIELDS = (
-    "net_sales", "remaining", "footfall", "nob",
+    "net_sales", "bill_quantity", "remaining", "footfall", "nob",
     "atv", "rpv", "basket_size", "conversion_pct", "achievement_pct",
 )
 
@@ -390,6 +390,7 @@ def _blank_target_doc(db: Database, store: str, target_date: date, **fields) -> 
         "prev_year_net_sales": None,
         "reason": None,
         "net_sales": None,
+        "bill_quantity": None,
         "remaining": None,
         "footfall": None,
         "nob": None,
@@ -594,26 +595,109 @@ def list_store_targets(db: Database, store: str) -> list[dict]:
     Conversion % snapshot alongside it so the admin page can show target-vs-actual and
     comprehensive operational KPIs at a glance. Rows whose sales_target is
     still NULL (e.g. one auto-created by a KPI override before any target was
-    set) are included with sales_target: None."""
+    set or days with logged entries) are included with sales_target: None."""
     _validate_store(store)
-    cursor = db[TARGETS].find({"store_code": store}).sort("entry_date", 1)
-    return [
-        {
-            "date": doc["entry_date"],
-            "sales_target": None if doc.get("sales_target") is None else float(doc["sales_target"]),
-            "prev_year_net_sales": None if doc.get("prev_year_net_sales") is None else float(doc["prev_year_net_sales"]),
-            "net_sales": None if doc.get("net_sales") is None else float(doc["net_sales"]),
-            "achievement_pct": None if doc.get("achievement_pct") is None else float(doc["achievement_pct"]),
-            "footfall": None if doc.get("footfall") is None else float(doc["footfall"]),
-            "nob": None if doc.get("nob") is None else float(doc["nob"]),
-            "bill_quantity": None if doc.get("bill_quantity") is None else float(doc["bill_quantity"]),
-            "atv": None if doc.get("atv") is None else float(doc["atv"]),
-            "rpv": None if doc.get("rpv") is None else float(doc["rpv"]),
-            "basket_size": None if doc.get("basket_size") is None else float(doc["basket_size"]),
-            "conversion_pct": None if doc.get("conversion_pct") is None else float(doc["conversion_pct"]),
-        }
-        for doc in cursor
-    ]
+    cursor = list(db[TARGETS].find({"store_code": store}).sort("entry_date", 1))
+
+    # Pre-aggregate live BILLS by date for this store so bill_quantity and net_sales are always accurate
+    bill_sums: dict[str, tuple[float, float]] = {}
+    for doc in db[BILLS].aggregate([
+        {"$match": {"store_code": store}},
+        {"$group": {"_id": "$entry_date", "net_sales": {"$sum": "$net_amount"}, "bill_quantity": {"$sum": "$bill_quantity"}}},
+    ]):
+        if doc.get("_id"):
+            bill_sums[doc["_id"]] = (float(doc.get("net_sales", 0.0) or 0.0), float(doc.get("bill_quantity", 0.0) or 0.0))
+
+    # Pre-aggregate live FOOTFALL by date
+    ff_sums: dict[str, float] = {}
+    for doc in db[FOOTFALL].aggregate([
+        {"$match": {"store_code": store}},
+        {"$group": {"_id": "$entry_date", "footfall": {"$sum": "$footfall"}}},
+    ]):
+        if doc.get("_id"):
+            ff_sums[doc["_id"]] = float(doc.get("footfall", 0.0) or 0.0)
+
+    # Pre-aggregate live NOB by date
+    nob_sums: dict[str, float] = {}
+    for doc in db[NOB].aggregate([
+        {"$match": {"store_code": store}},
+        {"$group": {"_id": "$entry_date", "nob": {"$sum": "$nob"}}},
+    ]):
+        if doc.get("_id"):
+            nob_sums[doc["_id"]] = float(doc.get("nob", 0.0) or 0.0)
+
+    doc_map: dict[str, dict] = {doc["entry_date"]: doc for doc in cursor if doc.get("entry_date")}
+    all_dates = sorted(set(doc_map.keys()) | set(bill_sums.keys()) | set(ff_sums.keys()) | set(nob_sums.keys()))
+
+    entries: list[dict] = []
+    for d in all_dates:
+        doc = doc_map.get(d, {})
+        live_sales, live_bill_qty = bill_sums.get(d, (0.0, 0.0))
+        live_ff = ff_sums.get(d, 0.0)
+        live_nob = nob_sums.get(d, 0.0)
+
+        net_sales = float(doc["net_sales"]) if doc.get("net_sales") is not None else (live_sales if live_sales > 0 else (0.0 if d in bill_sums else None))
+        
+        # Resolve bill_quantity from doc, live bills, or historical basket_size * nob
+        if doc.get("bill_quantity") is not None:
+            bill_quantity = float(doc["bill_quantity"])
+        elif live_bill_qty > 0:
+            bill_quantity = live_bill_qty
+        elif doc.get("basket_size") is not None and doc.get("nob") is not None and float(doc["nob"]) > 0:
+            bill_quantity = float(round(float(doc["basket_size"]) * float(doc["nob"])))
+        elif d in bill_sums:
+            bill_quantity = 0.0
+        else:
+            bill_quantity = None
+
+        footfall = float(doc["footfall"]) if doc.get("footfall") is not None else (live_ff if live_ff > 0 else (0.0 if d in ff_sums else None))
+        nob = float(doc["nob"]) if doc.get("nob") is not None else (live_nob if live_nob > 0 else (0.0 if d in nob_sums else None))
+
+        sales_target = None if doc.get("sales_target") is None else float(doc["sales_target"])
+        prev_year_net_sales = None if doc.get("prev_year_net_sales") is None else float(doc["prev_year_net_sales"])
+
+        achievement_pct = (
+            float(doc["achievement_pct"])
+            if doc.get("achievement_pct") is not None
+            else ((net_sales / sales_target * 100.0) if (net_sales is not None and sales_target and sales_target > 0) else None)
+        )
+        atv = (
+            float(doc["atv"])
+            if doc.get("atv") is not None
+            else ((net_sales / nob) if (net_sales is not None and nob and nob > 0) else None)
+        )
+        basket_size = (
+            float(doc["basket_size"])
+            if doc.get("basket_size") is not None
+            else ((bill_quantity / nob) if (bill_quantity is not None and nob and nob > 0) else None)
+        )
+        conversion_pct = (
+            float(doc["conversion_pct"])
+            if doc.get("conversion_pct") is not None
+            else ((nob / footfall * 100.0) if (nob is not None and footfall and footfall > 0) else None)
+        )
+        rpv = (
+            float(doc["rpv"])
+            if doc.get("rpv") is not None
+            else ((net_sales / footfall) if (net_sales is not None and footfall and footfall > 0) else None)
+        )
+
+        entries.append({
+            "date": d,
+            "sales_target": sales_target,
+            "prev_year_net_sales": prev_year_net_sales,
+            "net_sales": net_sales,
+            "achievement_pct": achievement_pct,
+            "footfall": footfall,
+            "nob": nob,
+            "bill_quantity": bill_quantity,
+            "atv": atv,
+            "rpv": rpv,
+            "basket_size": basket_size,
+            "conversion_pct": conversion_pct,
+        })
+
+    return entries
 
 
 def save_target_entry(db: Database, store: str, target_date: date, reason: str | None = None) -> dict:

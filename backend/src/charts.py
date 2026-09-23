@@ -112,53 +112,50 @@ def footfall_nob_by_timeslot_chart(footfall: pd.DataFrame, title: str = "Footfal
     """Footfall vs NOB summed by time-slot band -- which store hours actually
     convert footfall into transactions best. `title` is overridable so
     daily_footfall_vs_nob_chart below can reuse this exact bar-building logic
-    (DRY -- one place draws a Footfall-vs-NOB-by-time-slot chart) under its
-    own, differently-worded title, without duplicating the trace/layout code
-    a second time."""
+    under its own, differently-worded title."""
     if footfall.empty or "time_slot" not in footfall.columns:
-        return _empty_figure(title)
-    grouped = footfall.groupby("time_slot").agg(footfall=("footfall", "sum"), nob=("nob", "sum")).reindex(TIME_SLOT_ORDER)
+        fig = go.Figure()
+        fig.add_bar(x=TIME_SLOT_ORDER, y=[0.0] * len(TIME_SLOT_ORDER), name="Footfall", marker_color="#94a3b8")
+        fig.add_bar(x=TIME_SLOT_ORDER, y=[0.0] * len(TIME_SLOT_ORDER), name="NOB", marker_color="#2563eb")
+        fig.update_layout(title=title, barmode="group", yaxis={"title": "Count"})
+        _size(fig, STANDARD_CHART_HEIGHT)
+        return _fig_to_dict(fig)
+
+    grouped = (
+        footfall.groupby("time_slot")
+        .agg(footfall=("footfall", "sum"), nob=("nob", "sum"))
+        .reindex(TIME_SLOT_ORDER)
+        .fillna(0.0)
+    )
     fig = go.Figure()
-    fig.add_bar(x=TIME_SLOT_ORDER, y=grouped["footfall"].tolist(), name="Footfall", marker_color="#94a3b8")
-    fig.add_bar(x=TIME_SLOT_ORDER, y=grouped["nob"].tolist(), name="NOB", marker_color="#2563eb")
+    fig.add_bar(x=TIME_SLOT_ORDER, y=[float(v) for v in grouped["footfall"].tolist()], name="Footfall", marker_color="#94a3b8")
+    fig.add_bar(x=TIME_SLOT_ORDER, y=[float(v) for v in grouped["nob"].tolist()], name="NOB", marker_color="#2563eb")
     fig.update_layout(title=title, barmode="group", yaxis={"title": "Count"})
     _size(fig, STANDARD_CHART_HEIGHT)
     return _fig_to_dict(fig)
 
 
 def daily_footfall_vs_nob_chart(breakdown: dict[str, dict[str, float]]) -> dict:
-    """The Daily Dashboard's own simple Footfall-vs-NOB-by-Time-Slot view --
-    just the two bars, no Conversion % line, for a reader who wants the
-    plainest possible side-by-side comparison (daily_timeslot_breakdown_chart
-    below is the sales-oriented view of the same live data). `breakdown` is
-    src/daily_dashboard_store.compute_live_timeslot_breakdown's output,
-    already keyed by TIME_SLOT_ORDER."""
+    """The Daily Dashboard's Footfall-vs-NOB-by-Time-Slot view --
+    side-by-side grouped bars for Footfall and NOB across all 4 store operating time slots."""
     title = "Footfall vs NOB (based on Time Slot)"
-    footfall_vals = [breakdown[slot]["footfall"] for slot in TIME_SLOT_ORDER]
-    nob_vals = [breakdown[slot]["nob"] for slot in TIME_SLOT_ORDER]
-    if not any(footfall_vals) and not any(nob_vals):
-        return _empty_figure(title)
-    df = pd.DataFrame({"time_slot": TIME_SLOT_ORDER, "footfall": footfall_vals, "nob": nob_vals})
-    return footfall_nob_by_timeslot_chart(df, title=title)
+    footfall_vals = [float(breakdown.get(slot, {}).get("footfall", 0.0) or 0.0) for slot in TIME_SLOT_ORDER]
+    nob_vals = [float(breakdown.get(slot, {}).get("nob", 0.0) or 0.0) for slot in TIME_SLOT_ORDER]
+
+    fig = go.Figure()
+    fig.add_bar(x=TIME_SLOT_ORDER, y=footfall_vals, name="Footfall", marker_color="#94a3b8")
+    fig.add_bar(x=TIME_SLOT_ORDER, y=nob_vals, name="NOB", marker_color="#2563eb")
+    fig.update_layout(title=title, barmode="group", yaxis={"title": "Count"})
+    _size(fig, STANDARD_CHART_HEIGHT)
+    return _fig_to_dict(fig)
 
 
 def daily_timeslot_breakdown_chart(breakdown: dict[str, dict[str, float]], day_target: float | None = None) -> dict:
-    """The Daily Dashboard's own Time Slot view -- sales-based: Net Sales per
-    time slot (bars) against the whole-day admin Sales Target drawn as a
-    horizontal reference line. There is no per-slot target in the data, so
-    every slot is compared to the full-day target -- the same convention
-    src/daily_report.py's slot-level table already uses (it repeats the
-    whole-day target on every slot row rather than fabricating a per-slot
-    split). Footfall/NOB by time slot is the separate
-    daily_footfall_vs_nob_chart shown alongside this on the same page, so
-    that view isn't lost -- this one just answers "which part of the day
-    earned the money, and how far are we from target". `breakdown` is
-    src/daily_dashboard_store.compute_live_timeslot_breakdown's output --
-    already keyed by TIME_SLOT_ORDER, so no reindex is needed here."""
+    """The Daily Dashboard's Time Slot view -- Net Sales per time slot against
+    optional whole-day Sales Target reference line."""
     title = "Today's Performance by Time Slot"
-    net_sales_vals = [breakdown[slot]["net_sales"] for slot in TIME_SLOT_ORDER]
-    if not any(net_sales_vals) and not day_target:
-        return _empty_figure(title)
+    net_sales_vals = [float(breakdown.get(slot, {}).get("net_sales", 0.0) or 0.0) for slot in TIME_SLOT_ORDER]
+
     fig = go.Figure()
     fig.add_bar(x=TIME_SLOT_ORDER, y=net_sales_vals, name="Net Sales", marker_color="#2563eb")
     if day_target:
