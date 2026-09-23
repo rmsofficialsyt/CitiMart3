@@ -171,59 +171,59 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
   return (
     <div className="space-y-3">
       {/* Chart Control Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 border-b border-white/5 pb-2">
         {isTimeslotChart ? (
-          <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-black/20 p-1 shadow-inner">
+          <div className="flex flex-wrap items-center gap-1 rounded-xl border border-white/10 bg-black/20 p-0.5 sm:p-1 shadow-inner">
             <button
               type="button"
               onClick={() => setChartFormat("column")}
-              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1 sm:gap-1.5 rounded-lg px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-semibold transition-all cursor-pointer ${
                 chartFormat === "column"
                   ? "glossy-btn-primary text-white shadow-md"
                   : "text-muted-foreground hover:text-foreground hover:bg-white/5"
               }`}
               title="Column Chart"
             >
-              <BarChart3 className="h-3.5 w-3.5" />
+              <BarChart3 className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               <span>Column</span>
             </button>
             <button
               type="button"
               onClick={() => setChartFormat("line")}
-              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1 sm:gap-1.5 rounded-lg px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-semibold transition-all cursor-pointer ${
                 chartFormat === "line"
                   ? "glossy-btn-primary text-white shadow-md"
                   : "text-muted-foreground hover:text-foreground hover:bg-white/5"
               }`}
               title="Line Chart"
             >
-              <LineChart className="h-3.5 w-3.5" />
+              <LineChart className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               <span>Line</span>
             </button>
             <button
               type="button"
               onClick={() => setChartFormat("area")}
-              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1 sm:gap-1.5 rounded-lg px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-semibold transition-all cursor-pointer ${
                 chartFormat === "area"
                   ? "glossy-btn-primary text-white shadow-md"
                   : "text-muted-foreground hover:text-foreground hover:bg-white/5"
               }`}
               title="Area Chart"
             >
-              <TrendingUp className="h-3.5 w-3.5" />
+              <TrendingUp className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               <span>Area</span>
             </button>
             <button
               type="button"
               onClick={() => setChartFormat("pie")}
-              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1 sm:gap-1.5 rounded-lg px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-semibold transition-all cursor-pointer ${
                 chartFormat === "pie"
                   ? "glossy-btn-primary text-white shadow-md"
                   : "text-muted-foreground hover:text-foreground hover:bg-white/5"
               }`}
               title="Donut / Pie Chart"
             >
-              <PieChart className="h-3.5 w-3.5" />
+              <PieChart className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               <span>Donut</span>
             </button>
           </div>
@@ -231,20 +231,20 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
           <div />
         )}
 
-        <div className="flex items-center gap-1.5 ml-auto">
+        <div className="flex flex-wrap items-center gap-1 sm:gap-1.5 ml-auto">
           {/* Chart Grid Lines View Toggle */}
           {chartFormat !== "pie" && (
             <button
               type="button"
               onClick={() => setShowGrid((prev) => !prev)}
-              className={`glossy-btn flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-semibold border transition-all cursor-pointer ${
+              className={`glossy-btn flex items-center gap-1 sm:gap-1.5 rounded-lg sm:rounded-xl px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-semibold border transition-all cursor-pointer ${
                 showGrid
                   ? "bg-blue-500/15 border-blue-500/40 text-blue-600 dark:text-blue-300 shadow-xs"
                   : "bg-muted/60 border-border text-muted-foreground hover:text-foreground dark:bg-white/5 dark:border-white/10 dark:text-slate-400 dark:hover:text-white"
               }`}
               title={showGrid ? "Hide Chart Grid Lines" : "Show Chart Grid Lines"}
             >
-              <Grid3X3 className="h-3.5 w-3.5" />
+              <Grid3X3 className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               <span>Grid: {showGrid ? "ON" : "OFF"}</span>
             </button>
           )}
@@ -253,14 +253,14 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
           <button
             type="button"
             onClick={() => setShowLegend((prev) => !prev)}
-            className={`glossy-btn flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-semibold border transition-all cursor-pointer ${
+            className={`glossy-btn flex items-center gap-1 sm:gap-1.5 rounded-lg sm:rounded-xl px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-semibold border transition-all cursor-pointer ${
               showLegend
                 ? "bg-blue-500/15 border-blue-500/40 text-blue-600 dark:text-blue-300 shadow-xs"
                 : "bg-muted/60 border-border text-muted-foreground hover:text-foreground dark:bg-white/5 dark:border-white/10 dark:text-slate-400 dark:hover:text-white"
             }`}
             title={showLegend ? "Hide Chart Legend" : "Show Chart Legend"}
           >
-            {showLegend ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+            {showLegend ? <Eye className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> : <EyeOff className="h-3 w-3 sm:h-3.5 sm:w-3.5" />}
             <span>Legend: {showLegend ? "ON" : "OFF"}</span>
           </button>
 
@@ -268,7 +268,7 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
           {table && table.rows.length > 0 && (
             <button
               type="button"
-              className="glossy-btn flex items-center gap-1.5 rounded-xl px-3 py-1 text-xs font-semibold text-foreground transition-all cursor-pointer"
+              className="glossy-btn flex items-center gap-1 sm:gap-1.5 rounded-lg sm:rounded-xl px-2.5 sm:px-3 py-1 text-[11px] sm:text-xs font-semibold text-foreground transition-all cursor-pointer"
               onClick={() => setShowTable((o) => !o)}
             >
               {showTable ? "Hide" : "View"} Data Table
@@ -279,8 +279,8 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
 
       {/* Donut/Pie Sub-Breakdown Selector (for multi-trace charts like Footfall vs NOB) */}
       {isTimeslotChart && chartFormat === "pie" && traces && traces.length > 1 && (
-        <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-white/10 bg-muted/20 px-3 py-1.5 text-xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mr-1">
+        <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-white/10 bg-muted/20 px-2.5 sm:px-3 py-1.5 text-xs">
+          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-muted-foreground mr-1">
             Breakdown:
           </span>
           {traces.map((t: any, idx: number) => {
@@ -320,7 +320,7 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="rounded-2xl border border-white/10 bg-card/60 p-3 sm:p-4 backdrop-blur-md shadow-xs hover:border-white/20 transition-all"
+        className="rounded-2xl border border-white/10 bg-card/60 p-2 sm:p-3.5 backdrop-blur-md shadow-xs hover:border-white/20 transition-all"
       >
         {chartFormat === "column" && (
           <RechartsColumnChart
@@ -329,7 +329,7 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
             showGrid={showGrid}
             showLegend={showLegend}
             isCurrency={isCurrency}
-            className={className ?? "h-[300px] sm:h-[380px] w-full"}
+            className={className ?? "h-[280px] sm:h-[340px] md:h-[380px] w-full min-h-[260px]"}
           />
         )}
         {chartFormat === "line" && (
@@ -339,7 +339,7 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
             showGrid={showGrid}
             showLegend={showLegend}
             isCurrency={isCurrency}
-            className={className ?? "h-[300px] sm:h-[380px] w-full"}
+            className={className ?? "h-[280px] sm:h-[340px] md:h-[380px] w-full min-h-[260px]"}
           />
         )}
         {chartFormat === "area" && (
@@ -349,7 +349,7 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
             showGrid={showGrid}
             showLegend={showLegend}
             isCurrency={isCurrency}
-            className={className ?? "h-[300px] sm:h-[380px] w-full"}
+            className={className ?? "h-[280px] sm:h-[340px] md:h-[380px] w-full min-h-[260px]"}
           />
         )}
         {chartFormat === "pie" && (
@@ -357,7 +357,7 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
             data={donutData}
             showLegend={showLegend}
             isCurrency={isCurrency}
-            className={className ?? "h-[300px] sm:h-[380px] w-full"}
+            className={className ?? "h-[280px] sm:h-[340px] md:h-[380px] w-full min-h-[260px]"}
           />
         )}
       </motion.div>
@@ -370,9 +370,9 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="overflow-hidden"
+            className="overflow-hidden w-full"
           >
-            <div className="mt-2 max-h-80 overflow-auto rounded-xl border border-white/10">
+            <div className="mt-2 max-h-80 overflow-x-auto rounded-xl border border-white/10 w-full">
               <Table>
                 <TableHeader className="bg-muted/50">
                   <TableRow>

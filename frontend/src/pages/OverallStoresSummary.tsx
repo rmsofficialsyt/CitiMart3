@@ -75,11 +75,11 @@ export function OverallStoresSummary() {
       )}
 
       {/* Level 1: Horizontal View - 4x3 KPI Matrix & Gauges at the Same Level with Imaginary Line */}
-      <div className="rounded-2xl border border-border/80 bg-card/40 p-4 sm:p-5 shadow-sm backdrop-blur-sm">
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-stretch">
+      <div className="rounded-2xl border border-border/80 bg-card/40 p-3 sm:p-5 shadow-sm backdrop-blur-sm">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-12 xl:items-stretch">
           
           {/* Left Side: 12 KPI Cards in Matrix */}
-          <div className="flex flex-col justify-between lg:col-span-7">
+          <div className="flex flex-col justify-between xl:col-span-7">
             <div className="mb-2.5 flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Consolidated KPI Matrix
@@ -87,7 +87,7 @@ export function OverallStoresSummary() {
               <span className="text-[11px] text-muted-foreground font-medium">12 Blended Metrics</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-2.5 flex-1">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-2.5 flex-1">
               {isLoading || !data
                 ? Array.from({ length: DAILY_KPI_ORDER.length }).map((_, i) => (
                     <Skeleton key={i} className="h-[88px] sm:h-[96px] rounded-xl" />
@@ -108,7 +108,7 @@ export function OverallStoresSummary() {
           </div>
 
           {/* Middle: Imaginary Line Separator */}
-          <div className="hidden lg:flex lg:col-span-1 lg:h-full lg:flex-col lg:items-center lg:justify-center relative py-4">
+          <div className="hidden xl:flex xl:col-span-1 xl:h-full xl:flex-col xl:items-center xl:justify-center relative py-4">
             <div className="h-full w-px border-l-2 border-dashed border-indigo-500/30 dark:border-indigo-400/20 relative">
               <div className="absolute top-1/2 -left-3 -translate-y-1/2 flex items-center justify-center h-6 w-6 rounded-full bg-background border border-indigo-500/40 text-[10px] text-indigo-400 shadow-sm">
                 <Sparkles className="h-3 w-3 animate-pulse" />
@@ -116,10 +116,10 @@ export function OverallStoresSummary() {
             </div>
           </div>
 
-          <div className="block lg:hidden w-full my-1 border-t-2 border-dashed border-indigo-500/30" />
+          <div className="block xl:hidden w-full my-2 border-t-2 border-dashed border-indigo-500/30" />
 
           {/* Right Side: Gauges at Same Level */}
-          <div className="flex flex-col justify-between lg:col-span-4">
+          <div className="flex flex-col justify-between xl:col-span-4">
             <div className="mb-2.5 flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <Gauge className="h-4 w-4 text-indigo-400" />
@@ -130,14 +130,14 @@ export function OverallStoresSummary() {
               <span className="text-[11px] text-muted-foreground font-medium">Live Dials</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-2.5 flex-1">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-3 gap-2 sm:gap-2.5 flex-1">
               {GAUGES.map((g) => (
                 <div
                   key={g.id}
-                  className="group relative bg-card/90 dark:bg-card/75 backdrop-blur-md rounded-xl border border-border/70 p-1.5 shadow-xs hover:shadow-md hover:border-primary/40 transition-all duration-200 flex items-center justify-center min-h-[146px] sm:min-h-[152px] overflow-hidden"
+                  className="group relative bg-card/90 dark:bg-card/75 backdrop-blur-md rounded-xl border border-border/70 p-1.5 shadow-xs hover:shadow-md hover:border-primary/40 transition-all duration-200 flex items-center justify-center min-h-[145px] sm:min-h-[155px] overflow-hidden"
                 >
                   <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 dark:via-white/10 to-transparent" />
-                  <ChartPanel chartId={g.id} filters={gaugeFilters} className="h-[140px] sm:h-[146px] w-full" />
+                  <ChartPanel chartId={g.id} filters={gaugeFilters} className="h-auto w-full min-h-[135px]" />
                 </div>
               ))}
             </div>
@@ -160,17 +160,17 @@ export function OverallStoresSummary() {
         {isLoading || !data ? (
           <Skeleton className="h-64 w-full" />
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-border">
+          <div className="w-full overflow-x-auto rounded-xl border border-border">
             <Table>
               <TableHeader className="bg-muted/50">
                 <TableRow>
-                  <TableHead className="font-semibold">KPI</TableHead>
+                  <TableHead className="font-semibold whitespace-nowrap">KPI</TableHead>
                   {STORES.map((s) => (
-                    <TableHead key={s.code} className="text-right font-semibold">
+                    <TableHead key={s.code} className="text-right font-semibold whitespace-nowrap">
                       {s.label}
                     </TableHead>
                   ))}
-                  <TableHead className="text-right font-bold text-primary">Total (All Stores)</TableHead>
+                  <TableHead className="text-right font-bold text-primary whitespace-nowrap">Total (All Stores)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -180,7 +180,7 @@ export function OverallStoresSummary() {
                   const IconComp = iconCfg?.icon;
                   return (
                     <TableRow key={key} className="hover:bg-muted/30">
-                      <TableCell className="font-medium text-foreground">
+                      <TableCell className="font-medium text-foreground whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           {IconComp && (
                             <div className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded-md border", iconCfg?.bg, iconCfg?.border, iconCfg?.color)}>
@@ -191,11 +191,11 @@ export function OverallStoresSummary() {
                         </div>
                       </TableCell>
                       {STORES.map((s) => (
-                        <TableCell key={s.code} className="text-right tabular-nums text-muted-foreground">
+                        <TableCell key={s.code} className="text-right tabular-nums text-muted-foreground whitespace-nowrap">
                           {fmt(data.per_store[s.code]?.[key] ?? null)}
                         </TableCell>
                       ))}
-                      <TableCell className="text-right font-bold tabular-nums text-foreground">{fmt(data.kpis[key])}</TableCell>
+                      <TableCell className="text-right font-bold tabular-nums text-foreground whitespace-nowrap">{fmt(data.kpis[key])}</TableCell>
                     </TableRow>
                   );
                 })}

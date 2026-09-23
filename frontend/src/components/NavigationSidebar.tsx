@@ -112,7 +112,7 @@ export function NavigationSidebar({
 
   return (
     <>
-      <aside className="glossy-sidebar flex w-full flex-col justify-between shrink-0 p-4 lg:w-72 lg:min-h-[calc(100vh-4.25rem)] lg:sticky lg:top-[4.25rem] text-foreground rounded-2xl lg:rounded-none border-b lg:border-b-0 lg:border-r border-border shadow-xl z-40">
+      <aside className="glossy-sidebar flex w-full flex-col justify-between shrink-0 p-3 sm:p-4 lg:w-64 xl:w-72 lg:min-h-[calc(100vh-4.25rem)] lg:sticky lg:top-[4.25rem] text-foreground rounded-2xl lg:rounded-none border-b lg:border-b-0 lg:border-r border-border shadow-xl z-40">
         <div className="space-y-6">
           {/* Brand Header: Vector Brand Emblem */}
           <div className="flex items-center gap-3 px-2 py-1">

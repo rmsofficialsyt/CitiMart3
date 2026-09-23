@@ -143,7 +143,7 @@ export function KpiCard({
         delay: Math.min(index, 12) * 0.022,
       }}
       className={cn(
-        "group relative flex flex-col justify-between rounded-2xl p-2.5 sm:p-3.5 transition-all duration-200 overflow-hidden",
+        "group relative flex flex-col justify-between rounded-xl sm:rounded-2xl p-2 sm:p-2.5 md:p-3 xl:p-3.5 transition-all duration-200 overflow-hidden min-w-0",
         statusConfig?.cardClass ?? "glossy-kpi-neutral",
       )}
     >
@@ -172,19 +172,19 @@ export function KpiCard({
       <div className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full" />
 
       {/* Card Header: Icon Chip + Label + Status Beacon + Popover Actions */}
-      <div className="relative z-10 flex items-start justify-between gap-1.5">
-        <div className="flex items-center gap-1.5 min-w-0 pr-1">
+      <div className="relative z-10 flex items-start justify-between gap-1 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
           {IconComponent && (
             <div
               className={cn(
-                "flex h-5 w-5 sm:h-5.5 sm:w-5.5 shrink-0 items-center justify-center rounded-md border transition-all duration-300 shadow-xs",
+                "flex h-4.5 w-4.5 sm:h-5 sm:w-5 shrink-0 items-center justify-center rounded-md border transition-all duration-300 shadow-xs",
                 "group-hover:scale-110",
                 iconConfig.bg,
                 iconConfig.border,
                 iconConfig.color,
               )}
             >
-              <IconComponent className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+              <IconComponent className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
             </div>
           )}
           {statusConfig && (
@@ -193,21 +193,21 @@ export function KpiCard({
               <span className={cn("relative inline-flex h-2 w-2 rounded-full", statusConfig.dotColor)} />
             </span>
           )}
-          <span className="text-muted-foreground group-hover:text-foreground/90 text-[11px] font-bold uppercase tracking-wider truncate sm:text-xs transition-colors">
+          <span className="text-muted-foreground group-hover:text-foreground/90 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate transition-colors">
             {displayLabel}
           </span>
         </div>
 
-        <div className="flex items-center gap-0.5 shrink-0 -mr-1 -mt-1">
+        <div className="flex items-center gap-0.5 shrink-0 -mr-0.5 -mt-0.5">
           {thresholdControl}
           <Popover>
             <PopoverTrigger asChild>
               <button
                 type="button"
                 aria-label={`${label} formula`}
-                className="text-muted-foreground/60 hover:text-foreground hover:bg-muted/80 rounded p-1 transition-all cursor-pointer"
+                className="text-muted-foreground/60 hover:text-foreground hover:bg-muted/80 rounded p-0.5 sm:p-1 transition-all cursor-pointer"
               >
-                <Info className="h-3.5 w-3.5" />
+                <Info className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               </button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-68 p-3.5 shadow-xl border-border/80 backdrop-blur-md">
@@ -228,10 +228,10 @@ export function KpiCard({
       </div>
 
       {/* Card Value Display + Optional Delta Variance */}
-      <div className="relative z-10 mt-2.5 flex items-baseline justify-between gap-1">
+      <div className="relative z-10 mt-2 flex items-baseline justify-between gap-1 min-w-0">
         <div
           className={cn(
-            "font-mono text-base font-extrabold tabular-nums tracking-tight transition-colors sm:text-lg lg:text-xl break-all sm:break-normal drop-shadow-xs",
+            "font-mono text-sm sm:text-base md:text-lg xl:text-xl font-extrabold tabular-nums tracking-tight transition-colors whitespace-nowrap truncate drop-shadow-xs",
             statusConfig ? statusConfig.valueClass : "text-foreground group-hover:text-primary",
           )}
         >
@@ -241,7 +241,7 @@ export function KpiCard({
         {hasDelta && (
           <div
             className={cn(
-              "flex items-center gap-1 font-mono text-[10px] sm:text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-md border shrink-0",
+              "flex items-center gap-0.5 sm:gap-1 font-mono text-[9px] sm:text-[10px] md:text-[11px] font-semibold tabular-nums px-1 sm:px-1.5 py-0.5 rounded-md border shrink-0 whitespace-nowrap",
               isUp && "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
               isDown && "text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/20",
               !isUp && !isDown && "text-muted-foreground bg-muted/60 border-border/60",
@@ -254,7 +254,7 @@ export function KpiCard({
                 transition={{ type: "spring", stiffness: 500, damping: 15, delay: Math.min(index, 12) * 0.022 + 0.15 }}
                 className="inline-flex"
               >
-                {isUp ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                {isUp ? <TrendingUp className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> : <TrendingDown className="h-2.5 w-2.5 sm:h-3 sm:w-3" />}
               </motion.span>
             )}
             {Math.round(Math.abs(pct))}%

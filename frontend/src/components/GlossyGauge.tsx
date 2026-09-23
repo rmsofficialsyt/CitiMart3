@@ -385,22 +385,23 @@ export function GlossyGauge({ spec, className, neon }: { spec: GaugeSpec; classN
   const maxLabelPos = polar(LABEL_R, START_ANGLE + SWEEP);
 
   return (
-    <div className={`group flex flex-col items-center justify-center p-1 select-none transition-transform duration-300 ${wrapperClass}`}>
+    <div className={`group flex flex-col items-center justify-center p-0.5 sm:p-1 select-none transition-transform duration-300 w-full ${wrapperClass}`}>
       {spec.title && (
-        <div className="flex items-center justify-center gap-1.5 mb-1 px-2 py-0.5 rounded-full bg-muted/40 border border-border/40 backdrop-blur-xs transition-all duration-200 group-hover:bg-muted/70 group-hover:border-primary/30 max-w-[95%]">
+        <div className="flex items-center justify-center gap-1 sm:gap-1.5 mb-1 px-1.5 sm:px-2 py-0.5 rounded-full bg-muted/40 border border-border/40 backdrop-blur-xs transition-all duration-200 group-hover:bg-muted/70 group-hover:border-primary/30 max-w-[98%]">
           {GaugeIcon && (
-            <div className={cn("flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border transition-transform group-hover:scale-110", iconConfig.bg, iconConfig.border)}>
-              <GaugeIcon className={cn("h-2 w-2", iconConfig.color)} />
+            <div className={cn("flex h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 items-center justify-center rounded-full border transition-transform group-hover:scale-110", iconConfig.bg, iconConfig.border)}>
+              <GaugeIcon className={cn("h-1.5 w-1.5 sm:h-2 sm:w-2", iconConfig.color)} />
             </div>
           )}
-          <span className="text-muted-foreground group-hover:text-foreground text-[11px] sm:text-xs font-semibold tracking-wide truncate transition-colors">
+          <span className="text-muted-foreground group-hover:text-foreground text-[10px] sm:text-[11px] font-semibold tracking-wide truncate transition-colors">
             {spec.title}
           </span>
         </div>
       )}
       <svg
         viewBox="0 0 300 300"
-        className="h-full max-h-[132px] sm:max-h-[142px] w-full max-w-[145px] shrink-0 filter drop-shadow-md"
+        preserveAspectRatio="xMidYMid meet"
+        className="w-full max-w-[140px] sm:max-w-[145px] h-auto aspect-square shrink-0 filter drop-shadow-md"
         role="img"
         aria-label={`${spec.title}: ${fmt(value)}${target != null ? `, target ${fmt(target)}` : ""}`}
       >

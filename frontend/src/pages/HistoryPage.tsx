@@ -864,57 +864,57 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
           {/* Multi-Day Daily Breakdown Table */}
           {isMultiDay && dailyBreakdown.length > 0 && (
             <Section title={`Day-Wise Summary Breakdown (${dailyBreakdown.length} Recorded Days)`}>
-              <div className="overflow-x-auto rounded-lg border border-border">
+              <div className="w-full overflow-x-auto rounded-xl border border-border">
                 <Table>
                   <TableHeader className="bg-muted/50">
                     <TableRow>
-                      <TableHead className="font-semibold">Date</TableHead>
-                      <TableHead className="font-semibold">Day</TableHead>
-                      <TableHead className="text-right font-semibold">Net Sales (₹)</TableHead>
-                      <TableHead className="text-right font-semibold">Target (₹)</TableHead>
-                      <TableHead className="text-right font-semibold">Achievement %</TableHead>
-                      <TableHead className="text-right font-semibold">Remaining (₹)</TableHead>
-                      <TableHead className="text-right font-semibold">Bill Qty</TableHead>
-                      <TableHead className="text-right font-semibold">Footfall</TableHead>
-                      <TableHead className="text-right font-semibold">NOB</TableHead>
-                      <TableHead className="text-right font-semibold">Basket Size</TableHead>
-                      <TableHead className="text-right font-semibold">ATV (₹)</TableHead>
-                      <TableHead className="text-right font-semibold">RPV (₹)</TableHead>
-                      <TableHead className="text-right font-semibold">Conversion %</TableHead>
-                      <TableHead className="text-center font-semibold">Inspect</TableHead>
+                      <TableHead className="font-semibold whitespace-nowrap">Date</TableHead>
+                      <TableHead className="font-semibold whitespace-nowrap">Day</TableHead>
+                      <TableHead className="text-right font-semibold whitespace-nowrap">Net Sales (₹)</TableHead>
+                      <TableHead className="text-right font-semibold whitespace-nowrap">Target (₹)</TableHead>
+                      <TableHead className="text-right font-semibold whitespace-nowrap">Achievement %</TableHead>
+                      <TableHead className="text-right font-semibold whitespace-nowrap">Remaining (₹)</TableHead>
+                      <TableHead className="text-right font-semibold whitespace-nowrap">Bill Qty</TableHead>
+                      <TableHead className="text-right font-semibold whitespace-nowrap">Footfall</TableHead>
+                      <TableHead className="text-right font-semibold whitespace-nowrap">NOB</TableHead>
+                      <TableHead className="text-right font-semibold whitespace-nowrap">Basket Size</TableHead>
+                      <TableHead className="text-right font-semibold whitespace-nowrap">ATV (₹)</TableHead>
+                      <TableHead className="text-right font-semibold whitespace-nowrap">RPV (₹)</TableHead>
+                      <TableHead className="text-right font-semibold whitespace-nowrap">Conversion %</TableHead>
+                      <TableHead className="text-center font-semibold whitespace-nowrap">Inspect</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {dailyBreakdown.map((day) => (
                       <TableRow key={day.date} className="hover:bg-muted/30">
-                        <TableCell className="font-mono text-xs font-semibold text-foreground">{fmtDateDot(day.date)}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{day.day_name}</TableCell>
-                        <TableCell className="text-right font-semibold text-emerald-400">
+                        <TableCell className="font-mono text-xs font-semibold text-foreground whitespace-nowrap">{fmtDateDot(day.date)}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{day.day_name}</TableCell>
+                        <TableCell className="text-right font-semibold text-emerald-400 whitespace-nowrap">
                           {fmtCurrencyOrZero(day.net_sales)}
                         </TableCell>
-                        <TableCell className="text-right text-muted-foreground">
+                        <TableCell className="text-right text-muted-foreground whitespace-nowrap">
                           {day.sales_target != null ? fmtCurrencyOrZero(day.sales_target) : "—"}
                         </TableCell>
-                        <TableCell className="text-right font-semibold text-indigo-300">
+                        <TableCell className="text-right font-semibold text-indigo-300 whitespace-nowrap">
                           {fmtPercentOrZero(day.achievement_pct)}
                         </TableCell>
-                        <TableCell className="text-right text-muted-foreground">
+                        <TableCell className="text-right text-muted-foreground whitespace-nowrap">
                           {fmtCurrencyOrZero(day.remaining)}
                         </TableCell>
-                        <TableCell className="text-right font-medium">
+                        <TableCell className="text-right font-medium whitespace-nowrap">
                           {fmtNumberOrZero(day.bill_quantity)}
                         </TableCell>
-                        <TableCell className="text-right">{fmtNumberOrZero(day.footfall)}</TableCell>
-                        <TableCell className="text-right">{fmtNumberOrZero(day.nob)}</TableCell>
-                        <TableCell className="text-right font-semibold text-amber-300">
+                        <TableCell className="text-right whitespace-nowrap">{fmtNumberOrZero(day.footfall)}</TableCell>
+                        <TableCell className="text-right whitespace-nowrap">{fmtNumberOrZero(day.nob)}</TableCell>
+                        <TableCell className="text-right font-semibold text-amber-300 whitespace-nowrap">
                           {fmtNumberOrZero(day.basket_size)}
                         </TableCell>
-                        <TableCell className="text-right">{fmtCurrencyOrZero(day.atv)}</TableCell>
-                        <TableCell className="text-right">{fmtCurrencyOrZero(day.rpv)}</TableCell>
-                        <TableCell className="text-right font-semibold text-blue-400">
+                        <TableCell className="text-right whitespace-nowrap">{fmtCurrencyOrZero(day.atv)}</TableCell>
+                        <TableCell className="text-right whitespace-nowrap">{fmtCurrencyOrZero(day.rpv)}</TableCell>
+                        <TableCell className="text-right font-semibold text-blue-400 whitespace-nowrap">
                           {fmtPercentOrZero(day.conversion_pct)}
                         </TableCell>
-                        <TableCell className="text-center">
+                        <TableCell className="text-center whitespace-nowrap">
                           <Button
                             variant="ghost"
                             size="sm"

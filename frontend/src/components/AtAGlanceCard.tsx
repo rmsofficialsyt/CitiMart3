@@ -341,10 +341,10 @@ export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCar
       </div>
 
       {/* 2-Column Split: Left = Operational Pace & Multi-Metric Suite, Right = Granular Historical Comparison Engine */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-stretch">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-12 xl:items-stretch">
         
         {/* Left Column: Multi-Metric Comparative Grid & Target Pace Tracker (5 cols) */}
-        <div className="flex flex-col justify-between rounded-2xl border border-border/80 bg-card/80 dark:bg-slate-900/60 p-4 sm:p-5 lg:col-span-5 space-y-4 shadow-md backdrop-blur-xl">
+        <div className="flex flex-col justify-between rounded-2xl border border-border/80 bg-card/80 dark:bg-slate-900/60 p-3.5 sm:p-5 xl:col-span-5 space-y-4 shadow-md backdrop-blur-xl">
           <div className="space-y-4">
             {/* Header / Metric selector */}
             <div className="flex items-center justify-between">
@@ -358,7 +358,7 @@ export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCar
             </div>
 
             {/* Metric Comparison Cards Grid */}
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-2 gap-2 sm:gap-2.5">
               {metricCards.map((m) => {
                 const isPositive = m.diff >= 0;
                 const isSelected = selectedMetric === m.id;
@@ -368,22 +368,22 @@ export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCar
                     key={m.id}
                     type="button"
                     onClick={() => setSelectedMetric(m.id)}
-                    className={`flex flex-col justify-between rounded-xl p-3 text-left transition-all cursor-pointer border ${
+                    className={`flex flex-col justify-between rounded-xl p-2.5 sm:p-3 text-left transition-all cursor-pointer border ${
                       isSelected
                         ? "border-blue-500 bg-blue-500/10 dark:bg-blue-500/20 shadow-sm shadow-blue-500/10"
                         : "border-border/80 bg-muted/30 hover:bg-muted/60 dark:border-white/5 dark:bg-black/25 dark:hover:bg-white/5"
                     }`}
                   >
-                    <div className="flex items-center justify-between text-muted-foreground text-[11px]">
+                    <div className="flex items-center justify-between text-muted-foreground text-[10px] sm:text-[11px]">
                       <span className="font-semibold truncate">{m.label}</span>
                       <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                     </div>
-                    <div className="mt-1.5 font-mono text-base font-extrabold text-foreground">
+                    <div className="mt-1 font-mono text-sm sm:text-base font-extrabold text-foreground truncate">
                       {m.present}
                     </div>
-                    <div className="mt-1 flex items-center justify-between text-[10px] text-muted-foreground border-t border-border/60 dark:border-white/5 pt-1">
-                      <span>Ref: <strong className="text-foreground font-mono">{m.benchmark}</strong></span>
-                      <span className={`font-bold flex items-center gap-0.5 ${isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                    <div className="mt-1 flex items-center justify-between text-[9px] sm:text-[10px] text-muted-foreground border-t border-border/60 dark:border-white/5 pt-1">
+                      <span className="truncate">Ref: <strong className="text-foreground font-mono">{m.benchmark}</strong></span>
+                      <span className={`font-bold flex items-center gap-0.5 shrink-0 ${isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
                         {isPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                         {isPositive ? `+${m.pct.toFixed(1)}%` : `${m.pct.toFixed(1)}%`}
                       </span>
@@ -430,7 +430,7 @@ export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCar
         </div>
 
         {/* Right Column: Granular Comparative Analytics & Inference Engine (7 cols) */}
-        <div className="flex flex-col justify-between rounded-2xl border border-border/80 bg-card/80 dark:bg-slate-900/60 p-4 sm:p-5 lg:col-span-7 space-y-4 shadow-md backdrop-blur-xl">
+        <div className="flex flex-col justify-between rounded-2xl border border-border/80 bg-card/80 dark:bg-slate-900/60 p-3.5 sm:p-5 xl:col-span-7 space-y-4 shadow-md backdrop-blur-xl">
           <div>
             {/* Lookback Selector Tabs */}
             <div className="flex items-center justify-between mb-2.5">

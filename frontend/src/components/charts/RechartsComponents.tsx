@@ -98,7 +98,7 @@ export function RechartsColumnChart({
   showGrid = true,
   showLegend = true,
   isCurrency = false,
-  className = "h-[320px] w-full",
+  className = "h-[300px] sm:h-[360px] w-full min-h-[260px]",
 }: {
   data: RechartDataPoint[];
   series: SeriesConfig[];
@@ -110,7 +110,7 @@ export function RechartsColumnChart({
   return (
     <div className={className}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 16, right: 16, left: 0, bottom: 20 }}>
+        <BarChart data={data} margin={{ top: 16, right: 12, left: 8, bottom: 16 }}>
           {showGrid && (
             <CartesianGrid
               strokeDasharray="3 3"
@@ -121,14 +121,16 @@ export function RechartsColumnChart({
           <XAxis
             dataKey="name"
             stroke="#94A3B8"
-            fontSize={11}
+            fontSize={10}
             tickLine={false}
             axisLine={{ stroke: "rgba(255, 255, 255, 0.1)" }}
             dy={8}
+            minTickGap={6}
           />
           <YAxis
             stroke="#94A3B8"
-            fontSize={11}
+            fontSize={10}
+            width={48}
             tickLine={false}
             axisLine={false}
             tickFormatter={(v) => (isCurrency ? `₹${(v / 1000).toFixed(0)}k` : `${v}`)}
@@ -140,7 +142,7 @@ export function RechartsColumnChart({
           {showLegend && (
             <Legend
               verticalAlign="bottom"
-              wrapperStyle={{ paddingTop: "12px", fontSize: "12px" }}
+              wrapperStyle={{ paddingTop: "10px", fontSize: "11px" }}
               iconType="circle"
             />
           )}
@@ -168,7 +170,7 @@ export function RechartsLineChart({
   showGrid = true,
   showLegend = true,
   isCurrency = false,
-  className = "h-[320px] w-full",
+  className = "h-[300px] sm:h-[360px] w-full min-h-[260px]",
 }: {
   data: RechartDataPoint[];
   series: SeriesConfig[];
@@ -180,7 +182,7 @@ export function RechartsLineChart({
   return (
     <div className={className}>
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 16, right: 16, left: 0, bottom: 20 }}>
+        <LineChart data={data} margin={{ top: 16, right: 12, left: 8, bottom: 16 }}>
           {showGrid && (
             <CartesianGrid
               strokeDasharray="3 3"
@@ -191,14 +193,16 @@ export function RechartsLineChart({
           <XAxis
             dataKey="name"
             stroke="#94A3B8"
-            fontSize={11}
+            fontSize={10}
             tickLine={false}
             axisLine={{ stroke: "rgba(255, 255, 255, 0.1)" }}
             dy={8}
+            minTickGap={6}
           />
           <YAxis
             stroke="#94A3B8"
-            fontSize={11}
+            fontSize={10}
+            width={48}
             tickLine={false}
             axisLine={false}
             tickFormatter={(v) => (isCurrency ? `₹${(v / 1000).toFixed(0)}k` : `${v}`)}
@@ -210,7 +214,7 @@ export function RechartsLineChart({
           {showLegend && (
             <Legend
               verticalAlign="bottom"
-              wrapperStyle={{ paddingTop: "12px", fontSize: "12px" }}
+              wrapperStyle={{ paddingTop: "10px", fontSize: "11px" }}
               iconType="circle"
             />
           )}
@@ -222,8 +226,8 @@ export function RechartsLineChart({
               name={s.name}
               stroke={s.color || DEFAULT_SERIES_COLORS[idx % DEFAULT_SERIES_COLORS.length]}
               strokeWidth={s.strokeWidth ?? 3}
-              dot={{ r: 4, fill: s.color, stroke: "#1E1E24", strokeWidth: 2 }}
-              activeDot={{ r: 7, fill: "#FFFFFF", stroke: s.color, strokeWidth: 3 }}
+              dot={{ r: 3.5, fill: s.color, stroke: "#1E1E24", strokeWidth: 2 }}
+              activeDot={{ r: 6.5, fill: "#FFFFFF", stroke: s.color, strokeWidth: 3 }}
               animationDuration={800}
             />
           ))}
@@ -233,14 +237,14 @@ export function RechartsLineChart({
   );
 }
 
-// 3. Gradient Area Chart matching the Teamify glowing curves
+// 3. Gradient Area Chart matching glowing curves
 export function RechartsAreaChart({
   data,
   series,
   showGrid = true,
   showLegend = true,
   isCurrency = false,
-  className = "h-[320px] w-full",
+  className = "h-[300px] sm:h-[360px] w-full min-h-[260px]",
 }: {
   data: RechartDataPoint[];
   series: SeriesConfig[];
@@ -252,7 +256,7 @@ export function RechartsAreaChart({
   return (
     <div className={className}>
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 16, right: 16, left: 0, bottom: 20 }}>
+        <AreaChart data={data} margin={{ top: 16, right: 12, left: 8, bottom: 16 }}>
           <defs>
             {series.map((s, idx) => {
               const color = s.color || DEFAULT_SERIES_COLORS[idx % DEFAULT_SERIES_COLORS.length];
@@ -274,14 +278,16 @@ export function RechartsAreaChart({
           <XAxis
             dataKey="name"
             stroke="#94A3B8"
-            fontSize={11}
+            fontSize={10}
             tickLine={false}
             axisLine={{ stroke: "rgba(255, 255, 255, 0.1)" }}
             dy={8}
+            minTickGap={6}
           />
           <YAxis
             stroke="#94A3B8"
-            fontSize={11}
+            fontSize={10}
+            width={48}
             tickLine={false}
             axisLine={false}
             tickFormatter={(v) => (isCurrency ? `₹${(v / 1000).toFixed(0)}k` : `${v}`)}
@@ -293,7 +299,7 @@ export function RechartsAreaChart({
           {showLegend && (
             <Legend
               verticalAlign="bottom"
-              wrapperStyle={{ paddingTop: "12px", fontSize: "12px" }}
+              wrapperStyle={{ paddingTop: "10px", fontSize: "11px" }}
               iconType="circle"
             />
           )}
@@ -309,8 +315,8 @@ export function RechartsAreaChart({
                 strokeWidth={2.5}
                 fillOpacity={1}
                 fill={`url(#area-grad-${s.key})`}
-                dot={{ r: 3.5, fill: color, stroke: "#1E1E24", strokeWidth: 1.5 }}
-                activeDot={{ r: 6.5, fill: "#FFFFFF", stroke: color, strokeWidth: 2.5 }}
+                dot={{ r: 3, fill: color, stroke: "#1E1E24", strokeWidth: 1.5 }}
+                activeDot={{ r: 6, fill: "#FFFFFF", stroke: color, strokeWidth: 2.5 }}
                 animationDuration={800}
               />
             );
@@ -326,7 +332,7 @@ export function RechartsDonutChart({
   data,
   showLegend = true,
   isCurrency = false,
-  className = "h-[320px] w-full",
+  className = "h-[300px] sm:h-[360px] w-full min-h-[260px]",
 }: {
   data: { name: string; value: number; color?: string }[];
   showLegend?: boolean;
@@ -338,7 +344,7 @@ export function RechartsDonutChart({
   return (
     <div className={`relative flex flex-col items-center justify-center ${className}`}>
       <ResponsiveContainer width="100%" height="100%">
-        <PieChart margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
+        <PieChart margin={{ top: 10, right: 10, left: 10, bottom: 16 }}>
           <Tooltip
             content={<ModernChartTooltip isCurrency={isCurrency} />}
           />
@@ -364,16 +370,16 @@ export function RechartsDonutChart({
           {showLegend && (
             <Legend
               verticalAlign="bottom"
-              wrapperStyle={{ paddingTop: "10px", fontSize: "12px" }}
+              wrapperStyle={{ paddingTop: "8px", fontSize: "11px" }}
               iconType="circle"
             />
           )}
         </PieChart>
       </ResponsiveContainer>
       {/* Center cutout summary */}
-      <div className="pointer-events-none absolute inset-x-0 top-[38%] flex flex-col items-center justify-center text-center">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total</span>
-        <span className="font-mono text-sm font-extrabold text-foreground sm:text-base">
+      <div className="pointer-events-none absolute inset-x-0 top-[38%] flex flex-col items-center justify-center text-center px-2">
+        <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total</span>
+        <span className="font-mono text-xs sm:text-sm md:text-base font-extrabold text-foreground truncate max-w-[80%]">
           {isCurrency ? fmtCurrency(total) : fmtNumber(total)}
         </span>
       </div>

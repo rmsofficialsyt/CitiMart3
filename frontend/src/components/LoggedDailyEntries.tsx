@@ -259,17 +259,17 @@ export function LoggedDailyEntries({ store, date }: { store: string; date: strin
       {mergedRows.length === 0 ? (
         <p className="text-muted-foreground text-sm py-4">No floor operations logged yet for today.</p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="w-full overflow-x-auto rounded-xl border border-border">
           <Table>
-            <TableHeader>
+            <TableHeader className="bg-muted/50">
               <TableRow>
-                <TableHead>Time Stamp (12-Hr)</TableHead>
-                <TableHead>Time Slot</TableHead>
-                <TableHead>Footfall (visitors)</TableHead>
-                <TableHead>Net Sales</TableHead>
-                <TableHead>Bill Quantity (units)</TableHead>
-                <TableHead>NOB</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="whitespace-nowrap">Time Stamp (12-Hr)</TableHead>
+                <TableHead className="whitespace-nowrap">Time Slot</TableHead>
+                <TableHead className="whitespace-nowrap">Footfall (visitors)</TableHead>
+                <TableHead className="whitespace-nowrap">Net Sales</TableHead>
+                <TableHead className="whitespace-nowrap">Bill Quantity (units)</TableHead>
+                <TableHead className="whitespace-nowrap">NOB</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -278,9 +278,9 @@ export function LoggedDailyEntries({ store, date }: { store: string; date: strin
                 const displaySlot = row.time_slot ?? (row.time ? timeSlotForHHMM(row.time) : null);
 
                 return (
-                  <TableRow key={row.key}>
+                  <TableRow key={row.key} className="hover:bg-muted/30">
                     {/* Time Stamp (Read-only system time) */}
-                    <TableCell className="font-medium">
+                    <TableCell className="font-medium whitespace-nowrap">
                       <span className="font-mono text-xs bg-muted/50 px-2 py-1 rounded border border-border/50">
                         {fmtTime12Hour(row.time)}
                       </span>
@@ -382,9 +382,9 @@ export function LoggedDailyEntries({ store, date }: { store: string; date: strin
                     </TableCell>
 
                     {/* Actions */}
-                    <TableCell className="text-right">
+                    <TableCell className="text-right whitespace-nowrap">
                       {isEditing ? (
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end gap-1.5 whitespace-nowrap">
                           <Button size="xs" disabled={isSaving} onClick={() => saveEditRow(row)}>
                             {isSaving ? "Saving..." : "Save"}
                           </Button>
@@ -393,7 +393,7 @@ export function LoggedDailyEntries({ store, date }: { store: string; date: strin
                           </Button>
                         </div>
                       ) : (
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end gap-1.5 whitespace-nowrap">
                           <Button variant="outline" size="xs" onClick={() => startEditRow(row)}>
                             Edit
                           </Button>
