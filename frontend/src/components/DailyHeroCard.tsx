@@ -6,11 +6,14 @@ import {
   FileText,
   MapPin,
   Sparkles,
+  Target,
+  TrendingDown,
+  TrendingUp,
   Vote,
 } from "lucide-react";
 
 import { useAuth } from "@/auth/AuthProvider";
-import { fmtDateDot } from "@/lib/format";
+import { fmtCurrency, fmtDateDot } from "@/lib/format";
 import type { DailyLiveSnapshot, DailyOverallSnapshot } from "@/lib/types";
 
 const TIME_FORMATTER = new Intl.DateTimeFormat("en-IN", {
@@ -33,7 +36,7 @@ interface DailyHeroCardProps {
 }
 
 /** The Daily Dashboard's top hero card -- Teamify-inspired personalized greeting,
- * live-ticking wall clock, store badge, and integrated Environmental & Trading Conditions. */
+ * live-ticking wall clock, store badge, Month Target summary matrix, and integrated Environmental & Trading Conditions. */
 export function DailyHeroCard({ storeName, data }: DailyHeroCardProps) {
   const [now, setNow] = useState(() => new Date());
   const { user } = useAuth();
@@ -47,6 +50,11 @@ export function DailyHeroCard({ storeName, data }: DailyHeroCardProps) {
   const greeting = getGreeting(currentHour);
   const displayName = user?.role === "admin" ? "Admin" : storeName;
   const liveData = data as DailyLiveSnapshot | undefined;
+
+  const monthlySummary = data?.monthly_target_summary;
+  const monthTarget = monthlySummary?.month_target;
+  const prevYearTotal = monthlySummary?.prev_year_total;
+  const growthPct = monthlySummary?.growth_pct;
 
   return (
     <div className="glossy-card rounded-3xl p-4 sm:p-5 2xl:p-6 shadow-2xl space-y-4">
@@ -96,7 +104,74 @@ export function DailyHeroCard({ storeName, data }: DailyHeroCardProps) {
         </div>
       </div>
 
-      {/* 5. Environmental & Trading Conditions (Underlying Context) Strip */}
+      {/* Monthly Target, Previous Year Total, & Growth Matrix */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* Month Target Card */}
+        <div className="flex items-center gap-3 rounded-2xl border border-orange-500/30 bg-orange-500/10 dark:bg-orange-950/20 p-3 shadow-xs">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30">
+            <Target className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Month Target</div>
+            <div className="font-mono text-base font-extrabold text-orange-600 dark:text-orange-400 truncate">
+              {monthTarget != null ? fmtCurrency(monthTarget) : "—"}
+            </div>
+            <div className="text-[10px] text-muted-foreground truncate">Planned Month Target</div>
+          </div>
+        </div>
+
+        {/* Prev Year Total Card */}
+        <div className="flex items-center gap-3 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 dark:bg-cyan-950/20 p-3 shadow-xs">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
+            <TrendingUp className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Prev. Year Total</div>
+            <div className="font-mono text-base font-extrabold text-cyan-600 dark:text-cyan-400 truncate">
+              {prevYearTotal != null ? fmtCurrency(prevYearTotal) : "—"}
+            </div>
+            <div className="text-[10px] text-muted-foreground truncate">Previous Year Month Sales</div>
+          </div>
+        </div>
+
+        {/* Prev vs Current Growth Card */}
+        <div className={`flex items-center gap-3 rounded-2xl border p-3 shadow-xs ${
+          growthPct != null && growthPct >= 0
+            ? "border-emerald-500/30 bg-emerald-500/10 dark:bg-emerald-950/20"
+            : growthPct != null
+            ? "border-rose-500/30 bg-rose-500/10 dark:bg-rose-950/20"
+            : "border-border bg-card/60 dark:bg-black/30"
+        }`}>
+          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
+            growthPct != null && growthPct >= 0
+              ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+              : growthPct != null
+              ? "bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/30"
+              : "bg-muted text-muted-foreground border-border"
+          }`}>
+            {growthPct != null && growthPct < 0 ? (
+              <TrendingDown className="h-4 w-4" />
+            ) : (
+              <TrendingUp className="h-4 w-4" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Prev vs Current Growth</div>
+            <div className={`font-mono text-base font-extrabold truncate ${
+              growthPct != null && growthPct >= 0
+                ? "text-emerald-600 dark:text-emerald-400"
+                : growthPct != null
+                ? "text-rose-600 dark:text-rose-400"
+                : "text-foreground"
+            }`}>
+              {growthPct != null ? `${growthPct >= 0 ? "+" : ""}${growthPct.toFixed(1)}%` : "—"}
+            </div>
+            <div className="text-[10px] text-muted-foreground truncate">Planned Growth Pace</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Environmental & Trading Conditions (Underlying Context) Strip */}
       <div className="rounded-2xl border border-border/80 bg-muted/40 dark:bg-black/30 p-3.5 backdrop-blur-md">
         <div className="flex flex-wrap items-center justify-between gap-2.5">
           <div className="flex flex-wrap items-center gap-2 text-xs">

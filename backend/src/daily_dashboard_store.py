@@ -1380,3 +1380,42 @@ def get_landing_hero_telemetry(db: Database, requested_date: date | None = None)
     _set_in_cache(cache_key, result)
     return result
 
+
+def compute_monthly_target_summary(db: Database, store: str, target_date: date) -> dict:
+    """Computes month target, previous year total sales, and planned growth pace
+    for the month of target_date. For a specific store code (e.g. 'NM'), scopes to
+    that store; for 'ALL', sums across all stores."""
+    month_prefix = target_date.strftime("%Y-%m")
+    query: dict = {"entry_date": {"$regex": f"^{month_prefix}"}}
+    if store != "ALL":
+        _validate_store(store)
+        query["store_code"] = store
+
+    docs = list(db[TARGETS].find(query))
+    month_target = 0.0
+    has_target = False
+    prev_year_total = 0.0
+    has_prev = False
+
+    for doc in docs:
+        st = doc.get("sales_target")
+        if st is not None:
+            month_target += float(st)
+            has_target = True
+        py = doc.get("prev_year_net_sales")
+        if py is not None:
+            prev_year_total += float(py)
+            has_prev = True
+
+    growth_pct = None
+    if has_target and has_prev and prev_year_total > 0:
+        growth_pct = ((month_target - prev_year_total) / prev_year_total) * 100.0
+    elif has_target and month_target > 0 and (not has_prev or prev_year_total == 0):
+        growth_pct = 100.0
+
+    return {
+        "month_target": month_target if has_target else None,
+        "prev_year_total": prev_year_total if has_prev else None,
+        "growth_pct": round(growth_pct, 1) if growth_pct is not None else None,
+    }
+

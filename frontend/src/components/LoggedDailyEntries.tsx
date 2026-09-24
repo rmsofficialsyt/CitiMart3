@@ -7,8 +7,8 @@ import { Section } from "@/components/Section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fmtCurrencyOrZero, fmtNumberOrZero, fmtTime12Hour, nowTimeHHMM, toTimeHHMM } from "@/lib/format";
-import { TIME_SLOT_ORDER, timeSlotForHHMM } from "@/lib/timeSlot";
+import { fmtCurrencyOrZero, fmtNumberOrZero, fmtTime12Hour, toTimeHHMM } from "@/lib/format";
+import { TIME_SLOT_ORDER, getDefaultTimeForSlot, timeSlotForHHMM } from "@/lib/timeSlot";
 import type { BillEntry, FootfallEntry, NobEntry } from "@/lib/types";
 
 interface MergedOperationRow {
@@ -22,17 +22,10 @@ interface MergedOperationRow {
 
 /** Map selected time slot to representative time for backend slot categorization */
 function getTimeForSlot(slot: string, fallbackTime: string | null): string {
-  const current = fallbackTime ? toTimeHHMM(fallbackTime) : nowTimeHHMM();
-  if (timeSlotForHHMM(current) === slot) {
-    return current;
+  if (fallbackTime && /^\d{2}:\d{2}/.test(fallbackTime)) {
+    return fallbackTime.slice(0, 5);
   }
-  switch (slot) {
-    case "11.00 AM - 01.59 PM": return "12:00";
-    case "02.00 PM - 04.59 PM": return "15:00";
-    case "05.00 PM - 07.59 PM": return "18:00";
-    case "08.00 PM - 11.59 PM": return "21:00";
-    default: return current;
-  }
+  return getDefaultTimeForSlot(slot, fallbackTime);
 }
 
 /** Combines footfall, bill, and NOB logs for the day into single unified operational rows. */
@@ -118,6 +111,7 @@ export function LoggedDailyEntries({ store, date }: { store: string; date: strin
   // Edit state
   const [editingRowKey, setEditingRowKey] = useState<string | null>(null);
   const [editSlot, setEditSlot] = useState<string>(TIME_SLOT_ORDER[0]);
+  const [editTime, setEditTime] = useState<string>("");
   const [editFootfall, setEditFootfall] = useState("");
   const [editNetAmount, setEditNetAmount] = useState("");
   const [editBillQuantity, setEditBillQuantity] = useState("");
@@ -129,6 +123,7 @@ export function LoggedDailyEntries({ store, date }: { store: string; date: strin
     setEditingRowKey(row.key);
     const initialSlot = row.time_slot ?? (row.time ? timeSlotForHHMM(toTimeHHMM(row.time)) : null) ?? TIME_SLOT_ORDER[0];
     setEditSlot(initialSlot);
+    setEditTime(row.time ? toTimeHHMM(row.time) : getDefaultTimeForSlot(initialSlot));
     setEditFootfall(row.footfall?.footfall != null ? String(row.footfall.footfall) : "");
     setEditNetAmount(row.bill?.net_amount != null ? String(row.bill.net_amount) : "");
     setEditBillQuantity(row.bill?.bill_quantity != null ? String(row.bill.bill_quantity) : "");
@@ -136,7 +131,7 @@ export function LoggedDailyEntries({ store, date }: { store: string; date: strin
   }
 
   async function saveEditRow(row: MergedOperationRow) {
-    const timeToSave = getTimeForSlot(editSlot, row.time);
+    const timeToSave = editTime ? editTime : getTimeForSlot(editSlot, row.time);
 
     let footfallNum = 0;
     if (row.footfall) {
@@ -279,19 +274,32 @@ export function LoggedDailyEntries({ store, date }: { store: string; date: strin
 
                 return (
                   <TableRow key={row.key} className="hover:bg-muted/30">
-                    {/* Time Stamp (Read-only system time) */}
+                    {/* Time Stamp (Editable in edit mode, read-only formatted otherwise) */}
                     <TableCell className="font-medium whitespace-nowrap">
-                      <span className="font-mono text-xs bg-muted/50 px-2 py-1 rounded border border-border/50">
-                        {fmtTime12Hour(row.time)}
-                      </span>
+                      {isEditing ? (
+                        <Input
+                          type="time"
+                          value={editTime}
+                          onChange={(e) => setEditTime(e.target.value)}
+                          className="h-8 max-w-[110px] font-mono text-xs font-bold"
+                        />
+                      ) : (
+                        <span className="font-mono text-xs bg-muted/50 px-2 py-1 rounded border border-border/50">
+                          {fmtTime12Hour(row.time)}
+                        </span>
+                      )}
                     </TableCell>
 
-                    {/* Time Slot (Selectable in edit mode) */}
+                    {/* Time Slot (Selectable in edit mode, updating editTime if needed) */}
                     <TableCell>
                       {isEditing ? (
                         <select
                           value={editSlot}
-                          onChange={(e) => setEditSlot(e.target.value)}
+                          onChange={(e) => {
+                            const newSlot = e.target.value;
+                            setEditSlot(newSlot);
+                            setEditTime(getDefaultTimeForSlot(newSlot));
+                          }}
                           className="border-input bg-background text-foreground flex h-8 rounded-md border px-2 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
                         >
                           {TIME_SLOT_ORDER.map((slot) => (

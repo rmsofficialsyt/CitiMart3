@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { TargetAdjustmentAlert } from "@/components/TargetAdjustmentAlert";
 import { AtAGlanceCard } from "@/components/AtAGlanceCard";
+import { DailyHeroCard } from "@/components/DailyHeroCard";
 import { DAILY_KPI_FORMATTERS, DAILY_KPI_FORMULAS, DAILY_KPI_LABELS, DAILY_KPI_ORDER, todayLocalDate } from "@/lib/format";
 import { getKpiIconConfig } from "@/lib/kpiIcons";
 import { emptyFilterState } from "@/lib/filterParams";
@@ -69,6 +70,8 @@ export function OverallStoresSummary() {
 
   return (
     <div className="space-y-6">
+      <DailyHeroCard storeName="All Stores Consolidated" data={data} />
+
       {/* Target Adjustment Alert */}
       {data?.target_adjustment && (
         <TargetAdjustmentAlert alert={data.target_adjustment} storeCode="ALL" />

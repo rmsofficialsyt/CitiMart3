@@ -18,23 +18,8 @@ import { Label } from "@/components/ui/label";
 import { Section } from "@/components/Section";
 import { Textarea } from "@/components/ui/textarea";
 import { fmtCurrencyOrZero, fmtDateIndian, fmtNumberOrZero, fmtTime12Hour, nowTimeHHMM, todayLocalDate } from "@/lib/format";
-import { TIME_SLOT_ORDER, timeSlotForHHMM } from "@/lib/timeSlot";
+import { TIME_SLOT_ORDER, getDefaultTimeForSlot, timeSlotForHHMM } from "@/lib/timeSlot";
 import { useLanguage } from "@/context/LanguageContext";
-
-/** Map selected time slot to representative time for backend slot categorization */
-function getTimeForSlot(slot: string): string {
-  const current = nowTimeHHMM();
-  if (timeSlotForHHMM(current) === slot) {
-    return current;
-  }
-  switch (slot) {
-    case "11.00 AM - 01.59 PM": return "12:00";
-    case "02.00 PM - 04.59 PM": return "15:00";
-    case "05.00 PM - 07.59 PM": return "18:00";
-    case "08.00 PM - 11.59 PM": return "21:00";
-    default: return current;
-  }
-}
 
 /** Manager user guide */
 function ManagerUserGuide() {
@@ -156,11 +141,11 @@ function ManualEntry({ store }: { store: string }) {
   // Current system time in 24-hr format (Asia/Kolkata)
   const [systemTime, setSystemTime] = useState(nowTimeHHMM());
   
-  // Keep system time ticking every 10 seconds
+  // Keep system time ticking live every second
   useEffect(() => {
     const timer = setInterval(() => {
       setSystemTime(nowTimeHHMM());
-    }, 10000);
+    }, 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -176,21 +161,27 @@ function ManualEntry({ store }: { store: string }) {
   const [billQuantity, setBillQuantity] = useState("");
   const [nobValue, setNobValue] = useState("");
   
-  // Remarks field
+  // Custom timestamp state (if manager wants to override slot default)
+  const [isCustomTime, setIsCustomTime] = useState(false);
+  const [customTime, setCustomTime] = useState(() => getDefaultTimeForSlot(selectedSlot));
+
+  // Remarks / Reason for Target Deviation
   const [reason, setReason] = useState("");
   const [showFinalSubmitConfirm, setShowFinalSubmitConfirm] = useState(false);
 
-  // Prefill Remarks from live data
+  // Update default time when selected slot changes
   useEffect(() => {
-    if (liveQuery.data?.reason != null) {
-      setReason(liveQuery.data.reason);
-    }
-  }, [liveQuery.data?.reason]);
+    setCustomTime(getDefaultTimeForSlot(selectedSlot));
+  }, [selectedSlot]);
+
+  // Effective time to be logged
+  const isCurrentSlotActive = timeSlotForHHMM(systemTime) === selectedSlot;
+  const effectiveLogTime = isCustomTime ? customTime : (isCurrentSlotActive ? systemTime : getDefaultTimeForSlot(selectedSlot));
 
   // Floor Operations Save Mutation (Footfall + Bill + NOB)
   const floorOpsMutation = useMutation({
     mutationFn: async () => {
-      const timeToLog = getTimeForSlot(selectedSlot);
+      const timeToLog = effectiveLogTime;
       const footfallFilled = footfallValue.trim() !== "";
       const netFilled = netAmount.trim() !== "";
       const qtyFilled = billQuantity.trim() !== "";
@@ -265,7 +256,7 @@ function ManualEntry({ store }: { store: string }) {
   // Final Submission Mutation
   const finalSubmitMutation = useMutation({
     mutationFn: async () => {
-      const timeToLog = getTimeForSlot(selectedSlot);
+      const timeToLog = effectiveLogTime;
       const footfallFilled = footfallValue.trim() !== "";
       const netFilled = netAmount.trim() !== "";
       const qtyFilled = billQuantity.trim() !== "";
@@ -401,15 +392,39 @@ function ManualEntry({ store }: { store: string }) {
               </div>
             </div>
 
-            {/* System Generated Time Stamp */}
+            {/* Time Stamp Section with Slot Default & Optional Custom Edit */}
             <div>
-              <Label className="text-muted-foreground mb-1.5 text-xs font-semibold tracking-wide uppercase">
-                Time Stamp (12-Hour)
-              </Label>
-              <div className="border-input bg-muted/50 text-foreground flex h-9 w-full items-center rounded-md border px-3 text-sm font-semibold shadow-xs">
-                <Clock className="mr-2 h-4 w-4 text-blue-400 shrink-0" />
-                {fmtTime12Hour(systemTime)}
+              <div className="flex items-center justify-between mb-1.5">
+                <Label className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  Time Stamp (12-Hour)
+                </Label>
+                <button
+                  type="button"
+                  onClick={() => setIsCustomTime((prev) => !prev)}
+                  className="text-[11px] font-semibold text-primary hover:underline cursor-pointer"
+                >
+                  {isCustomTime ? "Use Default" : "Edit Time"}
+                </button>
               </div>
+
+              {isCustomTime ? (
+                <Input
+                  type="time"
+                  value={customTime}
+                  onChange={(e) => setCustomTime(e.target.value)}
+                  className="h-9 font-mono text-xs font-bold"
+                />
+              ) : (
+                <div className="border-input bg-muted/50 text-foreground flex h-9 w-full items-center justify-between rounded-md border px-3 text-sm font-semibold shadow-xs">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-blue-400 shrink-0" />
+                    <span className="font-mono">{fmtTime12Hour(effectiveLogTime)}</span>
+                  </div>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isCurrentSlotActive ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30" : "bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30"}`}>
+                    {isCurrentSlotActive ? "Live Time" : "Slot Default"}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Selectable Time Slot */}
@@ -431,10 +446,10 @@ function ManualEntry({ store }: { store: string }) {
             </div>
           </div>
 
-          {/* Final Submission Button Relocated Here */}
+          {/* Final Submission Button */}
           <div className="shrink-0">
             <Button
-              className="w-full sm:w-auto font-semibold gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="w-full sm:w-auto font-semibold gap-2 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
               disabled={finalSubmitMutation.isPending}
               onClick={() => setShowFinalSubmitConfirm(true)}
             >
@@ -444,7 +459,7 @@ function ManualEntry({ store }: { store: string }) {
           </div>
         </div>
         <p className="text-muted-foreground mt-2.5 text-xs">
-          Date and Time Stamp are system generated. Select the operational time slot for entry recording. Operational hours: <strong>10.30 am</strong> to <strong>11.59 pm</strong>.
+          Active operational hours: <strong>10.30 am</strong> to <strong>11.59 pm</strong>. When entering past slot data, the default timestamp is automatically set to the slot end boundary (e.g. <strong>1:59 PM</strong> for Slot 1) and can be edited if needed.
         </p>
       </Section>
 

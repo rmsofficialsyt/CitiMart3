@@ -168,6 +168,12 @@ export interface TargetAdjustmentAlert {
 }
 
 
+export interface MonthlyTargetSummary {
+  month_target: number | null;
+  prev_year_total: number | null;
+  growth_pct: number | null;
+}
+
 // GET /api/daily/live -- one store's live KPIs for one date, plus that day's
 // weather / holiday / election context.
 export interface DailyLiveSnapshot {
@@ -183,6 +189,7 @@ export interface DailyLiveSnapshot {
   statuses: Partial<Record<DailyKpiKey, StatusColor>>;
   target_adjustment?: TargetAdjustmentAlert | null;
   timeslot_breakdown?: Record<string, { net_sales: number; bill_quantity: number; footfall: number; nob: number }>;
+  monthly_target_summary?: MonthlyTargetSummary | null;
   // Which of the five overridable ratio KPIs currently carry a manager's
   // hand-entered value (targets.overrides) rather than the computed figure.
   overridden: DailyKpiKey[];
@@ -199,6 +206,7 @@ export interface DailyOverallSnapshot {
   statuses: Partial<Record<DailyKpiKey, StatusColor>>;
   target_adjustment?: TargetAdjustmentAlert | null;
   timeslot_breakdown?: Record<string, { net_sales: number; bill_quantity: number; footfall: number; nob: number }>;
+  monthly_target_summary?: MonthlyTargetSummary | null;
   per_store: Record<string, DailyKpis>;
 }
 

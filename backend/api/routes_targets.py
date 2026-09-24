@@ -202,3 +202,4 @@ def delete_target(
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
     return {"store": code, "date": target_date.isoformat(), "cleared": True}
+

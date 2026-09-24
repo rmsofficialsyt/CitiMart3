@@ -110,6 +110,7 @@ def get_daily_live(
         carry_forward_policy=carry_forward_policy,
         distribution_mode=distribution_mode,
     )
+    monthly_target_summary = daily_dashboard_store.compute_monthly_target_summary(db, store, target_date)
 
     return {
         "store": store,
@@ -124,6 +125,7 @@ def get_daily_live(
         "overridden": kpis.get("overridden", []),
         "statuses": _daily_statuses(kpis),
         "target_adjustment": target_adj,
+        "monthly_target_summary": monthly_target_summary,
         "reason": kpis["reason"],
     }
 
@@ -161,12 +163,14 @@ def get_daily_live_overall(
         carry_forward_policy=carry_forward_policy,
         distribution_mode=distribution_mode,
     )
+    monthly_target_summary = daily_dashboard_store.compute_monthly_target_summary(db, "ALL", target_date)
     return {
         "store": "ALL",
         "date": target_date.isoformat(),
         "kpis": {k: _clean(v) for k, v in combined.items() if k != "reason"},
         "statuses": _daily_statuses(combined),
         "target_adjustment": target_adj,
+        "monthly_target_summary": monthly_target_summary,
         "per_store": {
             code: {k: _clean(v) for k, v in bundle.items() if k not in ("reason", "overridden")}
             for code, bundle in result["per_store"].items()
