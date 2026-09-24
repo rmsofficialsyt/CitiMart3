@@ -49,8 +49,8 @@ export function DailyHeroCard({ storeName, data }: DailyHeroCardProps) {
   const liveData = data as DailyLiveSnapshot | undefined;
 
   return (
-    <div className="glossy-card rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="glossy-card rounded-3xl p-4 sm:p-5 2xl:p-6 shadow-2xl space-y-4">
+      <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-center sm:justify-between">
         {/* Left Side: Personalized Greeting */}
         <div className="space-y-1">
           <div className="flex items-center gap-2">

@@ -112,15 +112,15 @@ export function NavigationSidebar({
 
   return (
     <>
-      <aside className="glossy-sidebar flex w-full flex-col justify-between shrink-0 p-3 sm:p-4 lg:w-64 xl:w-72 lg:min-h-[calc(100vh-4.25rem)] lg:sticky lg:top-[4.25rem] text-foreground rounded-2xl lg:rounded-none border-b lg:border-b-0 lg:border-r border-border shadow-xl z-40">
-        <div className="space-y-6">
+      <aside className="glossy-sidebar flex w-full flex-col justify-between shrink-0 p-3 sm:p-4 lg:w-60 xl:w-64 2xl:w-72 lg:max-h-[calc(100vh-4.25rem)] lg:overflow-y-auto no-scrollbar lg:sticky lg:top-[4.25rem] text-foreground rounded-2xl lg:rounded-none border-b lg:border-b-0 lg:border-r border-border shadow-xl z-40">
+        <div className="space-y-4 sm:space-y-5 2xl:space-y-6">
           {/* Brand Header: Vector Brand Emblem */}
           <div className="flex items-center gap-3 px-2 py-1">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-500 p-2 shadow-lg shadow-blue-500/20 border border-white/20 text-white">
-              <ShoppingBag className="h-6 w-6" />
+            <div className="flex h-10 w-10 2xl:h-11 2xl:w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-500 p-2 shadow-lg shadow-blue-500/20 border border-white/20 text-white">
+              <ShoppingBag className="h-5 w-5 2xl:h-6 2xl:w-6" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-base font-extrabold tracking-tight text-foreground flex items-center gap-1.5">
+              <h2 className="text-sm 2xl:text-base font-extrabold tracking-tight text-foreground flex items-center gap-1.5">
                 <span>CITIMART</span>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-md bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30">
                   Daily
@@ -280,21 +280,21 @@ export function NavigationSidebar({
         </div>
 
         {/* Bottom Section: Single Unified Settings & Account Profile Card */}
-        <div className="mt-6 pt-4 border-t border-border">
-          <div className="rounded-2xl border border-border bg-card/60 dark:bg-slate-900/60 p-3 shadow-lg backdrop-blur-md flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-orange-500 via-coral-500 to-amber-500 p-0.5 shadow-md shadow-orange-500/20 ring-2 ring-border">
-                <div className="flex h-full w-full items-center justify-center rounded-full bg-card dark:bg-slate-950 font-bold text-sm text-foreground dark:text-white">
+        <div className="mt-4 2xl:mt-6 pt-3 2xl:pt-4 border-t border-border">
+          <div className="rounded-2xl border border-border bg-card/60 dark:bg-slate-900/60 p-2.5 2xl:p-3 shadow-lg backdrop-blur-md flex items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="relative flex h-9 w-9 2xl:h-10 2xl:w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-orange-500 via-coral-500 to-amber-500 p-0.5 shadow-md shadow-orange-500/20 ring-2 ring-border">
+                <div className="flex h-full w-full items-center justify-center rounded-full bg-card dark:bg-slate-950 font-bold text-xs 2xl:text-sm text-foreground dark:text-white">
                   {userInitial}
                 </div>
-                <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-background" />
+                <span className="absolute bottom-0 right-0 h-2.5 w-2.5 2xl:h-3 2xl:w-3 rounded-full bg-emerald-500 ring-2 ring-background" />
               </div>
               <div className="min-w-0">
                 <p className="truncate text-xs font-bold text-foreground leading-tight">
                   {user?.username || "Guest Operator"}
                 </p>
                 <div className="flex items-center gap-1 mt-0.5">
-                  <span className="inline-block rounded px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider bg-blue-500/15 text-blue-600 dark:text-blue-300 border border-blue-500/30">
+                  <span className="inline-block rounded px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider bg-blue-500/15 text-blue-600 dark:text-blue-300 border border-blue-500/30 truncate">
                     {roleLabel}
                   </span>
                 </div>
@@ -320,7 +320,7 @@ export function NavigationSidebar({
                 sideOffset={12}
                 className="w-80 rounded-2xl border border-border bg-popover p-0 text-popover-foreground shadow-2xl backdrop-blur-2xl"
               >
-                <div className="border-b border-border p-3.5 bg-muted/40 rounded-t-2xl">
+                <div className="border-b border-border p-3 2xl:p-3.5 bg-muted/40 rounded-t-2xl">
                   <div className="flex items-center justify-between">
                     <span className="flex items-center gap-2 text-sm font-bold text-foreground">
                       <Settings className="h-4 w-4 text-blue-500" />
@@ -332,7 +332,7 @@ export function NavigationSidebar({
                   </div>
                 </div>
 
-                <div className="p-3 space-y-4 max-h-[80vh] overflow-y-auto">
+                <div className="p-3 space-y-3.5 max-h-[72vh] overflow-y-auto">
                   {/* Account & Profile */}
                   <div>
                     <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">

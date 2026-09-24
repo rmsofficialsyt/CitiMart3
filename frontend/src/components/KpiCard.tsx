@@ -143,7 +143,7 @@ export function KpiCard({
         delay: Math.min(index, 12) * 0.022,
       }}
       className={cn(
-        "group relative flex flex-col justify-between rounded-xl sm:rounded-2xl p-2 sm:p-2.5 md:p-3 xl:p-3.5 transition-all duration-200 overflow-hidden min-w-0",
+        "group relative flex flex-col justify-between rounded-xl sm:rounded-2xl p-2.5 sm:p-3 2xl:p-3.5 transition-all duration-200 overflow-hidden min-w-0",
         statusConfig?.cardClass ?? "glossy-kpi-neutral",
       )}
     >
@@ -231,7 +231,7 @@ export function KpiCard({
       <div className="relative z-10 mt-2 flex items-baseline justify-between gap-1 min-w-0">
         <div
           className={cn(
-            "font-mono text-sm sm:text-base md:text-lg xl:text-xl font-extrabold tabular-nums tracking-tight transition-colors whitespace-nowrap truncate drop-shadow-xs",
+            "font-mono text-sm sm:text-base md:text-lg 2xl:text-xl font-extrabold tabular-nums tracking-tight transition-colors whitespace-nowrap truncate drop-shadow-xs",
             statusConfig ? statusConfig.valueClass : "text-foreground group-hover:text-primary",
           )}
         >
@@ -241,7 +241,7 @@ export function KpiCard({
         {hasDelta && (
           <div
             className={cn(
-              "flex items-center gap-0.5 sm:gap-1 font-mono text-[9px] sm:text-[10px] md:text-[11px] font-semibold tabular-nums px-1 sm:px-1.5 py-0.5 rounded-md border shrink-0 whitespace-nowrap",
+              "flex items-center gap-0.5 sm:gap-1 font-mono text-[9px] sm:text-[10px] 2xl:text-[11px] font-semibold tabular-nums px-1 sm:px-1.5 py-0.5 rounded-md border shrink-0 whitespace-nowrap",
               isUp && "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
               isDown && "text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/20",
               !isUp && !isDown && "text-muted-foreground bg-muted/60 border-border/60",

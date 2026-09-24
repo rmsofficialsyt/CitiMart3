@@ -108,7 +108,7 @@ export default function App() {
         />
 
         {/* Main Content Area */}
-        <main className="min-w-0 flex-1 p-3 sm:p-5 lg:p-6 w-full">
+        <main className="min-w-0 flex-1 p-3 sm:p-4 lg:p-5 2xl:p-6 w-full">
           {/* Executive Directives Alert Banner from Operational Head */}
           <BossAlertBanner />
 
@@ -124,12 +124,12 @@ export default function App() {
             </motion.div>
           </AnimatePresence>
 
-          <footer className="mt-10 border-t border-border/40 py-6 flex flex-col sm:flex-row items-center justify-center gap-3 text-xs text-muted-foreground">
+          <footer className="mt-6 sm:mt-8 2xl:mt-10 border-t border-border/40 py-4 sm:py-6 flex flex-col sm:flex-row items-center justify-center gap-3 text-xs text-muted-foreground">
             <div className="shrink-0 rounded-lg bg-white px-2 py-0.5 shadow-sm border border-slate-200/40 flex items-center justify-center">
               <img
                 src={citimartLogo}
                 alt="CITIMART Logo"
-                className="h-6 sm:h-7 w-auto object-contain"
+                className="h-5 sm:h-6 2xl:h-7 w-auto object-contain"
               />
             </div>
             <span>

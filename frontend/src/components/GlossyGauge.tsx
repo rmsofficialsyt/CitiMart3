@@ -275,7 +275,7 @@ export function GlossyGauge({ spec, className, neon }: { spec: GaugeSpec; classN
   const p = isNeon ? NEON_PALETTE : isDark ? DARK_PALETTE : DEFAULT_PALETTE;
 
   const uniqueId = useId().replace(/:/g, "");
-  const wrapperClass = className ?? "h-[160px] sm:h-[180px] w-full";
+  const wrapperClass = className ?? "h-[140px] sm:h-[155px] 2xl:h-[175px] w-full";
   const min = spec.min ?? 0;
 
   const [displayValue, setDisplayValue] = useState<number>(min);
@@ -401,7 +401,7 @@ export function GlossyGauge({ spec, className, neon }: { spec: GaugeSpec; classN
       <svg
         viewBox="0 0 300 300"
         preserveAspectRatio="xMidYMid meet"
-        className="w-full max-w-[140px] sm:max-w-[145px] h-auto aspect-square shrink-0 filter drop-shadow-md"
+        className="w-full max-w-[125px] sm:max-w-[135px] 2xl:max-w-[145px] h-auto aspect-square shrink-0 filter drop-shadow-md"
         role="img"
         aria-label={`${spec.title}: ${fmt(value)}${target != null ? `, target ${fmt(target)}` : ""}`}
       >

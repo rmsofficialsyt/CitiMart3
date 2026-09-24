@@ -341,10 +341,10 @@ export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCar
       </div>
 
       {/* 2-Column Split: Left = Operational Pace & Multi-Metric Suite, Right = Granular Historical Comparison Engine */}
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-12 xl:items-stretch">
+      <div className="grid grid-cols-1 gap-5 2xl:grid-cols-12 2xl:items-stretch">
         
-        {/* Left Column: Multi-Metric Comparative Grid & Target Pace Tracker (5 cols) */}
-        <div className="flex flex-col justify-between rounded-2xl border border-border/80 bg-card/80 dark:bg-slate-900/60 p-3.5 sm:p-5 xl:col-span-5 space-y-4 shadow-md backdrop-blur-xl">
+        {/* Left Column: Multi-Metric Comparative Grid & Target Pace Tracker */}
+        <div className="flex flex-col justify-between rounded-2xl border border-border/80 bg-card/80 dark:bg-slate-900/60 p-3.5 sm:p-4 2xl:p-5 2xl:col-span-5 space-y-4 shadow-md backdrop-blur-xl">
           <div className="space-y-4">
             {/* Header / Metric selector */}
             <div className="flex items-center justify-between">
@@ -358,7 +358,7 @@ export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCar
             </div>
 
             {/* Metric Comparison Cards Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-2 gap-2 sm:gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-6 2xl:grid-cols-2 gap-2 sm:gap-2.5">
               {metricCards.map((m) => {
                 const isPositive = m.diff >= 0;
                 const isSelected = selectedMetric === m.id;
@@ -429,8 +429,8 @@ export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCar
           </div>
         </div>
 
-        {/* Right Column: Granular Comparative Analytics & Inference Engine (7 cols) */}
-        <div className="flex flex-col justify-between rounded-2xl border border-border/80 bg-card/80 dark:bg-slate-900/60 p-3.5 sm:p-5 xl:col-span-7 space-y-4 shadow-md backdrop-blur-xl">
+        {/* Right Column: Granular Comparative Analytics & Inference Engine */}
+        <div className="flex flex-col justify-between rounded-2xl border border-border/80 bg-card/80 dark:bg-slate-900/60 p-3.5 sm:p-4 2xl:p-5 2xl:col-span-7 space-y-4 shadow-md backdrop-blur-xl">
           <div>
             {/* Lookback Selector Tabs */}
             <div className="flex items-center justify-between mb-2.5">
