@@ -91,6 +91,55 @@ export function ModernChartTooltip({
   );
 }
 
+// Smart custom tick component that splits long time slots into clean 2-line labels
+export function SmartAxisTick({ x, y, payload }: any) {
+  if (!payload || payload.value === undefined || payload.value === null) return null;
+  const rawValue = String(payload.value);
+
+  let line1 = "";
+  let line2 = "";
+
+  if (rawValue.includes(" - ") || rawValue.includes(" – ") || rawValue.includes(" to ")) {
+    const delimiter = rawValue.includes(" - ") ? " - " : rawValue.includes(" – ") ? " – " : " to ";
+    const parts = rawValue.split(delimiter);
+    line1 = `${parts[0].trim()} -`;
+    line2 = parts.slice(1).join(delimiter).trim();
+  } else if (rawValue.length > 12 && rawValue.includes(" ")) {
+    const words = rawValue.split(" ");
+    const mid = Math.ceil(words.length / 2);
+    line1 = words.slice(0, mid).join(" ");
+    line2 = words.slice(mid).join(" ");
+  } else {
+    line1 = rawValue;
+  }
+
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text
+        x={0}
+        y={0}
+        textAnchor="middle"
+        className="fill-slate-600 dark:fill-slate-400 text-[10px] sm:text-[11px] font-medium select-none"
+      >
+        {line2 ? (
+          <>
+            <tspan x={0} dy={10}>
+              {line1}
+            </tspan>
+            <tspan x={0} dy={13}>
+              {line2}
+            </tspan>
+          </>
+        ) : (
+          <tspan x={0} dy={12}>
+            {line1}
+          </tspan>
+        )}
+      </text>
+    </g>
+  );
+}
+
 // 1. Column / Bar Chart with rounded capsule headers
 export function RechartsColumnChart({
   data,
@@ -110,7 +159,7 @@ export function RechartsColumnChart({
   return (
     <div className={className}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 16, right: 12, left: 8, bottom: 16 }}>
+        <BarChart data={data} margin={{ top: 16, right: 16, left: 8, bottom: showLegend ? 12 : 6 }}>
           {showGrid && (
             <CartesianGrid
               strokeDasharray="3 3"
@@ -121,11 +170,11 @@ export function RechartsColumnChart({
           <XAxis
             dataKey="name"
             stroke="#94A3B8"
-            fontSize={10}
             tickLine={false}
             axisLine={{ stroke: "rgba(255, 255, 255, 0.1)" }}
-            dy={8}
-            minTickGap={6}
+            interval={0}
+            height={44}
+            tick={<SmartAxisTick />}
           />
           <YAxis
             stroke="#94A3B8"
@@ -142,7 +191,7 @@ export function RechartsColumnChart({
           {showLegend && (
             <Legend
               verticalAlign="bottom"
-              wrapperStyle={{ paddingTop: "10px", fontSize: "11px" }}
+              wrapperStyle={{ paddingTop: "6px", fontSize: "11px" }}
               iconType="circle"
             />
           )}
@@ -182,7 +231,7 @@ export function RechartsLineChart({
   return (
     <div className={className}>
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 16, right: 12, left: 8, bottom: 16 }}>
+        <LineChart data={data} margin={{ top: 16, right: 16, left: 8, bottom: showLegend ? 12 : 6 }}>
           {showGrid && (
             <CartesianGrid
               strokeDasharray="3 3"
@@ -193,11 +242,11 @@ export function RechartsLineChart({
           <XAxis
             dataKey="name"
             stroke="#94A3B8"
-            fontSize={10}
             tickLine={false}
             axisLine={{ stroke: "rgba(255, 255, 255, 0.1)" }}
-            dy={8}
-            minTickGap={6}
+            interval={0}
+            height={44}
+            tick={<SmartAxisTick />}
           />
           <YAxis
             stroke="#94A3B8"
@@ -214,7 +263,7 @@ export function RechartsLineChart({
           {showLegend && (
             <Legend
               verticalAlign="bottom"
-              wrapperStyle={{ paddingTop: "10px", fontSize: "11px" }}
+              wrapperStyle={{ paddingTop: "6px", fontSize: "11px" }}
               iconType="circle"
             />
           )}
@@ -256,7 +305,7 @@ export function RechartsAreaChart({
   return (
     <div className={className}>
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 16, right: 12, left: 8, bottom: 16 }}>
+        <AreaChart data={data} margin={{ top: 16, right: 16, left: 8, bottom: showLegend ? 12 : 6 }}>
           <defs>
             {series.map((s, idx) => {
               const color = s.color || DEFAULT_SERIES_COLORS[idx % DEFAULT_SERIES_COLORS.length];
@@ -278,11 +327,11 @@ export function RechartsAreaChart({
           <XAxis
             dataKey="name"
             stroke="#94A3B8"
-            fontSize={10}
             tickLine={false}
             axisLine={{ stroke: "rgba(255, 255, 255, 0.1)" }}
-            dy={8}
-            minTickGap={6}
+            interval={0}
+            height={44}
+            tick={<SmartAxisTick />}
           />
           <YAxis
             stroke="#94A3B8"
@@ -299,7 +348,7 @@ export function RechartsAreaChart({
           {showLegend && (
             <Legend
               verticalAlign="bottom"
-              wrapperStyle={{ paddingTop: "10px", fontSize: "11px" }}
+              wrapperStyle={{ paddingTop: "6px", fontSize: "11px" }}
               iconType="circle"
             />
           )}
