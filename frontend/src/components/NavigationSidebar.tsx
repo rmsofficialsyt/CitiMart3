@@ -1,6 +1,5 @@
 import { motion } from "framer-motion";
 import {
-  Building2,
   ChevronRight,
   FileSpreadsheet,
   History,
@@ -93,9 +92,9 @@ export function NavigationSidebar({
 
   const storeNavItems = [
     { id: OVERALL_STORE_ID, label: t.navOverallSummary || "Overall Stores", code: "ALL", Icon: Layers, sub: "Network Total" },
-    { id: "nm" as DailyStoreId, label: t.storeNewMarket || "New Market", code: "NM", Icon: ShoppingBag, sub: "Lindsay St" },
+    { id: "nm" as DailyStoreId, label: t.storeNewMarket || "New Market", code: "NM", Icon: Store, sub: "Lindsay St" },
     { id: "hb" as DailyStoreId, label: t.storeHatibagan || "Hatibagan", code: "HB", Icon: Store, sub: "Bidhan Sarani" },
-    { id: "chw" as DailyStoreId, label: t.storeChowringhee || "Chowringhee", code: "CHW", Icon: Building2, sub: "JL Nehru Rd" },
+    { id: "chw" as DailyStoreId, label: t.storeChowringhee || "Chowringhee", code: "CHW", Icon: Store, sub: "JL Nehru Rd" },
   ];
 
   const isOverall = effectiveStore === OVERALL_STORE_ID;

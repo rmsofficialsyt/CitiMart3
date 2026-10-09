@@ -38,6 +38,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { todayLocalDate } from "@/lib/format";
 import { CITIMART_PREDEFINED_713_LINES } from "@/lib/requisitionCatalog";
 import type {
   CreateRequisitionPayload,
@@ -125,7 +126,7 @@ export function ProductRequisitionPage({ initialStoreCode }: { initialStoreCode?
   const defaultStore: "NM" | "HB" | "CHW" =
     userStoreCode || (initialStoreCode === "HB" ? "HB" : initialStoreCode === "CHW" ? "CHW" : "NM");
   const [selectedStore, setSelectedStore] = useState<"NM" | "HB" | "CHW">(defaultStore);
-  const [slipDate, setSlipDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [slipDate, setSlipDate] = useState<string>(todayLocalDate());
   const [slipPriority, setSlipPriority] = useState<"Normal" | "High" | "Urgent">("Normal");
   const [generalRemarks, setGeneralRemarks] = useState<string>("");
   const [items, setItems] = useState<FormItemState[]>([createEmptyItem(1)]);

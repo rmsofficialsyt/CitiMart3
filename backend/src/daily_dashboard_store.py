@@ -1382,20 +1382,26 @@ def get_landing_hero_telemetry(db: Database, requested_date: date | None = None)
 
 
 def compute_monthly_target_summary(db: Database, store: str, target_date: date) -> dict:
-    """Computes month target, previous year total sales, and planned growth pace
-    for the month of target_date. For a specific store code (e.g. 'NM'), scopes to
-    that store; for 'ALL', sums across all stores."""
+    """Computes month target, previous year total sales, present actual net sales,
+    actual vs previous year growth pace, and daily-basis comparative metrics
+    for the month and day of target_date. Scopes to store or 'ALL'."""
     month_prefix = target_date.strftime("%Y-%m")
-    query: dict = {"entry_date": {"$regex": f"^{month_prefix}"}}
+    day_str = target_date.isoformat()
+
+    # Targets query for the month
+    target_query: dict = {"entry_date": {"$regex": f"^{month_prefix}"}}
     if store != "ALL":
         _validate_store(store)
-        query["store_code"] = store
+        target_query["store_code"] = store
 
-    docs = list(db[TARGETS].find(query))
+    docs = list(db[TARGETS].find(target_query))
     month_target = 0.0
     has_target = False
     prev_year_total = 0.0
     has_prev = False
+
+    daily_target = None
+    daily_prev_year = None
 
     for doc in docs:
         st = doc.get("sales_target")
@@ -1407,15 +1413,61 @@ def compute_monthly_target_summary(db: Database, store: str, target_date: date) 
             prev_year_total += float(py)
             has_prev = True
 
+        if doc.get("entry_date") == day_str:
+            if st is not None:
+                daily_target = (daily_target or 0.0) + float(st)
+            if py is not None:
+                daily_prev_year = (daily_prev_year or 0.0) + float(py)
+
+    # Actual bills for the month
+    bills_query: dict = {"entry_date": {"$regex": f"^{month_prefix}"}}
+    if store != "ALL":
+        bills_query["store_code"] = store
+
+    month_bills = list(db[BILLS].find(bills_query))
+    month_net_sales = sum(float(b.get("net_amount") or 0.0) for b in month_bills)
+    has_month_sales = len(month_bills) > 0
+
+    # Daily net sales for target_date
+    daily_bills = [b for b in month_bills if b.get("entry_date") == day_str]
+    daily_present_sales = sum(float(b.get("net_amount") or 0.0) for b in daily_bills)
+
+    # Month Growth based on Present Net Sales vs Previous Year Net Sales
     growth_pct = None
-    if has_target and has_prev and prev_year_total > 0:
-        growth_pct = ((month_target - prev_year_total) / prev_year_total) * 100.0
-    elif has_target and month_target > 0 and (not has_prev or prev_year_total == 0):
+    if has_month_sales and has_prev and prev_year_total > 0:
+        growth_pct = ((month_net_sales - prev_year_total) / prev_year_total) * 100.0
+    elif has_month_sales and month_net_sales > 0 and (not has_prev or prev_year_total == 0):
         growth_pct = 100.0
+    elif has_target and has_prev and prev_year_total > 0:
+        # Fallback to planned target growth if no actual bills logged yet
+        growth_pct = ((month_target - prev_year_total) / prev_year_total) * 100.0
+
+    target_growth_pct = None
+    if has_target and has_prev and prev_year_total > 0:
+        target_growth_pct = ((month_target - prev_year_total) / prev_year_total) * 100.0
+
+    # Daily Growth based on Selected Day vs Previous Year Same Day
+    daily_growth_pct = None
+    if daily_prev_year is not None and daily_prev_year > 0:
+        daily_growth_pct = ((daily_present_sales - daily_prev_year) / daily_prev_year) * 100.0
+    elif daily_present_sales > 0 and (daily_prev_year is None or daily_prev_year == 0):
+        daily_growth_pct = 100.0
+
+    daily_ach_pct = None
+    if daily_target is not None and daily_target > 0:
+        daily_ach_pct = (daily_present_sales / daily_target) * 100.0
 
     return {
         "month_target": month_target if has_target else None,
         "prev_year_total": prev_year_total if has_prev else None,
+        "month_net_sales": month_net_sales if has_month_sales else None,
         "growth_pct": round(growth_pct, 1) if growth_pct is not None else None,
+        "target_growth_pct": round(target_growth_pct, 1) if target_growth_pct is not None else None,
+        "daily_present_sales": daily_present_sales,
+        "daily_prev_year_sales": daily_prev_year,
+        "daily_growth_pct": round(daily_growth_pct, 1) if daily_growth_pct is not None else None,
+        "daily_target": daily_target,
+        "daily_ach_pct": round(daily_ach_pct, 1) if daily_ach_pct is not None else None,
+        "daily_diff": daily_present_sales - (daily_prev_year or 0.0) if daily_prev_year is not None else None,
     }
 

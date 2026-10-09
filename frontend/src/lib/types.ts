@@ -171,7 +171,15 @@ export interface TargetAdjustmentAlert {
 export interface MonthlyTargetSummary {
   month_target: number | null;
   prev_year_total: number | null;
+  month_net_sales?: number | null;
   growth_pct: number | null;
+  target_growth_pct?: number | null;
+  daily_present_sales?: number | null;
+  daily_prev_year_sales?: number | null;
+  daily_growth_pct?: number | null;
+  daily_target?: number | null;
+  daily_ach_pct?: number | null;
+  daily_diff?: number | null;
 }
 
 // GET /api/daily/live -- one store's live KPIs for one date, plus that day's

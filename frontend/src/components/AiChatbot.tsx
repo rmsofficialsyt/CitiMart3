@@ -3,8 +3,11 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   Bot,
   Check,
+  Clock,
   Copy,
   Flame,
+  IndianRupee,
+  Layers,
   Maximize2,
   Minimize2,
   RefreshCw,
@@ -12,6 +15,7 @@ import {
   Sparkles,
   Store,
   Trash2,
+  TrendingUp,
   User,
   X,
   Zap,
@@ -38,104 +42,270 @@ interface AiChatbotProps {
   selectedDate?: string;
 }
 
-const PROMPT_TEMPLATES: Record<
-  "en" | "hi" | "bn",
-  Array<{ category: string; icon: typeof Sparkles; prompt: string; label: string }>
-> = {
+export interface PresetItem {
+  id: string;
+  category: "all" | "sales" | "conversion" | "peakhours" | "benchmark" | "sop" | "formula";
+  categoryLabel: string;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  prompt: string;
+}
+
+const PRESET_CATEGORIES: { id: PresetItem["category"]; labelEn: string; labelBn: string; labelHi: string }[] = [
+  { id: "all", labelEn: "All Presets", labelBn: "সকল প্রশ্ন", labelHi: "सभी प्रश्न" },
+  { id: "sales", labelEn: "📈 Sales & Targets", labelBn: "📈 সেলস ও টার্গেট", labelHi: "📈 सेल्स व टारगेट" },
+  { id: "conversion", labelEn: "🎯 Conversion & ATV", labelBn: "🎯 কনভার্সন ও ATV", labelHi: "🎯 कन्वर्शन व ATV" },
+  { id: "peakhours", labelEn: "⏰ Peak Hours Pacing", labelBn: "⏰ পিক আওয়ার্স স্ট্র্যাটেজি", labelHi: "⏰ पीक ऑवर्स रणनीति" },
+  { id: "benchmark", labelEn: "🏬 Store Benchmark", labelBn: "🏬 ৩টি স্টোরের তুলনা", labelHi: "🏬 स्टोर्स तुलना" },
+  { id: "sop", labelEn: "📋 SOP & Directives", labelBn: "📋 বসের নির্দেশনা", labelHi: "📋 मुख्य निर्देश" },
+  { id: "formula", labelEn: "📐 KPI Formulas", labelBn: "📐 গাণিতিক সূত্র", labelHi: "📐 आधिकारिक सूत्र" },
+];
+
+const PROMPT_PRESETS: Record<"en" | "hi" | "bn", PresetItem[]> = {
   en: [
     {
-      category: "Sales & Target",
+      id: "sales_today",
+      category: "sales",
+      categoryLabel: "Sales & Targets",
       icon: Flame,
-      label: "Today's Target & Sales Status",
-      prompt: "How is our store performing against target today? Show sales, target gap, and achievement %.",
+      label: "Today's Target vs Actual & Gap",
+      prompt: "How is our store performing against target today? Show net sales, target gap, and achievement %.",
     },
     {
-      category: "Conversion & ATV",
+      id: "sales_yoy",
+      category: "sales",
+      categoryLabel: "Sales & Targets",
+      icon: TrendingUp,
+      label: "YoY Growth (08.10.2026 vs 08.10.2025)",
+      prompt: "What is our YoY growth comparing baseline 08.10.2026 vs previous year 08.10.2025?",
+    },
+    {
+      id: "sales_bills",
+      category: "sales",
+      categoryLabel: "Sales & Targets",
+      icon: IndianRupee,
+      label: "Highest Single Bill & Transactions",
+      prompt: "What is our highest single bill, average ticket size, and recent billing stream today?",
+    },
+    {
+      id: "conv_boost",
+      category: "conversion",
+      categoryLabel: "Conversion & ATV",
       icon: Zap,
-      label: "Boost ATV & Basket Size",
-      prompt: "Suggest 3 proven tactics to increase ATV above ₹1,800 and boost basket size.",
+      label: "Boost Conversion Above 70%",
+      prompt: "Suggest 3 proven floor-level tactics to increase customer conversion rate above 70%.",
     },
     {
-      category: "Peak Hours",
+      id: "atv_lift",
+      category: "conversion",
+      categoryLabel: "Conversion & ATV",
       icon: Sparkles,
-      label: "Peak Hours Strategy (3 PM - 9 PM)",
-      prompt: "What are the priority action items for managers during peak shopping slots (3 PM - 9 PM)?",
+      label: "Lift ATV Above ₹1,800 & UPB 2.8+",
+      prompt: "How can cashiers and sales staff actively push Average Transaction Value (ATV) above ₹1,800 and basket size above 2.8?",
     },
     {
-      category: "Directives",
+      id: "stock_req",
+      category: "sop",
+      categoryLabel: "SOP & Directives",
+      icon: Layers,
+      label: "Product Requisitions & Stock Shortage",
+      prompt: "Show the latest product requisition slips, pending stock demands, and urgent items.",
+    },
+    {
+      id: "peak_evening",
+      category: "peakhours",
+      categoryLabel: "Peak Hours Pacing",
+      icon: Clock,
+      label: "Evening Surge Playbook (5 PM - 8 PM)",
+      prompt: "What is the priority checklist for floor supervisors during the primary evening peak surge (5 PM - 8 PM)?",
+    },
+    {
+      id: "bench_ranking",
+      category: "benchmark",
+      categoryLabel: "Store Benchmark",
       icon: Store,
-      label: "Operational Head's Directives",
-      prompt: "What are the active operational directives and targets from the Operational Head?",
+      label: "Compare All 3 Kolkata Stores",
+      prompt: "Compare live sales, target achievement, and ATV across New Market, Hatibagan, and Chowringhee.",
     },
     {
-      category: "Formulas",
+      id: "sop_directives",
+      category: "sop",
+      categoryLabel: "SOP & Directives",
+      icon: Store,
+      label: "Operational Head's Active Directives",
+      prompt: "What are the latest operational directives and urgent announcements from the Operational Head (Raphael Sir)?",
+    },
+    {
+      id: "formula_all",
+      category: "formula",
+      categoryLabel: "KPI Formulas",
       icon: Bot,
-      label: "KPI Formulas & Calculation",
-      prompt: "Show me the exact mathematical formulas for Conversion %, ATV, SPH, and Basket Size.",
+      label: "All Official KPI Formulas",
+      prompt: "Show the complete mathematical formulas for Conversion %, ATV, Basket Size, SPH, and Tally Growth %.",
     },
   ],
   bn: [
     {
-      category: "সেলস ও টার্গেট",
+      id: "sales_today",
+      category: "sales",
+      categoryLabel: "সেলস ও টার্গেট",
       icon: Flame,
-      label: "আজকের সেলস ও টার্গেট স্ট্যাটাস",
-      prompt: "আজকের সেলস, টার্গেট গ্যাপ এবং অ্যাচিভমেন্ট শতাংশের বিস্তারিত হিসেব দিন।",
+      label: "আজকের সেলস ও টার্গেট গ্যাপ",
+      prompt: "আজকের সেলস, টার্গেট গ্যাপ এবং অর্জন শতাংশের বিস্তারিত হিসেব দিন।",
     },
     {
-      category: "কনভার্সন ও ATV",
+      id: "sales_yoy",
+      category: "sales",
+      categoryLabel: "সেলস ও টার্গেট",
+      icon: TrendingUp,
+      label: "YoY গ্রোথ (০৮.১০.২০২৬ বনাম ০৮.১০.২০২৫)",
+      prompt: "গত বছরের একই দিন (০৮.১০.২০২৫) এর তুলনায় বেসলাইন ০৮.১০.২০২৬ এর ট্যালি গ্রোথ পেস কত শতাংশ?",
+    },
+    {
+      id: "sales_bills",
+      category: "sales",
+      categoryLabel: "সেলস ও টার্গেট",
+      icon: IndianRupee,
+      label: "সর্বোচ্চ একক বিল ও বিলিং স্ট্রিম",
+      prompt: "আজকের সর্বোচ্চ একক বিল, গড় টিকিট সাইজ ও সাম্প্রতিক বিলিং স্ট্রিম দেখান।",
+    },
+    {
+      id: "conv_boost",
+      category: "conversion",
+      categoryLabel: "কনভার্সন ও ATV",
       icon: Zap,
-      label: "কনভার্সন ও ATV বাড়ানোর কৌশল",
-      prompt: "আমাদের স্টোরের ATV ₹১,৮০০+ এ নিয়ে যেতে এবং কনভার্সন রেট বাড়াতে ৩টি সেরা কৌশল কী?",
+      label: "কনভার্সন রেট ৭০%+ করার উপায়",
+      prompt: "আমাদের স্টোরের কনভার্সন রেট ৭০%+ এ নিয়ে যেতে ৩টি কার্যকর ফ্লোর স্ট্র্যাটেজি কী?",
     },
     {
-      category: "পিক আওয়ার্স",
+      id: "atv_lift",
+      category: "conversion",
+      categoryLabel: "কনভার্সন ও ATV",
       icon: Sparkles,
-      label: "পিক আওয়ার্স স্ট্র্যাটেজি (৩টা - ৯টা)",
-      prompt: "পিক ট্রেডিং আওয়ারে (৩টা থেকে ৯টা) ফ্লোর সুপারভাইজারদের করণীয় কী কী?",
+      label: "ATV ₹১,৮০০+ ও UPB ২.৮+ এ উন্নীত করা",
+      prompt: "ক্যাশ ডেস্কে ক্রস-সেলিং বাড়িয়ে কীভাবে ATV ₹১,৮০০+ এবং বাস্কেট সাইজ ২.৮+ এ নিয়ে যাওয়া যায়?",
     },
     {
-      category: "বসের নির্দেশনা",
+      id: "stock_req",
+      category: "sop",
+      categoryLabel: "বসের নির্দেশ",
+      icon: Layers,
+      label: "প্রোডাক্ট রিকুইজিশন ও স্টক ঘাটতি",
+      prompt: "সাম্প্রতিক প্রোডাক্ট রিকুইজিশন স্লিপ ও অপেক্ষমাণ জরুরি পণ্যের তালিকা দেখান।",
+    },
+    {
+      id: "peak_evening",
+      category: "peakhours",
+      categoryLabel: "পিক আওয়ার্স",
+      icon: Clock,
+      label: "সন্ধ্যার পিক রাশ (৫টা - ৮টা)",
+      prompt: "সন্ধ্যার প্রধান পিক আওয়ারে (৫টা থেকে ৮টা) ফ্লোর সুপারভাইজারদের অগ্রাধিকারমূলক করণীয় কী?",
+    },
+    {
+      id: "bench_ranking",
+      category: "benchmark",
+      categoryLabel: "স্টোর তুলনা",
       icon: Store,
-      label: "রাফায়েল স্যারের নির্দেশাবলী",
+      label: "৩টি স্টোরের লাইভ তুলনা",
+      prompt: "নিউ মার্কেট, হাতিবাগান ও চৌরঙ্গী—৩টি স্টোরের লাইভ সেলস ও অ্যাচিভমেন্ট তুলনা দেখান।",
+    },
+    {
+      id: "sop_directives",
+      category: "sop",
+      categoryLabel: "বসের নির্দেশ",
+      icon: Store,
+      label: "রাফায়েল স্যারের সাম্প্রতিক নির্দেশ",
       prompt: "রাফায়েল স্যারের সাম্প্রতিক সক্রিয় নির্দেশাবলী ও জরুরি নোটিশগুলো কী কী?",
     },
     {
-      category: "সূত্রাবলী",
+      id: "formula_all",
+      category: "formula",
+      categoryLabel: "সূত্রাবলী",
       icon: Bot,
       label: "মূল মেট্রিক্সের গাণিতিক সূত্র",
-      prompt: "Conversion %, ATV, SPH এবং Basket Size গণনার অফিসিয়াল সূত্রগুলো দেখান।",
+      prompt: "Conversion %, ATV, Basket Size, SPH এবং Tally Growth গণনার অফিসিয়াল সূত্রগুলো দেখান।",
     },
   ],
   hi: [
     {
-      category: "सेल्स व टारगेट",
+      id: "sales_today",
+      category: "sales",
+      categoryLabel: "सेल्स व टारगेट",
       icon: Flame,
       label: "आज की बिक्री और टारगेट स्थिति",
       prompt: "आज की बिक्री, टारगेट गैप और अचीवमेंट प्रतिशत की पूरी रिपोर्ट बताएं।",
     },
     {
-      category: "कन्वर्शन व ATV",
+      id: "sales_yoy",
+      category: "sales",
+      categoryLabel: "सेल्स व टारगेट",
+      icon: TrendingUp,
+      label: "YoY ग्रोथ (08.10.2026 बनाम 08.10.2025)",
+      prompt: "पिछले वर्ष (08.10.2025) के मुकाबले बेसलाइन 08.10.2026 की शुद्ध बिक्री की टैली ग्रोथ क्या है?",
+    },
+    {
+      id: "sales_bills",
+      category: "sales",
+      categoryLabel: "सेल्स व टारगेट",
+      icon: IndianRupee,
+      label: "अधिकतम सिंगल बिल व ट्रांजैक्शन",
+      prompt: "आज का सबसे बड़ा सिंगल बिल, औसत टिकट साइज और हालिया बिलिंग स्ट्रीम बताएं।",
+    },
+    {
+      id: "conv_boost",
+      category: "conversion",
+      categoryLabel: "कन्वर्शन व ATV",
       icon: Zap,
-      label: "ATV और बास्केट साइज बढ़ाएं",
-      prompt: "स्टोर का ATV ₹1,800+ करने और कन्वर्शन रेट 70%+ रखने के 3 मुख्य तरीके बताएं।",
+      label: "कन्वर्शन रेट 70%+ कैसे करें",
+      prompt: "स्टोर का कन्वर्शन रेट 70%+ रखने और कस्टमर ड्रॉप कम करने के 3 मुख्य तरीके बताएं।",
     },
     {
-      category: "पीक ऑवर्स",
+      id: "atv_lift",
+      category: "conversion",
+      categoryLabel: "कन्वर्शन व ATV",
       icon: Sparkles,
-      label: "पीक ऑवर्स मैनेजमेंट (3 PM - 9 PM)",
-      prompt: "पीक ऑवर्स (3 PM से 9 PM) के दौरान फ्लोर मैनेजमेंट और कैशियर के लिए क्या जरूरी निर्देश हैं?",
+      label: "ATV ₹1,800+ व UPB 2.8+ करने के उपाय",
+      prompt: "कैशियर द्वारा क्रॉस-सेलिंग करके एवरेज टिकट साइज ₹1,800+ और बास्केट साइज 2.8+ कैसे ले जाएं?",
     },
     {
-      category: "निर्देश",
+      id: "stock_req",
+      category: "sop",
+      categoryLabel: "मुख्य निर्देश",
+      icon: Layers,
+      label: "प्रोडक्ट रिक्विजिशन व स्टॉक कमी",
+      prompt: "हालिया प्रोडक्ट रिक्विजिशन स्लिप्स, पेंडिंग स्टॉक डिमांड और अर्जेंट आइटम्स की सूची दिखाएं।",
+    },
+    {
+      id: "peak_evening",
+      category: "peakhours",
+      categoryLabel: "पीक ऑवर्स",
+      icon: Clock,
+      label: "शाम का पीक समय (5 PM - 8 PM)",
+      prompt: "शाम के मुख्य पीक ऑवर्स (5 PM से 8 PM) के दौरान फ्लोर मैनेजमेंट की चेकलिस्ट क्या है?",
+    },
+    {
+      id: "bench_ranking",
+      category: "benchmark",
+      categoryLabel: "स्टोर्स तुलना",
+      icon: Store,
+      label: "तीनों स्टोर्स की लाइव तुलना",
+      prompt: "न्यू मार्केट, हाथीबागान और चौरंगी तीनों स्टोर्स की लाइव बिक्री और अचीवमेंट की तुलना करें।",
+    },
+    {
+      id: "sop_directives",
+      category: "sop",
+      categoryLabel: "मुख्य निर्देश",
       icon: Store,
       label: "राफेल सर के हालिया निर्देश",
       prompt: "राफेल सर के एक्टिव ऑपरेशनल निर्देश और सेल्स टारगेट्स क्या हैं?",
     },
     {
-      category: "सूत्र",
+      id: "formula_all",
+      category: "formula",
+      categoryLabel: "सूत्र",
       icon: Bot,
-      label: "KPI गणना और सूत्र",
-      prompt: "कन्वर्शन रेट, ATV, SPH और बास्केट साइज की गणना के आधिकारिक फॉर्मूले बताएं।",
+      label: "KPI गणना और आधिकारिक सूत्र",
+      prompt: "कन्वर्शन रेट, ATV, बास्केट साइज, SPH और टैली ग्रोथ के आधिकारिक फॉर्मूले बताएं।",
     },
   ],
 };
@@ -148,6 +318,7 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
   const [isExpanded, setIsExpanded] = useState(false);
   const [inputMessage, setInputMessage] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<PresetItem["category"]>("all");
 
   // Sync with globalLanguage if not overridden locally
   useEffect(() => {
@@ -169,7 +340,7 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
       return {
         id: "welcome",
         role: "assistant",
-        content: `নমস্কার ${user?.username || "ম্যানেজার"}! আমি **CITIMART AI ডিসিশন অ্যাডভাইজার**। বর্তমানে **${storeLabel}** এর লাইভ ডেটা সংযুক্ত রয়েছে। আপনি আজকের সেলস টার্গেট, কনভার্সন রেট, টাইম-স্লট স্ট্র্যাটেজি বা রাফায়েল স্যারের নির্দেশাবলী সম্পর্কিত যেকোনো প্রশ্ন করতে পারেন।`,
+        content: `নমস্কার ${user?.username || "ম্যানেজার"}! আমি **CITIMART AI ডিসিশন অ্যাডভাইজার ও কো-পাইলট**। বর্তমানে **${storeLabel}** এর লাইভ ডেটা সংযুক্ত রয়েছে। আপনি আজকের সেলস টার্গেট, কনভার্সন রেট, টাইম-স্লট স্ট্র্যাটেজি বা রাফায়েল স্যারের নির্দেশাবলী সম্পর্কিত যেকোনো প্রশ্ন করতে পারেন।`,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         engine: "CITIMART Intelligence",
       };
@@ -177,7 +348,7 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
       return {
         id: "welcome",
         role: "assistant",
-        content: `नमस्ते ${user?.username || "मैनेजर"}! मैं **CITIMART AI डिसीजन एडवाइजर** हूँ। वर्तमान में **${storeLabel}** का लाइव डेटा कनेक्टेड है। आप आज के सेल्स टारगेट, कन्वर्शन रेट, पीक आवर्स रणनीति या ऑपरेशन्स हेड के निर्देशों से जुड़ा कोई भी सवाल पूछ सकते हैं।`,
+        content: `नमस्ते ${user?.username || "मैनेजर"}! मैं **CITIMART AI डिसीजन एडवाइजर व को-पायलट** हूँ। वर्तमान में **${storeLabel}** का लाइव डेटा कनेक्टेड है। आप आज के सेल्स टारगेट, कन्वर्शन रेट, पीक आवर्स रणनीति या ऑपरेशन्स हेड के निर्देशों से जुड़ा कोई भी सवाल पूछ सकते हैं।`,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         engine: "CITIMART Intelligence",
       };
@@ -185,7 +356,7 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
     return {
       id: "welcome",
       role: "assistant",
-      content: `Hello ${user?.username || "Manager"}! I am the **CITIMART AI Decision Advisor & Co-Pilot**. Connected to **${storeLabel}** live operational state. Ask me anything about today's target gaps, conversion pacing, ATV boosters, or Operational Head's directives.`,
+      content: `Hello ${user?.username || "Manager"}! I am the **CITIMART AI Decision Advisor & Operations Co-Pilot**. Connected to **${storeLabel}** live operational state. Ask me anything about today's target gaps, conversion pacing, ATV boosters, peak hour strategies, or Operational Head's directives.`,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       engine: "CITIMART Intelligence",
     };
@@ -274,7 +445,11 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
     toast.info("Conversation cleared.");
   };
 
-  const activePrompts = PROMPT_TEMPLATES[chatLanguage] || PROMPT_TEMPLATES.en;
+  const activePresetList = PROMPT_PRESETS[chatLanguage] || PROMPT_PRESETS.en;
+
+  const filteredPresets = activePresetList.filter((p) => {
+    return selectedCategory === "all" || p.category === selectedCategory;
+  });
 
   return (
     <>
@@ -303,7 +478,7 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
               AI COPILOT
               <span className="size-2 rounded-full bg-emerald-400 animate-ping" />
             </span>
-            <span className="text-[10px] text-blue-200/90 font-medium">Store Advisor</span>
+            <span className="text-[10px] text-blue-200/90 font-medium">Store Decision Advisor</span>
           </div>
         </motion.button>
       </div>
@@ -319,7 +494,7 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
             className={`fixed z-50 flex flex-col bg-slate-950/95 backdrop-blur-xl border border-indigo-500/30 shadow-[0_20px_60px_rgba(0,0,0,0.7)] text-slate-100 transition-all ${
               isExpanded
                 ? "inset-4 sm:inset-10 rounded-2xl"
-                : "bottom-4 right-4 sm:bottom-6 sm:right-6 w-[94vw] sm:w-[460px] h-[85vh] sm:h-[620px] max-h-[85vh] rounded-2xl"
+                : "bottom-4 right-4 sm:bottom-6 sm:right-6 w-[94vw] sm:w-[500px] h-[88vh] sm:h-[660px] max-h-[90vh] rounded-2xl"
             }`}
           >
             {/* Header */}
@@ -340,7 +515,7 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
                       </h3>
                     </div>
                     <p className="text-[11px] text-indigo-200/80 font-medium truncate">
-                      Decision Advisor · Real-Time Operations Intelligence
+                      Real-Time Retail Diagnostics · Decision Advisor
                     </p>
                   </div>
                 </div>
@@ -398,23 +573,49 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
               </div>
             </div>
 
-            {/* Quick Suggestion Chips */}
-            <div className="border-b border-slate-800/60 bg-slate-900/40 px-3 py-2 overflow-x-auto no-scrollbar flex items-center gap-1.5">
-              {activePrompts.map((p, idx) => {
-                const Icon = p.icon;
-                return (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleSendMessage(p.prompt)}
-                    disabled={chatMutation.isPending}
-                    className="shrink-0 flex items-center gap-1.5 rounded-full bg-slate-800/80 hover:bg-indigo-600/30 hover:border-indigo-500/50 border border-slate-700/60 px-2.5 py-1 text-[11px] font-medium text-slate-300 hover:text-white transition cursor-pointer shadow-sm"
-                  >
-                    <Icon className="size-3 text-indigo-400" />
-                    <span>{p.label}</span>
-                  </button>
-                );
-              })}
+            {/* Granular Preset Category Tabs & Quick Picker */}
+            <div className="border-b border-slate-800/80 bg-slate-900/60 px-3 py-2 space-y-2">
+              {/* Category Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                {PRESET_CATEGORIES.map((cat) => {
+                  const label =
+                    chatLanguage === "bn" ? cat.labelBn : chatLanguage === "hi" ? cat.labelHi : cat.labelEn;
+                  const isActive = selectedCategory === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setSelectedCategory(cat.id)}
+                      className={`shrink-0 rounded-lg px-2.5 py-1 text-[10px] font-bold transition-all cursor-pointer ${
+                        isActive
+                          ? "bg-indigo-600 text-white shadow-xs border border-indigo-400/40"
+                          : "bg-slate-800/60 text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-slate-700/40"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Granular Preset Chips */}
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                {filteredPresets.slice(0, 8).map((p) => {
+                  const Icon = p.icon;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => handleSendMessage(p.prompt)}
+                      disabled={chatMutation.isPending}
+                      className="shrink-0 flex items-center gap-1.5 rounded-full bg-slate-800/80 hover:bg-indigo-600/30 hover:border-indigo-500/50 border border-slate-700/60 px-2.5 py-1 text-[11px] font-medium text-slate-300 hover:text-white transition cursor-pointer shadow-sm"
+                    >
+                      <Icon className="size-3 text-indigo-400" />
+                      <span>{p.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Messages Area */}
@@ -443,7 +644,7 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
 
                     {/* Bubble Content */}
                     <div
-                      className={`group relative max-w-[85%] sm:max-w-[80%] rounded-2xl px-3.5 py-2.5 text-xs sm:text-[13px] leading-relaxed shadow-md ${
+                      className={`group relative max-w-[88%] sm:max-w-[82%] rounded-2xl px-3.5 py-2.5 text-xs sm:text-[13px] leading-relaxed shadow-md ${
                         isUser
                           ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-tr-none"
                           : "bg-slate-900/90 text-slate-200 border border-slate-800 rounded-tl-none"
@@ -463,7 +664,6 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
                       {/* Render text with Markdown formatting */}
                       <div className="whitespace-pre-wrap space-y-1.5">
                         {m.content.split("\n\n").map((para, pIdx) => {
-                          // Check if header line
                           if (para.startsWith("### ")) {
                             return (
                               <h4 key={pIdx} className="font-bold text-amber-300 text-[13px] mt-1 mb-0.5">
@@ -481,7 +681,7 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
 
                       {/* Footer Info */}
                       <div
-                        className={`mt-1.5 flex items-center justify-between gap-2 text-[10px] ${
+                        className={`mt-2 flex items-center justify-between gap-2 text-[10px] ${
                           isUser ? "text-blue-200/80" : "text-slate-500"
                         }`}
                       >
@@ -512,10 +712,10 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
                     <span className="size-2 rounded-full bg-indigo-400 animate-ping" />
                     <span className="animate-pulse">
                       {chatLanguage === "bn"
-                        ? "লাইভ মেট্রিক্স বিশ্লেষণ করা হচ্ছে..."
+                        ? "লাইভ মেট্রিক্স বিশ্লেষণ ও স্ট্র্যাটেজি তৈরি করা হচ্ছে..."
                         : chatLanguage === "hi"
-                        ? "लाइव डेटा का विश्लेषण किया जा रहा है..."
-                        : "Analyzing live store metrics..."}
+                        ? "लाइव डेटा का विश्लेषण और रणनीति तैयार की जा रही है..."
+                        : "Analyzing live store metrics & preparing recommendations..."}
                     </span>
                   </div>
                 </motion.div>
@@ -525,7 +725,7 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
             </div>
 
             {/* Input Bar */}
-            <div className="border-t border-slate-800/80 bg-slate-950/80 p-3 rounded-b-2xl">
+            <div className="border-t border-slate-800/80 bg-slate-950/90 p-3 rounded-b-2xl">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -544,7 +744,7 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
                         ? "সেলস, টার্গেট, কনভার্সন বা নির্দেশাবলী নিয়ে প্রশ্ন করুন..."
                         : chatLanguage === "hi"
                         ? "सेल्स, टारगेट, कन्वर्शन या निर्देशों पर सवाल पूछें..."
-                        : "Ask about sales, target gaps, ATV, or Operational Head's directives..."
+                        : "Ask about sales, target gaps, ATV, peak pacing, or directives..."
                     }
                     className="w-full rounded-xl bg-slate-900/90 border border-slate-800 px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-inner"
                     disabled={chatMutation.isPending}

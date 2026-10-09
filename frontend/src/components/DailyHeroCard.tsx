@@ -104,69 +104,163 @@ export function DailyHeroCard({ storeName, data }: DailyHeroCardProps) {
         </div>
       </div>
 
-      {/* Monthly Target, Previous Year Total, & Growth Matrix */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {/* Month Target Card */}
-        <div className="flex items-center gap-3 rounded-2xl border border-orange-500/30 bg-orange-500/10 dark:bg-orange-950/20 p-3 shadow-xs">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30">
-            <Target className="h-4 w-4" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Month Target</div>
-            <div className="font-mono text-base font-extrabold text-orange-600 dark:text-orange-400 truncate">
-              {monthTarget != null ? fmtCurrency(monthTarget) : "—"}
+      {/* Operational Growth & Target Matrix: Monthly Overview + Daily Live Growth View */}
+      <div className="space-y-3">
+        {/* Row 1: Monthly Target & Actual Growth vs Prev Year */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Month Target Card */}
+          <div className="flex items-center gap-3 rounded-2xl border border-orange-500/30 bg-orange-500/10 dark:bg-orange-950/20 p-3 shadow-xs">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30">
+              <Target className="h-4 w-4" />
             </div>
-            <div className="text-[10px] text-muted-foreground truncate">Planned Month Target</div>
-          </div>
-        </div>
-
-        {/* Prev Year Total Card */}
-        <div className="flex items-center gap-3 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 dark:bg-cyan-950/20 p-3 shadow-xs">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
-            <TrendingUp className="h-4 w-4" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Prev. Year Total</div>
-            <div className="font-mono text-base font-extrabold text-cyan-600 dark:text-cyan-400 truncate">
-              {prevYearTotal != null ? fmtCurrency(prevYearTotal) : "—"}
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Month Target</div>
+              <div className="font-mono text-base font-extrabold text-orange-600 dark:text-orange-400 truncate">
+                {monthTarget != null ? fmtCurrency(monthTarget) : "—"}
+              </div>
+              <div className="text-[10px] text-muted-foreground truncate">Planned Month Target</div>
             </div>
-            <div className="text-[10px] text-muted-foreground truncate">Previous Year Month Sales</div>
           </div>
-        </div>
 
-        {/* Prev vs Current Growth Card */}
-        <div className={`flex items-center gap-3 rounded-2xl border p-3 shadow-xs ${
-          growthPct != null && growthPct >= 0
-            ? "border-emerald-500/30 bg-emerald-500/10 dark:bg-emerald-950/20"
-            : growthPct != null
-            ? "border-rose-500/30 bg-rose-500/10 dark:bg-rose-950/20"
-            : "border-border bg-card/60 dark:bg-black/30"
-        }`}>
-          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
-            growthPct != null && growthPct >= 0
-              ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
-              : growthPct != null
-              ? "bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/30"
-              : "bg-muted text-muted-foreground border-border"
-          }`}>
-            {growthPct != null && growthPct < 0 ? (
-              <TrendingDown className="h-4 w-4" />
-            ) : (
+          {/* Prev Year Month Total Card */}
+          <div className="flex items-center gap-3 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 dark:bg-cyan-950/20 p-3 shadow-xs">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
               <TrendingUp className="h-4 w-4" />
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Prev vs Current Growth</div>
-            <div className={`font-mono text-base font-extrabold truncate ${
-              growthPct != null && growthPct >= 0
-                ? "text-emerald-600 dark:text-emerald-400"
-                : growthPct != null
-                ? "text-rose-600 dark:text-rose-400"
-                : "text-foreground"
-            }`}>
-              {growthPct != null ? `${growthPct >= 0 ? "+" : ""}${growthPct.toFixed(1)}%` : "—"}
             </div>
-            <div className="text-[10px] text-muted-foreground truncate">Planned Growth Pace</div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Prev. Year Total</div>
+              <div className="font-mono text-base font-extrabold text-cyan-600 dark:text-cyan-400 truncate">
+                {prevYearTotal != null ? fmtCurrency(prevYearTotal) : "—"}
+              </div>
+              <div className="text-[10px] text-muted-foreground truncate">Previous Year Month Sales</div>
+            </div>
+          </div>
+
+          {/* Month Present Net Sales Card */}
+          <div className="flex items-center gap-3 rounded-2xl border border-indigo-500/30 bg-indigo-500/10 dark:bg-indigo-950/20 p-3 shadow-xs">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30">
+              <FileText className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Month Net Sales (MTD)</div>
+              <div className="font-mono text-base font-extrabold text-indigo-600 dark:text-indigo-400 truncate">
+                {monthlySummary?.month_net_sales != null ? fmtCurrency(monthlySummary.month_net_sales) : "—"}
+              </div>
+              <div className="text-[10px] text-muted-foreground truncate">Logged Month Revenue</div>
+            </div>
+          </div>
+
+          {/* Month Actual vs Prev Year Growth Card */}
+          <div className={`flex items-center gap-3 rounded-2xl border p-3 shadow-xs ${
+            growthPct != null && growthPct >= 0
+              ? "border-emerald-500/30 bg-emerald-500/10 dark:bg-emerald-950/20"
+              : growthPct != null
+              ? "border-rose-500/30 bg-rose-500/10 dark:bg-rose-950/20"
+              : "border-border bg-card/60 dark:bg-black/30"
+          }`}>
+            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
+              growthPct != null && growthPct >= 0
+                ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                : growthPct != null
+                ? "bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/30"
+                : "bg-muted text-muted-foreground border-border"
+            }`}>
+              {growthPct != null && growthPct < 0 ? (
+                <TrendingDown className="h-4 w-4" />
+              ) : (
+                <TrendingUp className="h-4 w-4" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Month Net Sales Growth</div>
+              <div className={`font-mono text-base font-extrabold truncate ${
+                growthPct != null && growthPct >= 0
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : growthPct != null
+                  ? "text-rose-600 dark:text-rose-400"
+                  : "text-foreground"
+              }`}>
+                {growthPct != null ? `${growthPct >= 0 ? "+" : ""}${growthPct.toFixed(1)}%` : "—"}
+              </div>
+              <div className="text-[10px] text-muted-foreground truncate">Present vs Prev Year Sales</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2: Daily Basis Growth View (Today vs Prev Year Same Day) */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Daily Net Sales vs Prev Year Day Sales Card */}
+          <div className="flex items-center gap-3 rounded-2xl border border-sky-500/30 bg-sky-500/10 dark:bg-sky-950/20 p-3 shadow-xs">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-500/20 text-sky-600 dark:text-sky-400 border border-sky-500/30">
+              <Calendar className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Today vs Prev Year Day</div>
+              <div className="font-mono text-base font-extrabold text-sky-600 dark:text-sky-400 truncate">
+                {liveData?.kpis?.net_sales != null ? fmtCurrency(liveData.kpis.net_sales) : "₹0"}
+              </div>
+              <div className="text-[10px] text-muted-foreground truncate">
+                Last Year: {monthlySummary?.daily_prev_year_sales != null ? fmtCurrency(monthlySummary.daily_prev_year_sales) : "—"}
+              </div>
+            </div>
+          </div>
+
+          {/* Daily YoY Tally Growth Card */}
+          <div className={`flex items-center gap-3 rounded-2xl border p-3 shadow-xs ${
+            monthlySummary?.daily_growth_pct != null && monthlySummary.daily_growth_pct >= 0
+              ? "border-emerald-500/30 bg-emerald-500/10 dark:bg-emerald-950/20"
+              : monthlySummary?.daily_growth_pct != null
+              ? "border-rose-500/30 bg-rose-500/10 dark:bg-rose-950/20"
+              : "border-border bg-card/60 dark:bg-black/30"
+          }`}>
+            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
+              monthlySummary?.daily_growth_pct != null && monthlySummary.daily_growth_pct >= 0
+                ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                : monthlySummary?.daily_growth_pct != null
+                ? "bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/30"
+                : "bg-muted text-muted-foreground border-border"
+            }`}>
+              {monthlySummary?.daily_growth_pct != null && monthlySummary.daily_growth_pct < 0 ? (
+                <TrendingDown className="h-4 w-4" />
+              ) : (
+                <TrendingUp className="h-4 w-4" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Daily YoY Growth</div>
+              <div className={`font-mono text-base font-extrabold truncate ${
+                monthlySummary?.daily_growth_pct != null && monthlySummary.daily_growth_pct >= 0
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : monthlySummary?.daily_growth_pct != null
+                  ? "text-rose-600 dark:text-rose-400"
+                  : "text-foreground"
+              }`}>
+                {monthlySummary?.daily_growth_pct != null
+                  ? `${monthlySummary.daily_growth_pct >= 0 ? "+" : ""}${monthlySummary.daily_growth_pct.toFixed(1)}%`
+                  : "—"}
+              </div>
+              <div className="text-[10px] text-muted-foreground truncate">
+                {monthlySummary?.daily_diff != null
+                  ? `${monthlySummary.daily_diff >= 0 ? "+" : ""}${fmtCurrency(monthlySummary.daily_diff)} YoY delta`
+                  : "Selected Day vs 1-Yr Ago"}
+              </div>
+            </div>
+          </div>
+
+          {/* Daily Target Run-Rate / Achievement Card */}
+          <div className="flex items-center gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 dark:bg-amber-950/20 p-3 shadow-xs">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+              <Target className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Daily Target Progress</div>
+              <div className="font-mono text-base font-extrabold text-amber-600 dark:text-amber-400 truncate">
+                {liveData?.kpis?.achievement_pct != null ? `${liveData.kpis.achievement_pct.toFixed(1)}%` : "—"}
+              </div>
+              <div className="text-[10px] text-muted-foreground truncate">
+                Target: {liveData?.kpis?.sales_target != null ? fmtCurrency(liveData.kpis.sales_target) : "—"}
+              </div>
+            </div>
           </div>
         </div>
       </div>

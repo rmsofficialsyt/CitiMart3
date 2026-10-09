@@ -294,7 +294,7 @@ function SalesTargetEntry({ store }: { store: string }) {
         </div>
 
         {/* Monthly Summary Statistics Pills */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mt-4 pt-4 border-t border-border">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 mt-4 pt-4 border-t border-border">
           <div className="rounded-2xl border border-border/80 bg-muted/40 dark:bg-black/25 p-3">
             <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Month Target (Typed)</div>
             <div className="mt-1 font-mono text-base font-extrabold text-orange-600 dark:text-orange-400 sm:text-lg">
@@ -312,21 +312,36 @@ function SalesTargetEntry({ store }: { store: string }) {
           </div>
 
           <div className="rounded-2xl border border-border/80 bg-muted/40 dark:bg-black/25 p-3">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Target vs Prev Growth</div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Present Net Sales (MTD)</div>
+            <div className="mt-1 font-mono text-base font-extrabold text-foreground sm:text-lg">
+              {fmtCurrency(days.reduce((sum, d) => sum + (existing.get(d)?.net_sales ?? 0), 0))}
+            </div>
+            <div className="text-[10px] text-muted-foreground">Actual Logged Revenue</div>
+          </div>
+
+          <div className="rounded-2xl border border-border/80 bg-muted/40 dark:bg-black/25 p-3">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Month Tally Growth</div>
+            <div className="mt-1 font-mono text-base font-extrabold text-emerald-600 dark:text-emerald-400 sm:text-lg">
+              {(() => {
+                const mtdSales = days.reduce((sum, d) => sum + (existing.get(d)?.net_sales ?? 0), 0);
+                if (draftPrevYearTotal > 0 && mtdSales > 0) {
+                  const pct = ((mtdSales - draftPrevYearTotal) / draftPrevYearTotal) * 100;
+                  return `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
+                }
+                return "—";
+              })()}
+            </div>
+            <div className="text-[10px] text-muted-foreground">Actual vs Prev Year</div>
+          </div>
+
+          <div className="rounded-2xl border border-border/80 bg-muted/40 dark:bg-black/25 p-3">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Target Growth Pace</div>
             <div className="mt-1 font-mono text-base font-extrabold text-foreground sm:text-lg">
               {draftPrevYearTotal > 0
                 ? `${(((draftTargetTotal - draftPrevYearTotal) / draftPrevYearTotal) * 100).toFixed(1)}%`
                 : "—"}
             </div>
-            <div className="text-[10px] text-muted-foreground">Planned Growth Pace</div>
-          </div>
-
-          <div className="rounded-2xl border border-border/80 bg-muted/40 dark:bg-black/25 p-3">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Excel Format Support</div>
-            <div className="mt-1 text-xs font-semibold text-foreground">
-              4-Col or 2-Col
-            </div>
-            <div className="text-[10px] text-muted-foreground">Auto Date Matching</div>
+            <div className="text-[10px] text-muted-foreground">Planned Target Pace</div>
           </div>
         </div>
       </div>
@@ -363,6 +378,9 @@ function SalesTargetEntry({ store }: { store: string }) {
                   <TableHead className="text-right font-bold text-indigo-600 dark:text-indigo-400 text-xs">
                     Ach %
                   </TableHead>
+                  <TableHead className="text-right font-bold text-emerald-600 dark:text-emerald-400 text-xs min-w-[100px]">
+                    Tally Growth
+                  </TableHead>
                   <TableHead className="text-right font-bold text-muted-foreground text-xs">
                     Footfall
                   </TableHead>
@@ -391,6 +409,14 @@ function SalesTargetEntry({ store }: { store: string }) {
                   const prevYearDate = `${y - 1}-${String(m).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
                   const prevYearDisplay = prevYearDate.split("-").reverse().join(".");
                   const presentYearDisplay = d.split("-").reverse().join(".");
+
+                  const rawPrevVal = (prevYearValues[d] ?? "").trim();
+                  const prevYearNum = rawPrevVal !== "" ? Number(rawPrevVal) : (ex?.prev_year_net_sales ?? null);
+                  const presentSalesNum = ex?.net_sales ?? null;
+                  let tallyGrowth: number | null = null;
+                  if (presentSalesNum != null && prevYearNum != null && Number.isFinite(prevYearNum) && prevYearNum > 0) {
+                    tallyGrowth = ((presentSalesNum - prevYearNum) / prevYearNum) * 100;
+                  }
 
                   return (
                     <TableRow key={d} className="border-border/60 hover:bg-muted/40 transition-colors">
@@ -432,6 +458,15 @@ function SalesTargetEntry({ store }: { store: string }) {
                       </TableCell>
                       <TableCell className="text-right font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">
                         {ex && ex.achievement_pct != null ? fmtPercentOrZero(ex.achievement_pct) : <span className="text-muted-foreground/40">—</span>}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs font-bold">
+                        {tallyGrowth != null ? (
+                          <span className={tallyGrowth >= 0 ? "text-emerald-600 dark:text-emerald-400 font-extrabold" : "text-rose-600 dark:text-rose-400 font-extrabold"}>
+                            {tallyGrowth >= 0 ? `+${tallyGrowth.toFixed(1)}%` : `${tallyGrowth.toFixed(1)}%`}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground/40">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right font-mono text-xs text-foreground/80 dark:text-slate-300">
                         {ex && ex.footfall != null ? fmtNumberOrZero(ex.footfall) : <span className="text-muted-foreground/40">—</span>}

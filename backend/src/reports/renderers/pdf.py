@@ -44,7 +44,7 @@ from src.reports.models import (
 
 logger = logging.getLogger(__name__)
 
-_LOGO_PATH = PROJECT_ROOT / "img" / "logo" / "CitiMart_logo_2.png"
+_LOGO_PATH = PROJECT_ROOT / "img" / "logo" / "CitiMart_logo_3.jpeg"
 
 PAGE_WIDTH, PAGE_HEIGHT = landscape(A4)
 USABLE_WIDTH = PAGE_WIDTH - 2.4 * cm  # ~27.3 cm / 774 pt

@@ -26,7 +26,7 @@ from src.reports.models import (
     TitleBlock,
 )
 
-_LOGO_PATH = PROJECT_ROOT / "img" / "logo" / "CitiMart_logo_2.png"
+_LOGO_PATH = PROJECT_ROOT / "img" / "logo" / "CitiMart_logo_3.jpeg"
 
 _STYLE = """
 body { font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; max-width: 960px; margin: 2rem auto; padding: 0 1.5rem; }

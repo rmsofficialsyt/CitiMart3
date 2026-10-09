@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
   BarChart2,
+  Calendar,
   Clock,
   Compass,
   Gauge,
@@ -19,7 +20,6 @@ import {
   Zap,
 } from "lucide-react";
 
-
 import { api } from "@/api/client";
 import {
   fmtCurrency,
@@ -28,8 +28,10 @@ import {
   fmtPercentOrZero,
   fmtDateIndian,
   fmtDateDot,
+  addDaysISO,
+  todayLocalDate,
 } from "@/lib/format";
-import type { DailyLiveSnapshot, DailyOverallSnapshot } from "@/lib/types";
+import type { DailyLiveSnapshot, DailyOverallSnapshot, StoreTargetsResponse } from "@/lib/types";
 import {
   MODERN_PALETTE,
   RechartsColumnChart,
@@ -48,6 +50,7 @@ export type LookbackMode =
   | "30days_avg";
 
 export type MetricOptionKey = "net_sales" | "footfall" | "nob" | "atv" | "basket_size" | "conversion_pct";
+export type PacingViewMode = "date_wise" | "timeslot_wise";
 
 interface AtAGlanceCardProps {
   storeCode: string;
@@ -68,75 +71,139 @@ const LOOKBACK_OPTIONS: { id: LookbackMode; label: string; shortLabel: string; b
   { id: "30days_avg", label: "Past 30-Day Rolling Baseline", shortLabel: "30-Day Avg", badge: "30D Avg" },
 ];
 
-function calculateComparisonDate(isoDate: string, mode: LookbackMode): string {
-  const d = new Date(isoDate + "T00:00:00");
+/**
+ * Calculates historical comparison date relative to the baseline reference date.
+ * Uses timezone-safe UTC operations to prevent any day shifts.
+ * Baseline is the completed operating day (e.g. 08.10.2026 when today is 09.10.2026).
+ * Comparison date for prev_year_1 is the exact same calendar day last year (e.g. 08.10.2025).
+ */
+function calculateComparisonDate(baselineIsoDate: string, mode: LookbackMode): string {
+  if (!baselineIsoDate) return baselineIsoDate;
+  const [y, m, d] = baselineIsoDate.split("-").map(Number);
+  if (!y || !m || !d) return baselineIsoDate;
+  const dt = new Date(Date.UTC(y, m - 1, d));
   switch (mode) {
     case "prev_year_1":
-      d.setFullYear(d.getFullYear() - 1);
+      dt.setUTCFullYear(dt.getUTCFullYear() - 1);
       break;
     case "prev_year_2":
-      d.setFullYear(d.getFullYear() - 2);
+      dt.setUTCFullYear(dt.getUTCFullYear() - 2);
       break;
     case "prev_month":
-      d.setMonth(d.getMonth() - 1);
+      dt.setUTCMonth(dt.getUTCMonth() - 1);
       break;
     case "prev_week":
-      d.setDate(d.getDate() - 7);
+      dt.setUTCDate(dt.getUTCDate() - 7);
       break;
     case "prev_quarter":
-      d.setMonth(d.getMonth() - 3);
+      dt.setUTCMonth(dt.getUTCMonth() - 3);
       break;
     case "7days_avg":
-      d.setDate(d.getDate() - 7);
+      dt.setUTCDate(dt.getUTCDate() - 7);
       break;
     case "14days_avg":
-      d.setDate(d.getDate() - 14);
+      dt.setUTCDate(dt.getUTCDate() - 14);
       break;
     case "30days_avg":
-      d.setDate(d.getDate() - 30);
+      dt.setUTCDate(dt.getUTCDate() - 30);
       break;
   }
-  return d.toISOString().split("T")[0];
+  return dt.toISOString().split("T")[0];
+}
+
+/** Subtracts 1 day to obtain the previous day (yesterday) in a timezone-safe manner */
+function getPreviousDayDate(isoDate: string): string {
+  return addDaysISO(isoDate, -1);
 }
 
 export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCardProps) {
   const [lookbackMode, setLookbackMode] = useState<LookbackMode>("prev_year_1");
   const [selectedMetric, setSelectedMetric] = useState<MetricOptionKey>("net_sales");
+  const [pacingViewMode, setPacingViewMode] = useState<PacingViewMode>("date_wise");
   const [showSlotComparison, setShowSlotComparison] = useState<boolean>(true);
 
-  const compDate = useMemo(() => calculateComparisonDate(date, lookbackMode), [date, lookbackMode]);
+  const today = todayLocalDate();
+  const isViewingToday = !date || date === today;
 
-  // Query comparison benchmark data for single store or overall
+  // Baseline Reference Date: If viewing live dashboard today (e.g. 09.10.2026), baseline is the previous completed operating day (08.10.2026).
+  // If inspecting a specific historical date (e.g. 08.10.2026), that date itself is the baseline reference.
+  const baselineDate = useMemo(() => {
+    if (isViewingToday) {
+      return getPreviousDayDate(today);
+    }
+    return date;
+  }, [isViewingToday, today, date]);
+
+  // Comparison Date relative to Baseline (e.g. 1 year ago: 08.10.2025 vs 08.10.2026)
+  const compDate = useMemo(() => calculateComparisonDate(baselineDate, lookbackMode), [baselineDate, lookbackMode]);
+
+  // Query baseline reference data (previous day)
+  const { data: baselineData } = useQuery<DailyLiveSnapshot | DailyOverallSnapshot>({
+    queryKey: ["comparison-live-baseline", storeCode, baselineDate],
+    queryFn: async () => (storeCode === "ALL" ? api.dailyLiveOverall(baselineDate) : api.dailyLive(storeCode, baselineDate)),
+    staleTime: 120_000,
+  });
+
+  // Query comparison historical data (e.g. 1 year ago relative to previous day)
   const { data: compData } = useQuery<DailyLiveSnapshot | DailyOverallSnapshot>({
-    queryKey: ["comparison-live", storeCode, compDate],
+    queryKey: ["comparison-live-target", storeCode, compDate],
     queryFn: async () => (storeCode === "ALL" ? api.dailyLiveOverall(compDate) : api.dailyLive(storeCode, compDate)),
     staleTime: 120_000,
   });
 
-  const presentKpis = data?.kpis;
+  // Query store targets for baselineDate to get prev_year_net_sales as seamless fallback
+  const { data: storeTargetsData } = useQuery<StoreTargetsResponse>({
+    queryKey: ["store-targets", storeCode],
+    queryFn: async () => (storeCode === "ALL" ? { store: "ALL", entries: [] } : api.storeTargets(storeCode)),
+    staleTime: 120_000,
+    enabled: storeCode !== "ALL",
+  });
+
+  // Find target entry for baseline date
+  const baselineTargetEntry = useMemo(() => {
+    return storeTargetsData?.entries.find((e) => e.date === baselineDate);
+  }, [storeTargetsData, baselineDate]);
+
+  // Present/Baseline KPIs (Reference day: Previous day, or active date if baseline is empty)
+  const baseKpis = baselineData?.kpis;
+  const liveKpis = data?.kpis;
   const compKpis = compData?.kpis;
 
+  // Selected Day Net Amount (Previous Day net sales)
+  const selectedDaySales = baseKpis?.net_sales != null && baseKpis.net_sales > 0
+    ? baseKpis.net_sales
+    : (liveKpis?.net_sales ?? 0);
 
-  const presentSales = presentKpis?.net_sales ?? 0;
-  const comparisonSales = compKpis?.net_sales ?? 0;
-  const presentFootfall = presentKpis?.footfall ?? 0;
-  const comparisonFootfall = compKpis?.footfall ?? 0;
-  const presentNob = presentKpis?.nob ?? 0;
-  const comparisonNob = compKpis?.nob ?? 0;
-  const presentAtv = presentKpis?.atv ?? 0;
-  const comparisonAtv = compKpis?.atv ?? 0;
-  const presentBasket = presentKpis?.basket_size ?? 0;
-  const comparisonBasket = compKpis?.basket_size ?? 0;
-  const presentConversion = presentKpis?.conversion_pct ?? 0;
-  const comparisonConversion = compKpis?.conversion_pct ?? 0;
-  const targetSales = presentKpis?.sales_target ?? 0;
-  const achievementPct = presentKpis?.achievement_pct ?? 0;
+  // Comparison Historical Sales (from comp live bills or from prev_year_net_sales in targets)
+  const comparisonSales = compKpis?.net_sales != null && compKpis.net_sales > 0
+    ? compKpis.net_sales
+    : (lookbackMode === "prev_year_1" && baselineTargetEntry?.prev_year_net_sales != null
+        ? baselineTargetEntry.prev_year_net_sales
+        : 0);
 
-  const salesDiff = presentSales - comparisonSales;
+  const selectedDayFootfall = baseKpis?.footfall ?? liveKpis?.footfall ?? 0;
+  const comparisonFootfall = compKpis?.footfall ?? baselineTargetEntry?.footfall ?? 0;
+
+  const selectedDayNob = baseKpis?.nob ?? liveKpis?.nob ?? 0;
+  const comparisonNob = compKpis?.nob ?? baselineTargetEntry?.nob ?? 0;
+
+  const selectedDayAtv = baseKpis?.atv ?? liveKpis?.atv ?? 0;
+  const comparisonAtv = compKpis?.atv ?? baselineTargetEntry?.atv ?? 0;
+
+  const selectedDayBasket = baseKpis?.basket_size ?? liveKpis?.basket_size ?? 0;
+  const comparisonBasket = compKpis?.basket_size ?? baselineTargetEntry?.basket_size ?? 0;
+
+  const selectedDayConversion = baseKpis?.conversion_pct ?? liveKpis?.conversion_pct ?? 0;
+  const comparisonConversion = compKpis?.conversion_pct ?? baselineTargetEntry?.conversion_pct ?? 0;
+
+  const targetSales = baseKpis?.sales_target ?? liveKpis?.sales_target ?? 0;
+  const achievementPct = baseKpis?.achievement_pct ?? liveKpis?.achievement_pct ?? 0;
+
+  const salesDiff = selectedDaySales - comparisonSales;
   const growthPct =
     comparisonSales > 0
-      ? ((presentSales - comparisonSales) / comparisonSales) * 100
-      : presentSales > 0
+      ? ((selectedDaySales - comparisonSales) / comparisonSales) * 100
+      : selectedDaySales > 0
       ? 100
       : 0;
 
@@ -149,22 +216,40 @@ export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCar
       { id: "08.00 PM - 11.59 PM", label: "8PM-12AM" },
     ];
 
-    const presBreakdown = (data as DailyLiveSnapshot)?.timeslot_breakdown;
+    const presBreakdown = (baselineData as DailyLiveSnapshot)?.timeslot_breakdown || (data as DailyLiveSnapshot)?.timeslot_breakdown;
     const compBreakdown = (compData as DailyLiveSnapshot)?.timeslot_breakdown;
 
     const points: RechartDataPoint[] = slots.map((s) => ({
       name: s.label,
-      present_sales: presBreakdown?.[s.id]?.net_sales ?? (presentSales > 0 ? Math.round(presentSales / 4) : 0),
+      present_sales: presBreakdown?.[s.id]?.net_sales ?? (selectedDaySales > 0 ? Math.round(selectedDaySales / 4) : 0),
       benchmark_sales: compBreakdown?.[s.id]?.net_sales ?? (comparisonSales > 0 ? Math.round(comparisonSales / 4) : 0),
     }));
 
     const series: SeriesConfig[] = [
-      { key: "present_sales", name: "Selected Day (₹)", color: MODERN_PALETTE.coral },
-      { key: "benchmark_sales", name: `${LOOKBACK_OPTIONS.find((o) => o.id === lookbackMode)?.shortLabel} (₹)`, color: MODERN_PALETTE.cyan },
+      { key: "present_sales", name: `Baseline (${fmtDateDot(baselineDate)}) (₹)`, color: MODERN_PALETTE.coral },
+      { key: "benchmark_sales", name: `${LOOKBACK_OPTIONS.find((o) => o.id === lookbackMode)?.shortLabel} (${fmtDateDot(compDate)}) (₹)`, color: MODERN_PALETTE.cyan },
     ];
 
     return { points, series };
-  }, [data, compData, presentSales, comparisonSales, lookbackMode]);
+  }, [baselineData, data, compData, selectedDaySales, comparisonSales, lookbackMode, baselineDate, compDate]);
+
+  // Date-wise Multi-Day Trend Data for Recharts
+  const dateWiseComparisonData = useMemo(() => {
+    const points: RechartDataPoint[] = [
+      {
+        name: "Total Net Sales",
+        present_sales: selectedDaySales,
+        benchmark_sales: comparisonSales,
+      },
+    ];
+
+    const series: SeriesConfig[] = [
+      { key: "present_sales", name: `Selected Day (${fmtDateDot(baselineDate)}) (₹)`, color: MODERN_PALETTE.coral },
+      { key: "benchmark_sales", name: `${LOOKBACK_OPTIONS.find((o) => o.id === lookbackMode)?.shortLabel} (${fmtDateDot(compDate)}) (₹)`, color: MODERN_PALETTE.cyan },
+    ];
+
+    return { points, series };
+  }, [selectedDaySales, comparisonSales, lookbackMode, baselineDate, compDate]);
 
   // Multi-Metric Comparison Cards
   const metricCards = useMemo(() => {
@@ -173,7 +258,7 @@ export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCar
         id: "net_sales" as MetricOptionKey,
         label: "Net Sales",
         Icon: IndianRupee,
-        present: fmtCurrencyOrZero(presentSales),
+        present: fmtCurrencyOrZero(selectedDaySales),
         benchmark: fmtCurrencyOrZero(comparisonSales),
         diff: salesDiff,
         pct: growthPct,
@@ -183,89 +268,89 @@ export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCar
         id: "footfall" as MetricOptionKey,
         label: "Footfall",
         Icon: Users,
-        present: fmtNumberOrZero(presentFootfall),
+        present: fmtNumberOrZero(selectedDayFootfall),
         benchmark: fmtNumberOrZero(comparisonFootfall),
-        diff: presentFootfall - comparisonFootfall,
-        pct: comparisonFootfall > 0 ? ((presentFootfall - comparisonFootfall) / comparisonFootfall) * 100 : 0,
+        diff: selectedDayFootfall - comparisonFootfall,
+        pct: comparisonFootfall > 0 ? ((selectedDayFootfall - comparisonFootfall) / comparisonFootfall) * 100 : 0,
         isCurrency: false,
       },
       {
         id: "nob" as MetricOptionKey,
         label: "Bill Count (NOB)",
         Icon: Receipt,
-        present: fmtNumberOrZero(presentNob),
+        present: fmtNumberOrZero(selectedDayNob),
         benchmark: fmtNumberOrZero(comparisonNob),
-        diff: presentNob - comparisonNob,
-        pct: comparisonNob > 0 ? ((presentNob - comparisonNob) / comparisonNob) * 100 : 0,
+        diff: selectedDayNob - comparisonNob,
+        pct: comparisonNob > 0 ? ((selectedDayNob - comparisonNob) / comparisonNob) * 100 : 0,
         isCurrency: false,
       },
       {
         id: "atv" as MetricOptionKey,
         label: "Avg Transaction Value",
         Icon: Activity,
-        present: fmtCurrencyOrZero(presentAtv),
+        present: fmtCurrencyOrZero(selectedDayAtv),
         benchmark: fmtCurrencyOrZero(comparisonAtv),
-        diff: presentAtv - comparisonAtv,
-        pct: comparisonAtv > 0 ? ((presentAtv - comparisonAtv) / comparisonAtv) * 100 : 0,
+        diff: selectedDayAtv - comparisonAtv,
+        pct: comparisonAtv > 0 ? ((selectedDayAtv - comparisonAtv) / comparisonAtv) * 100 : 0,
         isCurrency: true,
       },
       {
         id: "basket_size" as MetricOptionKey,
         label: "Basket Size (UPB)",
         Icon: ShoppingBag,
-        present: presentBasket.toFixed(2),
+        present: selectedDayBasket.toFixed(2),
         benchmark: comparisonBasket.toFixed(2),
-        diff: presentBasket - comparisonBasket,
-        pct: comparisonBasket > 0 ? ((presentBasket - comparisonBasket) / comparisonBasket) * 100 : 0,
+        diff: selectedDayBasket - comparisonBasket,
+        pct: comparisonBasket > 0 ? ((selectedDayBasket - comparisonBasket) / comparisonBasket) * 100 : 0,
         isCurrency: false,
       },
       {
         id: "conversion_pct" as MetricOptionKey,
         label: "Conversion Rate",
         Icon: Percent,
-        present: fmtPercentOrZero(presentConversion),
+        present: fmtPercentOrZero(selectedDayConversion),
         benchmark: fmtPercentOrZero(comparisonConversion),
-        diff: presentConversion - comparisonConversion,
-        pct: comparisonConversion > 0 ? ((presentConversion - comparisonConversion) / comparisonConversion) * 100 : 0,
+        diff: selectedDayConversion - comparisonConversion,
+        pct: comparisonConversion > 0 ? ((selectedDayConversion - comparisonConversion) / comparisonConversion) * 100 : 0,
         isCurrency: false,
       },
     ];
   }, [
-    presentSales,
+    selectedDaySales,
     comparisonSales,
     salesDiff,
     growthPct,
-    presentFootfall,
+    selectedDayFootfall,
     comparisonFootfall,
-    presentNob,
+    selectedDayNob,
     comparisonNob,
-    presentAtv,
+    selectedDayAtv,
     comparisonAtv,
-    presentBasket,
+    selectedDayBasket,
     comparisonBasket,
-    presentConversion,
+    selectedDayConversion,
     comparisonConversion,
   ]);
 
   // Inferred Performance Insights Generator
   const inference = useMemo(() => {
-    const presentAch = presentKpis?.achievement_pct ?? 0;
+    const presentAch = baseKpis?.achievement_pct ?? liveKpis?.achievement_pct ?? 0;
     const activeOpt = LOOKBACK_OPTIONS.find((o) => o.id === lookbackMode);
 
-    if (presentSales === 0 && comparisonSales === 0) {
+    if (selectedDaySales === 0 && comparisonSales === 0) {
       return {
         headline: "Store Operations Awaiting Initial Billings",
-        detail: "No transactions recorded yet for this date. Operational tracking active across standard 3-hour time slots.",
+        detail: "No transactions recorded yet for this baseline date. Operational tracking active across standard 3-hour time slots.",
         action: "Ensure POS counters are synchronized and welcome staff is positioned at entrance doors.",
         badge: "Standby Cadence",
         badgeColor: "bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/30",
       };
     }
 
-    if (presentSales > 0 && comparisonSales === 0) {
+    if (selectedDaySales > 0 && comparisonSales === 0) {
       return {
-        headline: `Live Sales Recorded: ${fmtCurrency(presentSales)}`,
-        detail: `Store generated active revenue with ${presentAch.toFixed(1)}% target achievement today. Historical comparison data for ${compDate} is pending initial upload.`,
+        headline: `Baseline Sales Recorded: ${fmtCurrency(selectedDaySales)}`,
+        detail: `Store generated active revenue with ${presentAch.toFixed(1)}% target achievement on ${fmtDateDot(baselineDate)}. Historical benchmark data for ${fmtDateDot(compDate)} is pending entry.`,
         action: "Maintain cashier turnaround velocity and active cross-selling at checkout.",
         badge: "Active Operations",
         badgeColor: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
@@ -275,7 +360,7 @@ export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCar
     if (growthPct >= 20) {
       return {
         headline: `Supercharged Growth (+${growthPct.toFixed(1)}% vs ${activeOpt?.shortLabel})`,
-        detail: `Store sales are outperforming the ${activeOpt?.label} benchmark by ${fmtCurrency(salesDiff)}. High conversion yield and premium basket sizes are creating strong operating momentum.`,
+        detail: `Baseline sales (${fmtDateDot(baselineDate)}) outperformed the ${activeOpt?.label} (${fmtDateDot(compDate)}) by ${fmtCurrency(salesDiff)}. High conversion yield and premium basket sizes created strong momentum.`,
         action: "Replenish high-velocity display racks and deploy additional staff to checkout counters.",
         badge: "Growth Surge",
         badgeColor: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
@@ -285,7 +370,7 @@ export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCar
     if (growthPct >= 0) {
       return {
         headline: `Healthy Positive Pacing (+${growthPct.toFixed(1)}% vs ${activeOpt?.shortLabel})`,
-        detail: `Revenue is pacing ahead of comparative baseline by ${fmtCurrency(salesDiff)}. Conversion velocity is holding steady across operating shifts.`,
+        detail: `Baseline revenue (${fmtDateDot(baselineDate)}) paced ahead of ${activeOpt?.shortLabel} (${fmtDateDot(compDate)}) by ${fmtCurrency(salesDiff)}. Conversion velocity held steady.`,
         action: "Encourage floor staff to push add-on accessories to expand basket sizes further.",
         badge: "On Target Pace",
         badgeColor: "bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30",
@@ -295,7 +380,7 @@ export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCar
     if (growthPct >= -15) {
       return {
         headline: `Minor Lagging Variance (${growthPct.toFixed(1)}% vs ${activeOpt?.shortLabel})`,
-        detail: `Current revenue trails benchmark by ${fmtCurrency(Math.abs(salesDiff))}. Footfall traffic is ${presentFootfall} visitors vs ${comparisonFootfall || 'N/A'}.`,
+        detail: `Baseline revenue trailed benchmark by ${fmtCurrency(Math.abs(salesDiff))}. Footfall traffic was ${selectedDayFootfall} visitors vs ${comparisonFootfall || 'N/A'}.`,
         action: "Activate promotional bundle signage at entrance aisles and speed up billing queues.",
         badge: "Pacing Notice",
         badgeColor: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",
@@ -304,12 +389,12 @@ export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCar
 
     return {
       headline: `Critical Pacing Deficit (${growthPct.toFixed(1)}% vs ${activeOpt?.shortLabel})`,
-      detail: `Store is trailing the comparative baseline by ${fmtCurrency(Math.abs(salesDiff))}. Floor traffic or buyer conversion requires immediate managerial focus.`,
+      detail: `Baseline revenue trailed comparative benchmark by ${fmtCurrency(Math.abs(salesDiff))}. Floor traffic or buyer conversion requires immediate managerial focus.`,
       action: "Conduct mid-shift floor huddle, push promotional hero products, and maximize customer engagement.",
       badge: "Deficit Alert",
       badgeColor: "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30",
     };
-  }, [presentSales, comparisonSales, salesDiff, growthPct, presentKpis, compDate, lookbackMode, presentFootfall, comparisonFootfall]);
+  }, [selectedDaySales, comparisonSales, salesDiff, growthPct, baseKpis, liveKpis, compDate, lookbackMode, selectedDayFootfall, comparisonFootfall, baselineDate]);
 
   return (
     <div className="glossy-card rounded-3xl p-4 sm:p-6 shadow-2xl space-y-6">
@@ -329,14 +414,20 @@ export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCar
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Comprehensive multi-metric comparative analytics, pace velocity, and historical benchmarks
+              Granular historical benchmark engine comparing baseline reference (previous day) against historical periods
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 border border-border px-3.5 py-1.5 rounded-xl shadow-2xs">
-          <Clock className="h-3.5 w-3.5 text-sky-500 dark:text-sky-400" />
-          <span>Active Date: <strong className="text-foreground font-mono">{fmtDateIndian(date)}</strong></span>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <div className="flex items-center gap-1.5 text-muted-foreground bg-muted/50 border border-border px-3 py-1.5 rounded-xl shadow-2xs">
+            <Clock className="h-3.5 w-3.5 text-sky-500 dark:text-sky-400" />
+            <span>Today: <strong className="text-foreground font-mono">{fmtDateIndian(date)}</strong></span>
+          </div>
+          <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-xl shadow-2xs font-semibold">
+            <Calendar className="h-3.5 w-3.5 text-amber-500" />
+            <span>Baseline Ref: <strong className="font-mono">{fmtDateDot(baselineDate)}</strong> (Previous Day)</span>
+          </div>
         </div>
       </div>
 
@@ -353,7 +444,7 @@ export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCar
                 Operational Metrics Comparison
               </span>
               <span className="text-[11px] text-muted-foreground font-mono">
-                vs {LOOKBACK_OPTIONS.find((o) => o.id === lookbackMode)?.shortLabel}
+                {fmtDateDot(baselineDate)} vs {LOOKBACK_OPTIONS.find((o) => o.id === lookbackMode)?.shortLabel} ({fmtDateDot(compDate)})
               </span>
             </div>
 
@@ -398,7 +489,7 @@ export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCar
               <div className="flex items-center justify-between text-xs">
                 <span className="font-bold text-foreground flex items-center gap-1.5">
                   <Gauge className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
-                  Target Run-Rate Progress
+                  Baseline Target Run-Rate ({fmtDateDot(baselineDate)})
                 </span>
                 <span className="font-mono font-bold text-foreground">
                   {achievementPct.toFixed(1)}% Achieved
@@ -423,7 +514,7 @@ export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCar
 
               <div className="flex items-center justify-between text-[11px] text-muted-foreground font-mono">
                 <span>Target: <strong className="text-foreground">{fmtCurrencyOrZero(targetSales)}</strong></span>
-                <span>Net Sales: <strong className="text-foreground">{fmtCurrencyOrZero(presentSales)}</strong></span>
+                <span>Net Sales: <strong className="text-foreground">{fmtCurrencyOrZero(selectedDaySales)}</strong></span>
               </div>
             </div>
           </div>
@@ -439,7 +530,7 @@ export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCar
                 Granular Historical Benchmark Engine
               </span>
               <span className="text-xs text-muted-foreground">
-                Baseline Ref: <strong className="text-foreground font-mono">{fmtDateDot(compDate)}</strong>
+                Comparing: <strong className="text-foreground font-mono">{fmtDateDot(baselineDate)}</strong> vs <strong className="text-primary font-mono">{fmtDateDot(compDate)}</strong>
               </span>
             </div>
 
@@ -464,16 +555,18 @@ export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCar
               })}
             </div>
 
-            {/* 3 Metric Cards Grid */}
+            {/* 3 Metric Cards Grid: Selected Day Sales (Previous Day) vs Comparison Period Sales vs Performance Delta */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 mb-4">
               <div className="rounded-xl border border-border/80 bg-muted/30 dark:border-white/10 dark:bg-black/25 p-3">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   Selected Day Sales
                 </div>
                 <div className="mt-1 font-mono text-lg font-extrabold text-foreground">
-                  {fmtCurrencyOrZero(presentSales)}
+                  {fmtCurrencyOrZero(selectedDaySales)}
                 </div>
-                <div className="text-[10px] text-muted-foreground font-mono mt-0.5">{date}</div>
+                <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                  Ref Date: {baselineDate}
+                </div>
               </div>
 
               <div className="rounded-xl border border-border/80 bg-muted/30 dark:border-white/10 dark:bg-black/25 p-3">
@@ -483,7 +576,9 @@ export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCar
                 <div className="mt-1 font-mono text-lg font-extrabold text-foreground/85 dark:text-slate-300">
                   {fmtCurrencyOrZero(comparisonSales)}
                 </div>
-                <div className="text-[10px] text-muted-foreground font-mono mt-0.5">{compDate}</div>
+                <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                  Hist Date: {compDate}
+                </div>
               </div>
 
               <div
@@ -518,30 +613,88 @@ export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCar
               </div>
             </div>
 
-            {/* Time Slot Recharts Side-by-Side Visualizer */}
+            {/* Time Slot Pacing & Date-Wise Pacing Breakdown Visualizer */}
             <div className="rounded-xl border border-border/80 bg-muted/30 dark:border-white/10 dark:bg-black/20 p-3 mb-4">
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
                   <BarChart2 className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400" />
-                  <span>Time-Slot Pacing Breakdown vs {LOOKBACK_OPTIONS.find((o) => o.id === lookbackMode)?.shortLabel}</span>
+                  <span>
+                    Pacing Breakdown vs {LOOKBACK_OPTIONS.find((o) => o.id === lookbackMode)?.shortLabel} ({fmtDateDot(compDate)})
+                  </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowSlotComparison((prev) => !prev)}
-                  className="text-[11px] font-semibold text-primary hover:underline cursor-pointer"
-                >
-                  {showSlotComparison ? "Hide Chart" : "Show Chart"}
-                </button>
+
+                {/* Date-wise vs Date+Time-slot Dual Mode Switcher */}
+                <div className="flex items-center gap-1.5">
+                  <div className="flex items-center rounded-lg bg-muted/80 p-0.5 border border-border">
+                    <button
+                      type="button"
+                      onClick={() => setPacingViewMode("date_wise")}
+                      className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
+                        pacingViewMode === "date_wise"
+                          ? "bg-primary text-primary-foreground shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Date-wise
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPacingViewMode("timeslot_wise")}
+                      className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
+                        pacingViewMode === "timeslot_wise"
+                          ? "bg-primary text-primary-foreground shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Date-Time-Slot
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowSlotComparison((prev) => !prev)}
+                    className="text-[11px] font-semibold text-primary hover:underline cursor-pointer ml-1"
+                  >
+                    {showSlotComparison ? "Hide Chart" : "Show Chart"}
+                  </button>
+                </div>
               </div>
+
               {showSlotComparison && (
-                <RechartsColumnChart
-                  data={slotComparisonData.points}
-                  series={slotComparisonData.series}
-                  isCurrency={true}
-                  showGrid={true}
-                  showLegend={true}
-                  className="h-[180px] w-full"
-                />
+                <div>
+                  {pacingViewMode === "date_wise" ? (
+                    <div className="space-y-2">
+                      <div className="text-[11px] text-muted-foreground mb-1">
+                        Full-Day Comparative Net Sales: <strong className="text-foreground font-mono">{fmtDateDot(baselineDate)}</strong> vs <strong className="text-foreground font-mono">{fmtDateDot(compDate)}</strong>
+                      </div>
+                      <RechartsColumnChart
+                        data={dateWiseComparisonData.points}
+                        series={dateWiseComparisonData.series}
+                        isCurrency={true}
+                        showGrid={true}
+                        showLegend={true}
+                        className="h-[170px] w-full"
+                      />
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="text-[11px] text-muted-foreground flex items-center justify-between mb-1">
+                        <span>4-Slot Operational Distribution</span>
+                        <span className="text-[10px] text-muted-foreground/80 italic">
+                          (Historical net sales tracked date-wise; future slot data tracked dynamically)
+                        </span>
+                      </div>
+                      <RechartsColumnChart
+                        data={slotComparisonData.points}
+                        series={slotComparisonData.series}
+                        isCurrency={true}
+                        showGrid={true}
+                        showLegend={true}
+                        className="h-[170px] w-full"
+                      />
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 

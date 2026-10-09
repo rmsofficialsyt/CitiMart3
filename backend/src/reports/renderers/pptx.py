@@ -25,7 +25,7 @@ from src.reports.models import (
     TitleBlock,
 )
 
-_LOGO_PATH = PROJECT_ROOT / "img" / "logo" / "CitiMart_logo_2.png"
+_LOGO_PATH = PROJECT_ROOT / "img" / "logo" / "CitiMart_logo_3.jpeg"
 _MAX_TABLE_ROWS = 15
 
 

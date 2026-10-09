@@ -23,7 +23,7 @@ from src.reports.models import (
     TitleBlock,
 )
 
-_LOGO_PATH = PROJECT_ROOT / "img" / "logo" / "CitiMart_logo_2.png"
+_LOGO_PATH = PROJECT_ROOT / "img" / "logo" / "CitiMart_logo_3.jpeg"
 
 
 def _add_kv_table(doc: Document, rows: list[tuple[str, str]]) -> None:
