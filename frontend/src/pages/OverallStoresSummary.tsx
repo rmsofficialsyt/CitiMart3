@@ -8,7 +8,6 @@ import { Section } from "@/components/Section";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TargetAdjustmentAlert } from "@/components/TargetAdjustmentAlert";
-import { AtAGlanceCard } from "@/components/AtAGlanceCard";
 import { DailyHeroCard } from "@/components/DailyHeroCard";
 import { DAILY_KPI_FORMATTERS, DAILY_KPI_FORMULAS, DAILY_KPI_LABELS, DAILY_KPI_ORDER, todayLocalDate } from "@/lib/format";
 import { getKpiIconConfig } from "@/lib/kpiIcons";
@@ -148,15 +147,6 @@ export function OverallStoresSummary() {
 
         </div>
       </div>
-
-      {/* At a Glance with Environmental Context & Granular Lookback Comparison */}
-      <AtAGlanceCard
-        storeCode="ALL"
-        storeName="Consolidated (All 3 Stores)"
-        date={today}
-        data={data}
-        isLoading={isLoading}
-      />
 
       {/* Side-by-Side Store Comparison Table */}
       <Section title="By Store Breakdown">

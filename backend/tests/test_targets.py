@@ -80,9 +80,29 @@ def test_list_store_targets_sorted_and_scoped(db_session):
     assert [e["sales_target"] for e in nw] == [1.0, 2.0]
 
 
+def test_list_store_targets_all_aggregation(db_session):
+    d = date(2026, 8, 20)
+    daily_dashboard_store.set_store_target(db_session, "NM", d, 1_000_000.0)
+    daily_dashboard_store.set_store_target(db_session, "HB", d, 2_000_000.0)
+    entries = daily_dashboard_store.list_store_targets(db_session, "ALL")
+    entry = next(e for e in entries if e["date"] == "2026-08-20")
+    assert entry["sales_target"] == 3_000_000.0
+
+
 # ---------------------------------------------------------------------------
 # routes
 # ---------------------------------------------------------------------------
+
+
+def test_get_targets_all_route(client, admin_headers, db_session):
+    d = date(2026, 8, 20)
+    daily_dashboard_store.set_store_target(db_session, "NM", d, 1_000_000.0)
+    daily_dashboard_store.set_store_target(db_session, "HB", d, 2_000_000.0)
+    got = client.get("/api/targets", params={"store": "ALL"}, headers=admin_headers)
+    assert got.status_code == 200
+    assert got.json()["store"] == "ALL"
+    entry = next(e for e in got.json()["entries"] if e["date"] == "2026-08-20")
+    assert entry["sales_target"] == 3_000_000.0
 
 
 def test_put_and_get_target_round_trip(client, admin_headers):

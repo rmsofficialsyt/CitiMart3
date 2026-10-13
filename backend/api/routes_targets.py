@@ -26,8 +26,10 @@ from db.session import get_db
 router = APIRouter(prefix="/api/targets", tags=["targets"])
 
 
-def _validate_store(store: str) -> str:
-    code = (store or "").strip()
+def _validate_store(store: str, allow_all: bool = False) -> str:
+    code = (store or "").strip().upper()
+    if allow_all and code == "ALL":
+        return "ALL"
     if code not in STORE_CODE_TO_NAME:
         raise HTTPException(status_code=400, detail=f"Unknown store code: {store!r}")
     return code
@@ -55,10 +57,10 @@ def _parse_target(value, field_name: str = "sales_target") -> float | None:
 
 @router.get("")
 def list_targets(
-    store: str = Query(..., description="Single store code, e.g. NM"),
+    store: str = Query(..., description="Single store code, e.g. NM, or ALL"),
     db: Database = Depends(get_db),
 ):
-    code = _validate_store(store)
+    code = _validate_store(store, allow_all=True)
     return {"store": code, "entries": daily_dashboard_store.list_store_targets(db, code)}
 
 

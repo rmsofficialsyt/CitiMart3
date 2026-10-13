@@ -596,6 +596,57 @@ def list_store_targets(db: Database, store: str) -> list[dict]:
     comprehensive operational KPIs at a glance. Rows whose sales_target is
     still NULL (e.g. one auto-created by a KPI override before any target was
     set or days with logged entries) are included with sales_target: None."""
+    if store == "ALL":
+        store_entries = [list_store_targets(db, code) for code in STORE_CODE_TO_NAME]
+        date_map: dict[str, list[dict]] = {}
+        for s_entries in store_entries:
+            for entry in s_entries:
+                date_map.setdefault(entry["date"], []).append(entry)
+
+        all_dates = sorted(date_map.keys())
+        entries: list[dict] = []
+        for d in all_dates:
+            docs = date_map[d]
+            st_list = [x["sales_target"] for x in docs if x.get("sales_target") is not None]
+            py_list = [x["prev_year_net_sales"] for x in docs if x.get("prev_year_net_sales") is not None]
+            ns_list = [x["net_sales"] for x in docs if x.get("net_sales") is not None]
+            ff_list = [x["footfall"] for x in docs if x.get("footfall") is not None]
+            nob_list = [x["nob"] for x in docs if x.get("nob") is not None]
+            bq_list = [x["bill_quantity"] for x in docs if x.get("bill_quantity") is not None]
+
+            sales_target = sum(st_list) if st_list else None
+            prev_year_net_sales = sum(py_list) if py_list else None
+            net_sales = sum(ns_list) if ns_list else None
+            footfall = sum(ff_list) if ff_list else None
+            nob = sum(nob_list) if nob_list else None
+            bill_quantity = sum(bq_list) if bq_list else None
+
+            achievement_pct = (
+                (net_sales / sales_target * 100.0)
+                if (net_sales is not None and sales_target and sales_target > 0)
+                else None
+            )
+            atv = (net_sales / nob) if (net_sales is not None and nob and nob > 0) else None
+            rpv = (net_sales / footfall) if (net_sales is not None and footfall and footfall > 0) else None
+            basket_size = (bill_quantity / nob) if (bill_quantity is not None and nob and nob > 0) else None
+            conversion_pct = (nob / footfall * 100.0) if (nob is not None and footfall and footfall > 0) else None
+
+            entries.append({
+                "date": d,
+                "sales_target": sales_target,
+                "prev_year_net_sales": prev_year_net_sales,
+                "net_sales": net_sales,
+                "achievement_pct": achievement_pct,
+                "footfall": footfall,
+                "nob": nob,
+                "bill_quantity": bill_quantity,
+                "atv": atv,
+                "rpv": rpv,
+                "basket_size": basket_size,
+                "conversion_pct": conversion_pct,
+            })
+        return entries
+
     _validate_store(store)
     cursor = list(db[TARGETS].find({"store_code": store}).sort("entry_date", 1))
 

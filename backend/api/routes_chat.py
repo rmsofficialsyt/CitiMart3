@@ -756,9 +756,10 @@ def chat_with_copilot(
             # Try primary Gemini 2.5 Flash / 1.5 Flash / 2.0 Flash
             for model_name in ("gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash", "gemini-pro"):
                 try:
-                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={gemini_key}"
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
                     resp = requests.post(
                         url,
+                        headers={"x-goog-api-key": gemini_key, "Content-Type": "application/json"},
                         json={
                             "contents": messages,
                             "generationConfig": {

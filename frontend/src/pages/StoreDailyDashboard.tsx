@@ -12,7 +12,6 @@ import { Section } from "@/components/Section";
 import { ThresholdPopover } from "@/components/ThresholdPopover";
 import { TargetAdjustmentAlert } from "@/components/TargetAdjustmentAlert";
 import { AiStoreAdvisor } from "@/components/AiStoreAdvisor";
-import { AtAGlanceCard } from "@/components/AtAGlanceCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DAILY_KPI_FORMATTERS, DAILY_KPI_FORMULAS, DAILY_KPI_LABELS, DAILY_KPI_ORDER, todayLocalDate } from "@/lib/format";
 import { EDITABLE_THRESHOLDS } from "@/lib/kpiThresholds";
@@ -215,16 +214,7 @@ function StoreDailyDashboard({ store }: { store: StoreCode }) {
         </Section>
       </div>
 
-      {/* Level 4: At a Glance with Today's Context & Granular Lookback Comparison */}
-      <AtAGlanceCard
-        storeCode={store}
-        storeName={storeName}
-        date={today}
-        data={data}
-        isLoading={isLoading}
-      />
-
-      {/* Level 5: Logged Floor Operations (Unified Logged Daily Entries) */}
+      {/* Level 4: Logged Floor Operations (Unified Logged Daily Entries) */}
       <LoggedDailyEntries store={store} date={today} />
     </div>
   );
