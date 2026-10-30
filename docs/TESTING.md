@@ -106,3 +106,4 @@ git status
 # 3. Verify no credentials or .env files are staged
 git diff --staged --name-only
 ```
+
