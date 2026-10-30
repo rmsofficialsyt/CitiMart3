@@ -30,7 +30,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.gzip import GZipMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
 from api.auth import get_current_user, require_admin
 from api.routes_auth import router as auth_router
@@ -51,6 +54,20 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 logger = logging.getLogger(__name__)
 
 APP_STARTED_AT = datetime.now()
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Adds baseline HTTP security headers to all responses (WEB-02, WEB-04)."""
+
+    async def dispatch(self, request: Request, call_next):
+        response: Response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        if request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
 
 
 def _seed_accounts_best_effort() -> None:
@@ -128,7 +145,20 @@ async def lifespan(app: FastAPI):
             await task
 
 
-app = FastAPI(title="CITIMART Daily Operations", lifespan=lifespan)
+docs_url = "/docs" if env.is_docs_enabled() else None
+redoc_url = "/redoc" if env.is_docs_enabled() else None
+openapi_url = "/openapi.json" if env.is_docs_enabled() else None
+
+app = FastAPI(
+    title="CITIMART Daily Operations",
+    lifespan=lifespan,
+    docs_url=docs_url,
+    redoc_url=redoc_url,
+    openapi_url=openapi_url,
+)
+
+# Baseline HTTP security headers middleware (WEB-02, WEB-04)
+app.add_middleware(SecurityHeadersMiddleware)
 
 # High-efficiency GZip compression middleware:
 # Automatically compresses responses > 500 bytes, dramatically decreasing payload transfer times
@@ -180,12 +210,14 @@ def health() -> dict[str, object]:
 @app.get("/", include_in_schema=False)
 def root_info() -> dict[str, str]:
     """Root info endpoint for Render and browser health checks."""
-    return {
+    info = {
         "status": "ok",
         "message": "CITIMART Daily Operations Backend API is running.",
         "health": "/api/health",
-        "docs": "/docs"
     }
+    if env.is_docs_enabled():
+        info["docs"] = "/docs"
+    return info
 
 
 @app.get("/favicon.ico", include_in_schema=False)

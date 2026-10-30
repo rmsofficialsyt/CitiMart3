@@ -88,6 +88,17 @@ class EnvSettings(BaseSettings):
     # Leave blank in a deployment that only serves its one production domain.
     cors_allow_origin_regex: str = ""
 
+    # --- Environment & Security Hardening ---------------------------------
+    # Environment name: "development", "staging", "production"
+    environment: str = "development"
+    # Swagger/ReDoc docs toggle. If None, automatically enabled in dev/staging and disabled in production.
+    enable_docs: bool | None = None
+
+    def is_docs_enabled(self) -> bool:
+        if self.enable_docs is not None:
+            return self.enable_docs
+        return self.environment.lower() != "production"
+
     def cors_origins(self) -> list[str]:
         """`cors_allow_origins` split into the list CORSMiddleware wants.
         Kept as a plain `str` field + this splitter rather than a `list[str]`

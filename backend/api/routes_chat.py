@@ -12,7 +12,7 @@ from datetime import date, datetime, timedelta
 import logging
 import os
 from typing import Any, Literal
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 from pymongo.database import Database
 
@@ -21,6 +21,7 @@ from config.settings import STORE_CODE_TO_NAME, TIME_SLOT_ORDER
 from db.models import BILLS, DIRECTIVES, FOOTFALL, NOB, REQUISITIONS, TARGETS
 from db.session import get_db
 from src import daily_context, daily_dashboard_store, directives_store, requisitions_store
+from src.rate_limiter import chat_limiter, get_client_ip
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/daily/chat", tags=["chat"])
@@ -694,11 +695,16 @@ def _generate_domain_fallback(
 @router.post("")
 def chat_with_copilot(
     payload: ChatRequest,
+    request: Request,
     user: CurrentUser = Depends(get_current_user),
     db: Database = Depends(get_db),
 ):
     """Chat endpoint supporting Gemini API with granular real-time MongoDB dataset injection,
     with automatic failover to high-precision Local Domain Analytics Engine."""
+    client_ip = get_client_ip(request)
+    limiter_key = f"{user.sub}:{client_ip}"
+    chat_limiter.check(limiter_key)
+
     target_date = date.today()
     if payload.date_str:
         try:

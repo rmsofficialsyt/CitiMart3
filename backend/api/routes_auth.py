@@ -18,12 +18,13 @@ from __future__ import annotations
 import time
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from pymongo.database import Database
 
 from config.env import env
 from db.session import get_db
+from src.rate_limiter import get_client_ip, login_limiter
 from src.user_store import get_user, verify_password
 from api.auth import CurrentUser, get_current_user
 
@@ -66,7 +67,9 @@ def issue_token(user: dict, switched_from: str | None = None) -> dict:
 
 
 @router.post("/login")
-def login(body: LoginBody, db: Database = Depends(get_db)) -> dict:
+def login(body: LoginBody, request: Request, db: Database = Depends(get_db)) -> dict:
+    client_ip = get_client_ip(request)
+    login_limiter.check(client_ip)
     user = get_user(db, body.username)
     if user is None or not verify_password(body.password, user.get("password_hash")):
         raise HTTPException(status_code=401, detail="Invalid username or password.")

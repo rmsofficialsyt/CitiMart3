@@ -143,6 +143,9 @@ def _cell_to_iso_date(value) -> str:
     return str(value or "").strip()[:10]
 
 
+MAX_EXCEL_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB limit (API-03 / INP-06)
+
+
 @router.post("/upload")
 def upload_targets(
     store: str = Query(..., description="Single store code, e.g. NM"),
@@ -154,7 +157,14 @@ def upload_targets(
     as well as 2-column format (`Date`, `Sales Target`).
     Admin-only."""
     code = _validate_store(store)
-    raw = file.file.read()
+    filename = (file.filename or "").lower()
+    if filename and not (filename.endswith(".xlsx") or filename.endswith(".xls")):
+        raise HTTPException(status_code=400, detail="Only Excel spreadsheet files (.xlsx, .xls) are accepted.")
+
+    raw = file.file.read(MAX_EXCEL_UPLOAD_BYTES + 1)
+    if len(raw) > MAX_EXCEL_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Uploaded file exceeds maximum allowed size of 10 MB.")
+
     try:
         wb = openpyxl.load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
     except Exception:
