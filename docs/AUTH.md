@@ -172,3 +172,4 @@ To support floor inspection and debugging, administrators can switch into any st
   }
   ```
 - **Response (200 OK):** Manager JWT with `switched_from: "ADMINISTRATOR"`.
+
