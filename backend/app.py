@@ -118,7 +118,7 @@ async def lifespan(app: FastAPI):
         """Self-ping every 10 minutes to prevent Render free instance from spinning down due to inactivity."""
         await asyncio.sleep(60)  # Wait 1 minute after boot
         import httpx
-        url = "http://127.0.0.1:8000/api/health"
+        url = f"http://127.0.0.1:{env.port}/api/health"
         while True:
             try:
                 async with httpx.AsyncClient(timeout=10.0) as client:

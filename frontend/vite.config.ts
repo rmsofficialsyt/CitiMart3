@@ -31,5 +31,31 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes("node_modules")) {
+              if (id.includes("plotly.js") || id.includes("react-plotly.js")) {
+                return "vendor-plotly";
+              }
+              if (id.includes("recharts") || id.includes("victory-vendor")) {
+                return "vendor-recharts";
+              }
+              if (id.includes("react-dom") || id.includes("react-router-dom") || id.includes("react/")) {
+                return "vendor-react";
+              }
+              if (id.includes("framer-motion") || id.includes("@tanstack")) {
+                return "vendor-framework";
+              }
+              if (id.includes("lucide-react") || id.includes("radix-ui") || id.includes("sonner") || id.includes("cmdk")) {
+                return "vendor-ui";
+              }
+            }
+          },
+        },
+      },
+      chunkSizeWarningLimit: 1200,
+    },
   };
 });

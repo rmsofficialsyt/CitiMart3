@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { api } from "@/api/client";
@@ -12,12 +12,22 @@ import { AiChatbot } from "@/components/AiChatbot";
 import { Toaster } from "@/components/ui/sonner";
 import citimartLogo from "@/assets/citimart-logo.png";
 import { DAILY_STORE_ID_BY_CODE } from "@/lib/authUsers";
-import { HistoryPage } from "@/pages/HistoryPage";
-import { ManualEntryCHW, ManualEntryHB, ManualEntryNM } from "@/pages/ManualEntryDashboard";
-import { OverallStoresSummary } from "@/pages/OverallStoresSummary";
-import { ProductRequisitionPage } from "@/pages/ProductRequisitionPage";
-import { SalesTargetCHW, SalesTargetHB, SalesTargetNM } from "@/pages/SalesTargetEntry";
-import { DailyDashboardCHW, DailyDashboardHB, DailyDashboardNM } from "@/pages/StoreDailyDashboard";
+
+const HistoryPage = lazy(() => import("@/pages/HistoryPage").then((m) => ({ default: m.HistoryPage })));
+const ProductRequisitionPage = lazy(() => import("@/pages/ProductRequisitionPage").then((m) => ({ default: m.ProductRequisitionPage })));
+const OverallStoresSummary = lazy(() => import("@/pages/OverallStoresSummary").then((m) => ({ default: m.OverallStoresSummary })));
+
+const ManualEntryNM = lazy(() => import("@/pages/ManualEntryDashboard").then((m) => ({ default: m.ManualEntryNM })));
+const ManualEntryHB = lazy(() => import("@/pages/ManualEntryDashboard").then((m) => ({ default: m.ManualEntryHB })));
+const ManualEntryCHW = lazy(() => import("@/pages/ManualEntryDashboard").then((m) => ({ default: m.ManualEntryCHW })));
+
+const SalesTargetNM = lazy(() => import("@/pages/SalesTargetEntry").then((m) => ({ default: m.SalesTargetNM })));
+const SalesTargetHB = lazy(() => import("@/pages/SalesTargetEntry").then((m) => ({ default: m.SalesTargetHB })));
+const SalesTargetCHW = lazy(() => import("@/pages/SalesTargetEntry").then((m) => ({ default: m.SalesTargetCHW })));
+
+const DailyDashboardNM = lazy(() => import("@/pages/StoreDailyDashboard").then((m) => ({ default: m.DailyDashboardNM })));
+const DailyDashboardHB = lazy(() => import("@/pages/StoreDailyDashboard").then((m) => ({ default: m.DailyDashboardHB })));
+const DailyDashboardCHW = lazy(() => import("@/pages/StoreDailyDashboard").then((m) => ({ default: m.DailyDashboardCHW })));
 
 const DAILY_STORES = [
   { id: "nm", label: "New Market", dashboard: DailyDashboardNM, manualEntry: ManualEntryNM, salesTarget: SalesTargetNM, code: "NM" },
@@ -51,26 +61,44 @@ export default function App() {
   const targetStoreCode = isManager && user?.storeCode ? user.storeCode : isOverall ? "ALL" : storeEntry?.code ?? "ALL";
 
   const renderActivePage = () => {
+    let content;
     if (effectiveView === "requisition") {
-      return <ProductRequisitionPage initialStoreCode={targetStoreCode} />;
-    }
-    if (effectiveView === "history") {
-      return <HistoryPage storeCode={targetStoreCode} />;
-    }
-    if (isOverall || !storeEntry) {
-      return <OverallStoresSummary />;
-    }
-    const DashboardComponent = storeEntry.dashboard;
-    const ManualEntryComponent = storeEntry.manualEntry;
-    const SalesTargetComponent = storeEntry.salesTarget;
+      content = <ProductRequisitionPage initialStoreCode={targetStoreCode} />;
+    } else if (effectiveView === "history") {
+      content = <HistoryPage storeCode={targetStoreCode} />;
+    } else if (isOverall || !storeEntry) {
+      content = <OverallStoresSummary />;
+    } else {
+      const DashboardComponent = storeEntry.dashboard;
+      const ManualEntryComponent = storeEntry.manualEntry;
+      const SalesTargetComponent = storeEntry.salesTarget;
 
-    if (effectiveView === "dashboard") {
-      return <DashboardComponent />;
+      if (effectiveView === "dashboard") {
+        content = <DashboardComponent />;
+      } else if (effectiveView === "manual") {
+        content = <ManualEntryComponent />;
+      } else {
+        content = <SalesTargetComponent />;
+      }
     }
-    if (effectiveView === "manual") {
-      return <ManualEntryComponent />;
-    }
-    return <SalesTargetComponent />;
+
+    return (
+      <Suspense
+        fallback={
+          <div className="p-6 space-y-4">
+            <div className="h-8 w-64 bg-muted/60 animate-pulse rounded" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="h-32 bg-muted/40 animate-pulse rounded-lg" />
+              <div className="h-32 bg-muted/40 animate-pulse rounded-lg" />
+              <div className="h-32 bg-muted/40 animate-pulse rounded-lg" />
+            </div>
+            <div className="h-96 bg-muted/30 animate-pulse rounded-lg" />
+          </div>
+        }
+      >
+        {content}
+      </Suspense>
+    );
   };
 
   const animationKey = `daily-${effectiveStore}-${effectiveView}`;
