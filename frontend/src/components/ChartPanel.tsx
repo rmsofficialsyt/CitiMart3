@@ -27,6 +27,7 @@ interface ChartPanelProps {
   filters: FilterState;
   extra?: Record<string, string | number | undefined>;
   className?: string;
+  spec?: GaugeSpec | PlotlyChartFigure;
 }
 
 function formatCell(v: unknown): string {
@@ -46,7 +47,7 @@ const SERIES_COLOR_ORDER = [
   MODERN_PALETTE.sky,
 ];
 
-export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPanelProps) {
+export function ChartPanel({ chartId, filters, extra = {}, className, spec }: ChartPanelProps) {
   const [showTable, setShowTable] = useState(false);
   const [showLegend, setShowLegend] = useState<boolean>(true);
   const [showGrid, setShowGrid] = useState<boolean>(true);
@@ -59,11 +60,16 @@ export function ChartPanel({ chartId, filters, extra = {}, className }: ChartPan
     [extra, theme],
   );
 
-  const { data, isLoading, isError } = useQuery({
+  const { data: remoteData, isLoading: isRemoteLoading, isError: isRemoteError } = useQuery({
     queryKey: ["chart", chartId, filterQueryKey(filters, themedExtra)],
     queryFn: () => api.chart(chartId, filters, themedExtra),
     placeholderData: keepPreviousData,
+    enabled: !spec,
   });
+
+  const data = spec ?? remoteData;
+  const isLoading = !spec && isRemoteLoading;
+  const isError = !spec && isRemoteError;
 
   const isGaugeSpec = !!data && "kind" in data && data.kind === "gauge";
   const figure = !isGaugeSpec ? (data as PlotlyChartFigure | undefined) : undefined;

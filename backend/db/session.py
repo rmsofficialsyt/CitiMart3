@@ -57,3 +57,8 @@ def reset_session_factory_for_tests() -> None:
     its indexes created."""
     global _indexes_ready
     _indexes_ready = False
+    try:
+        from src.daily_dashboard_store import invalidate_dashboard_cache
+        invalidate_dashboard_cache()
+    except ImportError:
+        pass

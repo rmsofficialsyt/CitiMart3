@@ -18,6 +18,7 @@ import type {
   LandingHeroResponse,
   NobEntry,
   NobLogResponse,
+  OperationsLogResponse,
   OverridableDailyKpi,
   SaveEntryPayload,
   SaveEntryResult,
@@ -141,6 +142,9 @@ export const api = {
     if (params?.distribution_mode != null) q.set("distribution_mode", params.distribution_mode);
     return getJSON<DailyOverallSnapshot>(`/api/daily/live/overall?${q}`);
   },
+
+  operationsLog: (store: string, date: string) =>
+    getJSON<OperationsLogResponse>(`/api/daily/operations-log?${new URLSearchParams({ store, date })}`),
 
   billLog: (store: string, date: string) =>
     getJSON<BillLogResponse>(`/api/daily/bill-log?${new URLSearchParams({ store, date })}`),

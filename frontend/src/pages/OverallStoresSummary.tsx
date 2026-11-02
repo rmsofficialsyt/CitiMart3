@@ -139,7 +139,7 @@ export function OverallStoresSummary() {
                   className="group relative bg-card/90 dark:bg-card/75 backdrop-blur-md rounded-xl border border-border/70 p-1.5 shadow-xs hover:shadow-md hover:border-primary/40 transition-all duration-200 flex items-center justify-center min-h-[140px] sm:min-h-[150px] 2xl:min-h-[155px] overflow-hidden"
                 >
                   <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 dark:via-white/10 to-transparent" />
-                  <ChartPanel chartId={g.id} filters={gaugeFilters} className="h-auto w-full min-h-[130px] 2xl:min-h-[135px]" />
+                  <ChartPanel chartId={g.id} filters={gaugeFilters} spec={data?.gauges?.[g.id]} className="h-auto w-full min-h-[130px] 2xl:min-h-[135px]" />
                 </div>
               ))}
             </div>

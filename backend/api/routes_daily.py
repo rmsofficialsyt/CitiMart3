@@ -24,7 +24,7 @@ from config.kpi_thresholds import (
     remaining_status,
     rpv_status,
 )
-from src import daily_context, daily_dashboard_store
+from src import charts, daily_context, daily_dashboard_store
 from src.daily_report import build_daily_report_payload
 from src.reports.chart_image import ChartRenderError
 from src.reports.dispatch import RENDERERS
@@ -124,9 +124,23 @@ def get_daily_live(
         "kpis": {k: _clean(v) for k, v in kpis.items() if k not in ("reason", "overridden")},
         "overridden": kpis.get("overridden", []),
         "statuses": _daily_statuses(kpis),
+        "gauges": _build_daily_gauges(kpis),
         "target_adjustment": target_adj,
         "monthly_target_summary": monthly_target_summary,
         "reason": kpis["reason"],
+    }
+
+
+def _build_daily_gauges(kpis: dict) -> dict[str, dict]:
+    """Pre-builds the 6 gauge specs in-memory from the already-computed KPIs.
+    Eliminates 6 redundant HTTP requests on initial dashboard render."""
+    return {
+        "daily_conversion_gauge": charts.conversion_gauge(kpis.get("conversion_pct"), zero_if_missing=True),
+        "daily_achievement_gauge": charts.achievement_gauge(kpis.get("achievement_pct"), zero_if_missing=True),
+        "daily_remaining_gauge": charts.remaining_pct_gauge(kpis.get("remaining_pct"), zero_if_missing=True),
+        "daily_atv_gauge": charts.atv_gauge(kpis.get("atv"), zero_if_missing=True),
+        "daily_rpv_gauge": charts.rpv_gauge(kpis.get("rpv"), zero_if_missing=True),
+        "daily_basket_size_gauge": charts.basket_size_gauge(kpis.get("basket_size"), zero_if_missing=True),
     }
 
 
@@ -169,6 +183,7 @@ def get_daily_live_overall(
         "date": target_date.isoformat(),
         "kpis": {k: _clean(v) for k, v in combined.items() if k != "reason"},
         "statuses": _daily_statuses(combined),
+        "gauges": _build_daily_gauges(combined),
         "target_adjustment": target_adj,
         "monthly_target_summary": monthly_target_summary,
         "per_store": {
@@ -255,6 +270,26 @@ def delete_kpi_override(
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
     return _live_kpi_response(store, target_date, kpis)
+
+
+@router.get("/operations-log")
+def get_operations_log(
+    store: str = Query(..., description="Single store code, e.g. NM"),
+    date: str = Query(..., description="YYYY-MM-DD"),
+    db: Database = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Consolidated operations log endpoint: returns bills, footfall, and NOB
+    for a store on a given date in one network round-trip."""
+    _guard(store, user)
+    target_date = _parse_iso_date(date)
+    return {
+        "store": store,
+        "date": target_date.isoformat(),
+        "bills": daily_dashboard_store.list_bill_entries(db, store, target_date),
+        "footfall": daily_dashboard_store.list_footfall_entries(db, store, target_date),
+        "nob": daily_dashboard_store.list_nob_entries(db, store, target_date),
+    }
 
 
 @router.get("/bill-log")

@@ -195,6 +195,7 @@ export interface DailyLiveSnapshot {
   weather: WeatherReading | null;
   kpis: DailyKpis;
   statuses: Partial<Record<DailyKpiKey, StatusColor>>;
+  gauges?: Record<string, GaugeSpec>;
   target_adjustment?: TargetAdjustmentAlert | null;
   timeslot_breakdown?: Record<string, { net_sales: number; bill_quantity: number; footfall: number; nob: number }>;
   monthly_target_summary?: MonthlyTargetSummary | null;
@@ -207,11 +208,20 @@ export interface DailyLiveSnapshot {
 // GET /api/daily/live/overall -- blended live Daily KPIs across all three
 // stores (raw totals summed, ratios recomputed) plus each store's own
 // bundle. Admin-only.
+export interface OperationsLogResponse {
+  store: string;
+  date: string;
+  bills: BillEntry[];
+  footfall: FootfallEntry[];
+  nob: NobEntry[];
+}
+
 export interface DailyOverallSnapshot {
   store: "ALL";
   date: string;
   kpis: DailyKpis;
   statuses: Partial<Record<DailyKpiKey, StatusColor>>;
+  gauges?: Record<string, GaugeSpec>;
   target_adjustment?: TargetAdjustmentAlert | null;
   timeslot_breakdown?: Record<string, { net_sales: number; bill_quantity: number; footfall: number; nob: number }>;
   monthly_target_summary?: MonthlyTargetSummary | null;

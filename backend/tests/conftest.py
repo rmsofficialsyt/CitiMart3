@@ -41,6 +41,8 @@ user_store._ITERATIONS = 1000
 
 @pytest.fixture()
 def db_session():
+    from src.daily_dashboard_store import invalidate_dashboard_cache
+    invalidate_dashboard_cache()
     client = mongomock.MongoClient()
     db = client["citimart"]
     ensure_indexes(db)
@@ -48,6 +50,7 @@ def db_session():
     # in-memory DB exactly as it would against a real one.
     seed_users(db, resolved_seed_passwords())
     yield db
+    invalidate_dashboard_cache()
 
 
 def make_token(role: str, store_code: str | None, username: str, *, secret: str = TEST_JWT_SECRET, ttl: int = 3600) -> str:

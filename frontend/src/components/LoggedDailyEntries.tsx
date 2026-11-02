@@ -91,22 +91,25 @@ function buildMergedOperations(
 /** Unified Logged Floor Operations table */
 export function LoggedDailyEntries({ store, date }: { store: string; date: string }) {
   const queryClient = useQueryClient();
-  const invalidateBillLog = () => queryClient.invalidateQueries({ queryKey: ["bill-log", store, date] });
-  const invalidateFootfallLog = () => queryClient.invalidateQueries({ queryKey: ["footfall-log", store, date] });
-  const invalidateNobLog = () => queryClient.invalidateQueries({ queryKey: ["nob-log", store, date] });
+  const invalidateOperations = () => {
+    queryClient.invalidateQueries({ queryKey: ["operations-log", store, date] });
+    queryClient.invalidateQueries({ queryKey: ["bill-log", store, date] });
+    queryClient.invalidateQueries({ queryKey: ["footfall-log", store, date] });
+    queryClient.invalidateQueries({ queryKey: ["nob-log", store, date] });
+  };
+  const invalidateBillLog = invalidateOperations;
+  const invalidateFootfallLog = invalidateOperations;
+  const invalidateNobLog = invalidateOperations;
   const invalidateLive = () => {
+    invalidateOperations();
     queryClient.invalidateQueries({ queryKey: ["daily-live", store, date] });
     queryClient.invalidateQueries({ queryKey: ["chart"] });
   };
 
-  const billLogQuery = useQuery({ queryKey: ["bill-log", store, date], queryFn: () => api.billLog(store, date) });
-  const entries = billLogQuery.data?.entries ?? [];
-
-  const footfallLogQuery = useQuery({ queryKey: ["footfall-log", store, date], queryFn: () => api.footfallLog(store, date) });
-  const footfallEntries = footfallLogQuery.data?.entries ?? [];
-
-  const nobLogQuery = useQuery({ queryKey: ["nob-log", store, date], queryFn: () => api.nobLog(store, date) });
-  const nobEntries = nobLogQuery.data?.entries ?? [];
+  const opsLogQuery = useQuery({ queryKey: ["operations-log", store, date], queryFn: () => api.operationsLog(store, date) });
+  const entries = opsLogQuery.data?.bills ?? [];
+  const footfallEntries = opsLogQuery.data?.footfall ?? [];
+  const nobEntries = opsLogQuery.data?.nob ?? [];
 
   // Edit state
   const [editingRowKey, setEditingRowKey] = useState<string | null>(null);

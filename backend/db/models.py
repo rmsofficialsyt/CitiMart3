@@ -77,16 +77,21 @@ def ensure_indexes(db: Database) -> None:
     db[BILLS].create_index([("entry_date", 1)])
     db[BILLS].create_index([("entry_date", 1), ("store_code", 1)])
     db[BILLS].create_index([("store_code", 1), ("entry_date", 1), ("time_slot", 1)])
+    # ESR compound indexes eliminating in-memory sorting:
+    db[BILLS].create_index([("store_code", 1), ("entry_date", 1), ("bill_time", 1)])
+    db[BILLS].create_index([("store_code", 1), ("entry_date", 1), ("net_amount", 1), ("bill_quantity", 1)])
 
     db[FOOTFALL].create_index([("store_code", 1), ("entry_date", 1)])
     db[FOOTFALL].create_index([("entry_date", 1)])
     db[FOOTFALL].create_index([("entry_date", 1), ("store_code", 1)])
     db[FOOTFALL].create_index([("store_code", 1), ("entry_date", 1), ("time_slot", 1)])
+    db[FOOTFALL].create_index([("store_code", 1), ("entry_date", 1), ("entry_time", 1)])
 
     db[NOB].create_index([("store_code", 1), ("entry_date", 1)])
     db[NOB].create_index([("entry_date", 1)])
     db[NOB].create_index([("entry_date", 1), ("store_code", 1)])
     db[NOB].create_index([("store_code", 1), ("entry_date", 1), ("time_slot", 1)])
+    db[NOB].create_index([("store_code", 1), ("entry_date", 1), ("entry_time", 1)])
 
     db[TARGETS].create_index([("store_code", 1), ("entry_date", 1)], unique=True)
     db[TARGETS].create_index([("entry_date", 1)])

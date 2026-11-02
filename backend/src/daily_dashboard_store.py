@@ -283,12 +283,19 @@ def compute_live_timeslot_breakdown(
 ) -> dict[str, dict[str, float]]:
     """Today's or date range's Net Sales/Bill Quantity/Footfall/NOB, each summed
     per TIME_SLOT_ORDER band, from the three logs' own persisted TIME SLOT column.
-    Supports single day or date range [target_date, end_date] and 'ALL' stores."""
+    Supports single day or date range [target_date, end_date] and 'ALL' stores.
+    Cached in-memory to prevent duplicate aggregations across simultaneous chart requests."""
+    start_iso = target_date.isoformat()
+    end_iso = (end_date or target_date).isoformat()
+    cache_key = f"timeslot_{store}_{start_iso}_{end_iso}"
+    cached = _get_from_cache(cache_key)
+    if cached is not None:
+        import copy
+        return copy.deepcopy(cached)  # type: ignore
+
     breakdown: dict[str, dict[str, float]] = {
         slot: {"net_sales": 0.0, "bill_quantity": 0.0, "footfall": 0.0, "nob": 0.0} for slot in TIME_SLOT_ORDER
     }
-    start_iso = target_date.isoformat()
-    end_iso = (end_date or target_date).isoformat()
     match_q: dict = {"entry_date": {"$gte": start_iso, "$lte": end_iso}} if start_iso != end_iso else {"entry_date": start_iso}
     if store != "ALL":
         match_q["store_code"] = store
@@ -324,7 +331,9 @@ def compute_live_timeslot_breakdown(
         if slot in breakdown:
             breakdown[slot]["nob"] = float(doc.get("nob", 0.0) or 0.0)
 
-    return breakdown
+    _set_in_cache(cache_key, breakdown)
+    import copy
+    return copy.deepcopy(breakdown)
 
 
 # ---------------------------------------------------------------------------
@@ -429,6 +438,12 @@ def _apply_overrides(kpis: dict, overrides: dict) -> dict:
 
 
 def compute_live_kpis(db: Database, store: str, target_date: date) -> dict:
+    cache_key = f"live_kpis_{store}_{target_date.isoformat()}"
+    cached = _get_from_cache(cache_key)
+    if cached is not None:
+        import copy
+        return copy.deepcopy(cached)  # type: ignore
+
     net_sales, bill_quantity = sum_bill_log(db, store, target_date)
     footfall = sum_footfall_log(db, store, target_date)
     nob = sum_nob_log(db, store, target_date)
@@ -461,7 +476,10 @@ def compute_live_kpis(db: Database, store: str, target_date: date) -> dict:
         "achievement_pct": achievement_pct,
         "reason": reason,
     }
-    return _apply_overrides(kpis, overrides)
+    result = _apply_overrides(kpis, overrides)
+    _set_in_cache(cache_key, result)
+    import copy
+    return copy.deepcopy(result)
 
 
 def compute_live_kpis_all_stores(db: Database, target_date: date) -> dict:
@@ -478,6 +496,12 @@ def compute_live_kpis_all_stores(db: Database, target_date: date) -> dict:
     Returns {"combined": <kpi dict, same keys as compute_live_kpis minus
     'overridden'>, "per_store": {code: <compute_live_kpis dict>, ...}}.
     """
+    cache_key = f"live_kpis_ALL_{target_date.isoformat()}"
+    cached = _get_from_cache(cache_key)
+    if cached is not None:
+        import copy
+        return copy.deepcopy(cached)  # type: ignore
+
     per_store = {code: compute_live_kpis(db, code, target_date) for code in STORE_CODE_TO_NAME}
 
     net_sales = sum(b["net_sales"] or 0.0 for b in per_store.values())
@@ -510,7 +534,10 @@ def compute_live_kpis_all_stores(db: Database, target_date: date) -> dict:
         "achievement_pct": achievement_pct,
         "reason": None,
     }
-    return {"combined": combined, "per_store": per_store}
+    result = {"combined": combined, "per_store": per_store}
+    _set_in_cache(cache_key, result)
+    import copy
+    return copy.deepcopy(result)
 
 
 def set_kpi_override(db: Database, store: str, target_date: date, field: str, value: float) -> dict:
@@ -1277,7 +1304,14 @@ def get_target_adjustment_alert(
     distribution_mode: str = "EQUAL",
     policy_start_date: date | None = None,
 ) -> dict | None:
-    """Calculates Target Adjustment alert using the rolling recovery deficit bucket engine."""
+    """Calculates Target Adjustment alert using the rolling recovery deficit bucket engine.
+    Cached in-memory to prevent repeated rolling historical recalculations on frequent polls."""
+    cache_key = f"target_adj_{store}_{target_date.isoformat()}_{recovery_window}_{carry_forward_policy}_{distribution_mode}_{policy_start_date}"
+    cached = _get_from_cache(cache_key)
+    if cached is not None:
+        import copy
+        return copy.deepcopy(cached)  # type: ignore
+
     from src.target_adjustment_engine import compute_target_adjustment
 
     kwargs = {
@@ -1288,12 +1322,15 @@ def get_target_adjustment_alert(
     if policy_start_date is not None:
         kwargs["policy_start_date"] = policy_start_date
 
-    return compute_target_adjustment(
+    alert = compute_target_adjustment(
         db,
         store,
         target_date,
         **kwargs,
     )
+    _set_in_cache(cache_key, alert)
+    import copy
+    return copy.deepcopy(alert)
 
 
 def get_landing_hero_telemetry(db: Database, requested_date: date | None = None) -> dict:
@@ -1435,12 +1472,21 @@ def get_landing_hero_telemetry(db: Database, requested_date: date | None = None)
 def compute_monthly_target_summary(db: Database, store: str, target_date: date) -> dict:
     """Computes month target, previous year total sales, present actual net sales,
     actual vs previous year growth pace, and daily-basis comparative metrics
-    for the month and day of target_date. Scopes to store or 'ALL'."""
+    for the month and day of target_date. Scopes to store or 'ALL'.
+    Optimized with B-tree index date range scans and in-memory caching."""
+    cache_key = f"monthly_summary_{store}_{target_date.isoformat()}"
+    cached = _get_from_cache(cache_key)
+    if cached is not None:
+        import copy
+        return copy.deepcopy(cached)  # type: ignore
+
     month_prefix = target_date.strftime("%Y-%m")
+    month_start = f"{month_prefix}-01"
+    month_end = f"{month_prefix}-31"
     day_str = target_date.isoformat()
 
-    # Targets query for the month
-    target_query: dict = {"entry_date": {"$regex": f"^{month_prefix}"}}
+    # Targets query for the month using B-tree range scan on entry_date
+    target_query: dict = {"entry_date": {"$gte": month_start, "$lte": month_end}}
     if store != "ALL":
         _validate_store(store)
         target_query["store_code"] = store
@@ -1470,12 +1516,12 @@ def compute_monthly_target_summary(db: Database, store: str, target_date: date) 
             if py is not None:
                 daily_prev_year = (daily_prev_year or 0.0) + float(py)
 
-    # Actual bills for the month
-    bills_query: dict = {"entry_date": {"$regex": f"^{month_prefix}"}}
+    # Actual bills for the month using B-tree range scan with projection
+    bills_query: dict = {"entry_date": {"$gte": month_start, "$lte": month_end}}
     if store != "ALL":
         bills_query["store_code"] = store
 
-    month_bills = list(db[BILLS].find(bills_query))
+    month_bills = list(db[BILLS].find(bills_query, {"net_amount": 1, "entry_date": 1}))
     month_net_sales = sum(float(b.get("net_amount") or 0.0) for b in month_bills)
     has_month_sales = len(month_bills) > 0
 
@@ -1508,7 +1554,7 @@ def compute_monthly_target_summary(db: Database, store: str, target_date: date) 
     if daily_target is not None and daily_target > 0:
         daily_ach_pct = (daily_present_sales / daily_target) * 100.0
 
-    return {
+    result = {
         "month_target": month_target if has_target else None,
         "prev_year_total": prev_year_total if has_prev else None,
         "month_net_sales": month_net_sales if has_month_sales else None,
@@ -1521,4 +1567,7 @@ def compute_monthly_target_summary(db: Database, store: str, target_date: date) 
         "daily_ach_pct": round(daily_ach_pct, 1) if daily_ach_pct is not None else None,
         "daily_diff": daily_present_sales - (daily_prev_year or 0.0) if daily_prev_year is not None else None,
     }
+    _set_in_cache(cache_key, result)
+    import copy
+    return copy.deepcopy(result)
 
