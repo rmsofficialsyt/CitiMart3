@@ -65,6 +65,12 @@ USERS = "users"
 DIRECTIVES = "directives"
 REQUISITIONS = "requisitions"
 CUSTOM_CATEGORIES = "custom_categories"
+STOCK_INVENTORY = "stock_inventory"
+STOCK_MOVEMENTS = "stock_movements"
+STOCK_TRANSFERS = "stock_transfers"
+STAFF_MEMBERS = "staff_members"
+STAFF_ATTENDANCE = "staff_attendance"
+STOCK_SETTINGS = "stock_settings"
 
 
 def ensure_indexes(db: Database) -> None:
@@ -103,6 +109,25 @@ def ensure_indexes(db: Database) -> None:
     db[REQUISITIONS].create_index([("created_at", -1)])
     db[REQUISITIONS].create_index([("status", 1)])
     db[CUSTOM_CATEGORIES].create_index([("division", 1), ("section", 1), ("department", 1)], unique=True)
+
+    # Stocks Management indexes
+    db[STOCK_INVENTORY].create_index([("store_code", 1), ("barcode", 1)], unique=True)
+    db[STOCK_INVENTORY].create_index([("store_code", 1), ("department", 1), ("current_stock", 1)])
+    db[STOCK_INVENTORY].create_index([("store_code", 1), ("current_stock", 1)])
+
+    db[STOCK_MOVEMENTS].create_index([("store_code", 1), ("movement_type", 1), ("created_at", -1)])
+    db[STOCK_MOVEMENTS].create_index([("store_code", 1), ("barcode", 1), ("created_at", -1)])
+
+    db[STOCK_TRANSFERS].create_index([("from_store", 1), ("status", 1), ("created_at", -1)])
+    db[STOCK_TRANSFERS].create_index([("to_store", 1), ("status", 1), ("created_at", -1)])
+    db[STOCK_TRANSFERS].create_index([("transfer_id", 1)], unique=True)
+
+    # Staff Management indexes
+    db[STAFF_MEMBERS].create_index([("store_code", 1), ("staff_id", 1)], unique=True)
+    db[STAFF_MEMBERS].create_index([("store_code", 1), ("status", 1), ("department", 1)])
+
+    db[STAFF_ATTENDANCE].create_index([("store_code", 1), ("date", 1), ("staff_id", 1)], unique=True)
+    db[STAFF_ATTENDANCE].create_index([("store_code", 1), ("date", 1), ("status", 1)])
 
 
 def next_id(db: Database, collection_name: str) -> int:

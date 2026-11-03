@@ -16,6 +16,8 @@ import { DAILY_STORE_ID_BY_CODE } from "@/lib/authUsers";
 const HistoryPage = lazy(() => import("@/pages/HistoryPage").then((m) => ({ default: m.HistoryPage })));
 const ProductRequisitionPage = lazy(() => import("@/pages/ProductRequisitionPage").then((m) => ({ default: m.ProductRequisitionPage })));
 const OverallStoresSummary = lazy(() => import("@/pages/OverallStoresSummary").then((m) => ({ default: m.OverallStoresSummary })));
+const StockManagementPage = lazy(() => import("@/pages/StockManagementPage").then((m) => ({ default: m.StockManagementPage })));
+const StaffManagementPage = lazy(() => import("@/pages/StaffManagementPage").then((m) => ({ default: m.StaffManagementPage })));
 
 const ManualEntryNM = lazy(() => import("@/pages/ManualEntryDashboard").then((m) => ({ default: m.ManualEntryNM })));
 const ManualEntryHB = lazy(() => import("@/pages/ManualEntryDashboard").then((m) => ({ default: m.ManualEntryHB })));
@@ -64,6 +66,10 @@ export default function App() {
     let content;
     if (effectiveView === "requisition") {
       content = <ProductRequisitionPage initialStoreCode={targetStoreCode} />;
+    } else if (effectiveView === "stocks") {
+      content = <StockManagementPage initialStoreCode={targetStoreCode} />;
+    } else if (effectiveView === "staff") {
+      content = <StaffManagementPage initialStoreCode={targetStoreCode} />;
     } else if (effectiveView === "history") {
       content = <HistoryPage storeCode={targetStoreCode} />;
     } else if (isOverall || !storeEntry) {

@@ -44,6 +44,8 @@ from api.routes_directives import router as directives_router
 from api.routes_kpi_thresholds import router as kpi_thresholds_router
 from api.routes_meta import router as meta_router
 from api.routes_requisitions import router as requisitions_router
+from api.routes_staff import router as staff_router
+from api.routes_stocks import router as stocks_router
 from api.routes_targets import router as targets_router
 from config.env import assert_production_secrets, env
 from config.settings import PROJECT_ROOT
@@ -245,6 +247,8 @@ app.include_router(auth_router)  # public: POST /api/auth/login
 
 app.include_router(daily_router, dependencies=_authed)
 app.include_router(requisitions_router, dependencies=_authed)
+app.include_router(stocks_router, dependencies=_authed)
+app.include_router(staff_router, dependencies=_authed)
 app.include_router(chat_router, dependencies=_authed)
 app.include_router(directives_router, dependencies=_authed)
 app.include_router(charts_router, dependencies=_authed)
