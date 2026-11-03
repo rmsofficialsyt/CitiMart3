@@ -326,4 +326,96 @@ export const api = {
     const qs = q.toString();
     return apiUrl(qs ? `/api/daily/requisitions/export/xlsx?${qs}` : "/api/daily/requisitions/export/xlsx");
   },
+
+  // Stocks Management API
+  getStocksSummary: (storeCode?: string) =>
+    getJSON<any>(storeCode && storeCode !== "ALL" ? `/api/daily/stocks/summary?store_code=${storeCode}` : "/api/daily/stocks/summary"),
+
+  listInventory: (params?: {
+    store_code?: string;
+    search?: string;
+    division?: string;
+    department?: string;
+    low_stock_only?: boolean;
+    limit?: number;
+    skip?: number;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.store_code && params.store_code !== "ALL") q.set("store_code", params.store_code);
+    if (params?.search) q.set("search", params.search);
+    if (params?.division) q.set("division", params.division);
+    if (params?.department) q.set("department", params.department);
+    if (params?.low_stock_only) q.set("low_stock_only", "true");
+    if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.skip) q.set("skip", String(params.skip));
+    const qs = q.toString();
+    return getJSON<any>(qs ? `/api/daily/stocks/inventory?${qs}` : "/api/daily/stocks/inventory");
+  },
+
+  recordInwardGRN: (payload: any) =>
+    postJSON<{ status: string; recorded_count: number; items: any[] }>("/api/daily/stocks/inward", payload),
+
+  recordStockAdjustment: (payload: any) =>
+    postJSON<{ status: string; item: any }>("/api/daily/stocks/adjustment", payload),
+
+  listStockMovements: (storeCode?: string, barcode?: string) => {
+    const q = new URLSearchParams();
+    if (storeCode && storeCode !== "ALL") q.set("store_code", storeCode);
+    if (barcode) q.set("barcode", barcode);
+    const qs = q.toString();
+    return getJSON<any[]>(qs ? `/api/daily/stocks/movements?${qs}` : "/api/daily/stocks/movements");
+  },
+
+  listTransfers: (storeCode?: string, status?: string) => {
+    const q = new URLSearchParams();
+    if (storeCode && storeCode !== "ALL") q.set("store_code", storeCode);
+    if (status) q.set("status", status);
+    const qs = q.toString();
+    return getJSON<any[]>(qs ? `/api/daily/stocks/transfers?${qs}` : "/api/daily/stocks/transfers");
+  },
+
+  createTransfer: (payload: any) =>
+    postJSON<{ status: string; transfer: any }>("/api/daily/stocks/transfers", payload),
+
+  dispatchTransfer: (transferId: string) =>
+    putJSON<{ status: string; transfer: any }>(`/api/daily/stocks/transfers/${transferId}/dispatch`, {}),
+
+  receiveTransfer: (transferId: string) =>
+    putJSON<{ status: string; transfer: any }>(`/api/daily/stocks/transfers/${transferId}/receive`, {}),
+
+  cancelOrRejectTransfer: (transferId: string, reason?: string) =>
+    putJSON<{ status: string; transfer: any }>(`/api/daily/stocks/transfers/${transferId}/cancel`, { reason }),
+
+  // Staff Management API
+  getStaffSummary: (storeCode?: string, date?: string) => {
+    const q = new URLSearchParams();
+    if (storeCode && storeCode !== "ALL") q.set("store_code", storeCode);
+    if (date) q.set("date", date);
+    const qs = q.toString();
+    return getJSON<any>(qs ? `/api/daily/staff/summary?${qs}` : "/api/daily/staff/summary");
+  },
+
+  listStaff: (params?: { store_code?: string; status?: string; department?: string; search?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.store_code && params.store_code !== "ALL") q.set("store_code", params.store_code);
+    if (params?.status) q.set("status", params.status);
+    if (params?.department) q.set("department", params.department);
+    if (params?.search) q.set("search", params.search);
+    const qs = q.toString();
+    return getJSON<{ total: number; items: any[] }>(qs ? `/api/daily/staff/members?${qs}` : "/api/daily/staff/members");
+  },
+
+  createStaffMember: (payload: any) =>
+    postJSON<{ status: string; staff: any }>("/api/daily/staff/members", payload),
+
+  updateStaffMember: (staffId: string, storeCode: string, payload: any) =>
+    putJSON<{ status: string; staff: any }>(`/api/daily/staff/members/${staffId}?store_code=${storeCode}`, payload),
+
+  getDailyAttendance: (storeCode: string, date: string) =>
+    getJSON<{ store_code: string; date: string; total_active_staff: number; logged_count: number; records: any[] }>(
+      `/api/daily/staff/attendance?store_code=${storeCode}&date=${date}`
+    ),
+
+  saveBatchAttendance: (payload: { store_code: string; date: string; records: any[] }) =>
+    postJSON<{ status: string; saved_count: number; records: any[] }>("/api/daily/staff/attendance/batch", payload),
 };
