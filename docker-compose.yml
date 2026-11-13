@@ -2,9 +2,10 @@
 #
 #   cd "Daily Operations"
 #   (cd frontend && npm run build)          # nginx serves frontend/dist
-#   docker compose up --build -d --scale backend=3 --scale worker=2
+#   docker compose --env-file ./backend/.env up --build -d --scale backend=3 --scale worker=2
+#   # (or: docker-compose --env-file ./backend/.env up -d)
 #
-# Required in the shell or a .env next to this file (never committed):
+# Required in backend/.env (never committed):
 #   REDIS_PASSWORD   long random string
 #   MONGODB_URI      MongoDB Atlas (or any) connection string
 #   JWT_SECRET       long random string (the app refuses to start on the dev default)
