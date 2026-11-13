@@ -24,10 +24,14 @@ from config.kpi_thresholds import (
     remaining_status,
     rpv_status,
 )
-from src import charts, daily_context, daily_dashboard_store
-from src.daily_report import build_daily_report_payload
+import logging
+
+from src import charts, daily_context, daily_dashboard_store, report_jobs
+from src.daily_report import ReportRenderError, build_daily_report_payload, render_daily_report_file
 from src.reports.chart_image import ChartRenderError
 from src.reports.dispatch import RENDERERS
+
+logger = logging.getLogger(__name__)
 
 from db.session import get_db
 
@@ -571,30 +575,78 @@ def get_daily_report(
         raise HTTPException(status_code=400, detail="start date must not be after end date.")
 
     try:
-        payload = build_daily_report_payload(
-            db, store, include_visuals=(format == "pdf"), start=start_date, end=end_date
-        )
-        content = RENDERERS[format].render(payload)
+        content, filename, media_type = render_daily_report_file(db, store, format, start_date, end_date)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as error:
-        if format == "pdf":
-            try:
-                fallback_payload = build_daily_report_payload(
-                    db, store, include_visuals=False, start=start_date, end=end_date
-                )
-                content = RENDERERS["pdf"].render(fallback_payload)
-            except Exception:
-                raise HTTPException(status_code=500, detail=f"Failed to generate PDF report: {error}")
-        else:
-            raise HTTPException(status_code=500, detail=str(error))
-
-    safe_title = "".join(c if c.isalnum() or c in "-_ " else "_" for c in payload.meta.title).strip() or "daily-report"
-    filename = f"{safe_title}-{datetime.now().strftime('%Y%m%d-%H%M%S')}.{RENDERERS[format].extension}"
+    except ReportRenderError:
+        logger.exception("Daily report render failed for %s (%s).", store, format)
+        raise HTTPException(status_code=500, detail=f"Failed to generate {format.upper()} report.")
     return Response(
         content=content,
-        media_type=RENDERERS[format].content_type,
+        media_type=media_type,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Asynchronous report jobs (BullMQ `reports` queue). The synchronous
+# GET /report above stays the default path; these let a client hand a slow
+# PDF to the worker and poll, instead of holding one HTTP request (and one
+# proxy timeout) open for the whole render.
+# ---------------------------------------------------------------------------
+
+
+@router.post("/report/jobs", status_code=202)
+def create_report_job(
+    payload: dict = Body(...),
+    user: CurrentUser = Depends(get_current_user),
+):
+    store = _guard(str(payload.get("store", "")).strip(), user)
+    fmt = str(payload.get("format", "xlsx"))
+    if fmt not in _REPORT_FORMATS:
+        raise HTTPException(status_code=400, detail=f"format must be one of {sorted(_REPORT_FORMATS)}.")
+    start = payload.get("start") or None
+    end = payload.get("end") or None
+    start_date = _parse_iso_date(str(start)) if start else None
+    end_date = _parse_iso_date(str(end)) if end else None
+    if start_date is not None and end_date is not None and start_date > end_date:
+        raise HTTPException(status_code=400, detail="start date must not be after end date.")
+    try:
+        job_id = report_jobs.submit_report_job(
+            owner_sub=user.sub, store=store, fmt=fmt,
+            start=start_date.isoformat() if start_date else None,
+            end=end_date.isoformat() if end_date else None,
+        )
+    except report_jobs.JobsUnavailable:
+        raise HTTPException(status_code=503, detail="Background report jobs are not enabled; use GET /api/daily/report.")
+    return {"job_id": job_id, "status": "waiting", "status_url": f"/api/daily/report/jobs/{job_id}"}
+
+
+@router.get("/report/jobs/{job_id}")
+def get_report_job(job_id: str, user: CurrentUser = Depends(get_current_user)):
+    """Status while pending; the file itself once completed. Owner-only: a
+    job belonging to anyone else answers exactly like a missing one (AC-02),
+    and store access is re-checked in case the caller's scope changed."""
+    try:
+        meta = report_jobs.get_job_meta(job_id)
+    except report_jobs.JobsUnavailable:
+        raise HTTPException(status_code=503, detail="Background report jobs are not enabled.")
+    if meta is None or meta.get("owner_sub") != user.sub:
+        raise HTTPException(status_code=404, detail="Report job not found.")
+    _guard(meta["store"], user)
+    status = meta.get("status", "waiting")
+    if status != "completed":
+        body = {"job_id": job_id, "status": status}
+        if status == "failed":
+            body["detail"] = meta.get("error", "Report generation failed.")
+        return body
+    artifact = report_jobs.get_artifact(job_id)
+    if artifact is None:
+        raise HTTPException(status_code=410, detail="Report expired; please request it again.")
+    return Response(
+        content=artifact,
+        media_type=meta.get("media_type", "application/octet-stream"),
+        headers={"Content-Disposition": f'attachment; filename="{meta.get("filename", "daily-report")}"'},
     )
 
 

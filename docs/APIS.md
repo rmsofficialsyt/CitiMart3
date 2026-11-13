@@ -13,10 +13,21 @@
 
 ## 1. Authentication Endpoints (`/api/auth`)
 
+Sessions are server-side (`src/session_store.py`, Redis when `REDIS_URL` is set): a
+short-lived access JWT (15 min, carries `sid`) plus a rotating refresh token, delivered
+both as the HttpOnly cookie `citimart_refresh` (`Path=/api/auth`, `SameSite=Lax`,
+`Secure` outside plain-http dev) and in the response body. Every authenticated request
+checks the session is still live, so logout/revocation is immediate. If Redis is
+configured but unreachable, authenticated requests get `503` (fail closed, INP-10).
+
 ### 1.1 `POST /api/auth/login`
 Public login endpoint validating credentials against the MongoDB `users` collection.
 - **Access:** Public (Unauthenticated)
-- **Rate Limit:** 25 requests / minute per client IP (`login_limiter`).
+- **Rate Limits (API-02, shared via Redis across replicas):** every attempt counts
+  against a per-IP burst cap (`LOGIN_RATE_LIMIT_PER_IP`, default 2000/min); **failed**
+  attempts count against a per-(IP, username) cap (`LOGIN_RATE_LIMIT_PER_ACCOUNT`,
+  default 25/min). Once an account is over its failure cap from an IP, even the correct
+  password gets `429` until the window clears.
 - **Request Body:**
   ```json
   {
@@ -24,12 +35,15 @@ Public login endpoint validating credentials against the MongoDB `users` collect
     "password": "<STRONG_PASSWORD>"
   }
   ```
-- **Response (`200 OK`):**
+- **Response (`200 OK`, `Cache-Control: no-store`, sets `citimart_refresh` cookie):**
   ```json
   {
     "access_token": "eyJhbGciOi...",
     "token_type": "bearer",
-    "expires_in": 43200,
+    "expires_in": 900,
+    "refresh_token": "<opaque, 384-bit>",
+    "refresh_expires_in": 43200,
+    "session_id": "<sid>",
     "user": {
       "username": "CITIMART - NEW MARKET",
       "role": "manager",
@@ -37,17 +51,36 @@ Public login endpoint validating credentials against the MongoDB `users` collect
     }
   }
   ```
-- **Error Codes:** `401 Unauthorized` on invalid username/password; `429 Too Many Requests` on exceeding rate limit.
+- **Error Codes:** `401` on invalid username/password (identical body and similar timing
+  for unknown users); `429` (+ `Retry-After`) over a rate limit; `503` if the session
+  store is down.
 
-### 1.2 `POST /api/auth/switch-account`
-Allows executive administrators (`ADMINISTRATOR`) to switch session context to view the portal as a specific store floor manager without logging out.
-- **Access:** Administrator only (`require_admin`)
-- **Request Body:** `{"username": "CITIMART - NEW MARKET"}`
-- **Response (`200 OK`):** Returns fresh JWT containing `switched_from: "ADMINISTRATOR"` claim and `store_code: "NM"`.
+### 1.2 `POST /api/auth/refresh`
+Trades a refresh token for a new access token **and a new refresh token** (rotation).
+- **Access:** Public; token from the `citimart_refresh` cookie, else body `{"refresh_token": "..."}`.
+- **Response (`200 OK`):** same shape as login; the cookie is replaced.
+- **Errors:** `401` (unknown/expired/idle/revoked token; cookie cleared). Re-presenting an
+  already-rotated token more than 20 s after rotation is treated as theft and **revokes the
+  whole session**. Within those 20 s (two tabs racing) it returns `409` — retry once.
 
 ### 1.3 `POST /api/auth/logout`
-Client-side session invalidation endpoint.
-- **Access:** Authenticated user
+Revokes the current session server-side and clears the cookie. Identifies the session
+from the bearer token if valid, else from the refresh token (cookie or body). Idempotent;
+always `200 {"ok": true}`.
+
+### 1.4 `POST /api/auth/logout-all`
+Authenticated. Revokes every session of the caller → `{"ok": true, "revoked": <n>}`.
+
+### 1.5 `GET /api/auth/sessions` / `DELETE /api/auth/sessions/{sid}`
+Authenticated (AUTH-06). Lists the caller's live sessions (`sid`, `ip`, `user_agent`,
+`created_at`, `last_seen_at`, `expires_at`, `current`) / revokes one of them. Another
+user's `sid` returns `404`, same as a nonexistent one.
+
+### 1.6 `POST /api/auth/switch-account`
+Allows executive administrators (`ADMINISTRATOR`) to switch session context to view the portal as a specific store floor manager without logging out.
+- **Access:** Administrator, or a session already switched from one.
+- **Request Body:** `{"username": "CITIMART - NEW MARKET"}` (empty body in a switched session = back to the root admin)
+- **Response (`200 OK`):** a new session (same shape as login) with `switched_from: "ADMINISTRATOR"` and `store_code: "NM"`. The caller's previous session is revoked.
 
 ---
 
@@ -129,6 +162,15 @@ Generates downloadable, certified operational daily reports.
 - **Query Params:** `store=NM&start=2026-10-01&end=2026-10-30&format=xlsx` (or `pdf`).
 - **Response Headers:** `Content-Disposition: attachment; filename="..."`
 - **Output:** Formatted workbook binary or ReportLab PDF with rasterized visuals.
+
+### 2.9a `POST /api/daily/report/jobs` / `GET /api/daily/report/jobs/{job_id}`
+Asynchronous variant of 2.9 via the BullMQ `reports` queue (needs `BULLMQ_ENABLED=true`,
+`REDIS_URL` and a running `python -m src.queue.worker`; otherwise `503`).
+- **POST body:** `{"store": "NM", "format": "pdf", "start": "2026-10-01", "end": "2026-10-30"}`
+  → `202 {"job_id", "status": "waiting", "status_url"}`. Store access checked as in 2.9.
+- **GET:** `{"job_id", "status": "waiting|active|failed"}` until done, then the file itself
+  (same headers as 2.9). Owner-only: anyone else's job id answers `404`. The finished file
+  is kept 10 minutes (`410` after that).
 
 ### 2.10 `POST /api/daily/kpi-override` & `DELETE /api/daily/kpi-override`
 Allows store managers to supply verified manual ratio adjustments (`atv`, `rpv`, `conversion_pct`, `basket_size`, `achievement_pct`) overlaying computed calculations.
@@ -273,6 +315,7 @@ Unauthenticated liveness probe for platform load balancers and container orchest
   ```json
   {
     "status": "ok",
+    "redis": "ok",
     "started_at": "2026-10-30T16:00:00.000000"
   }
   ```

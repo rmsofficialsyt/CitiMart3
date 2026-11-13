@@ -278,3 +278,44 @@ def build_daily_report_payload(
         workbook_note="Figures are live Daily Operations data (MongoDB), not DATASET.xlsx.",
     )
     return ReportPayload(meta=meta, blocks=blocks)
+
+
+class ReportRenderError(RuntimeError):
+    """Rendering failed for a reason other than bad input."""
+
+
+def render_daily_report_file(
+    db: Database,
+    store: str,
+    fmt: str,
+    start: date | None = None,
+    end: date | None = None,
+) -> tuple[bytes, str, str]:
+    """Build + render one per-store report. Returns (content, filename,
+    media_type). Shared by GET /api/daily/report and the BullMQ `reports`
+    job so both produce byte-identical output.
+
+    Raises ValueError for bad input (-> 400) and ReportRenderError for
+    anything else. A PDF whose visuals fail to rasterize (Kaleido needs a
+    Chrome binary, often absent in slim containers) is retried once without
+    them rather than failing outright."""
+    from src.reports.dispatch import RENDERERS  # local: renderer imports are heavy
+
+    renderer = RENDERERS[fmt]
+    try:
+        payload = build_daily_report_payload(db, store, include_visuals=(fmt == "pdf"), start=start, end=end)
+        content = renderer.render(payload)
+    except ValueError:
+        raise
+    except Exception as error:
+        if fmt != "pdf":
+            raise ReportRenderError(str(error)) from error
+        try:
+            payload = build_daily_report_payload(db, store, include_visuals=False, start=start, end=end)
+            content = renderer.render(payload)
+        except Exception as fallback_error:
+            raise ReportRenderError(str(fallback_error)) from error
+
+    safe_title = "".join(c if c.isalnum() or c in "-_ " else "_" for c in payload.meta.title).strip() or "daily-report"
+    filename = f"{safe_title}-{datetime.now().strftime('%Y%m%d-%H%M%S')}.{renderer.extension}"
+    return content, filename, renderer.content_type

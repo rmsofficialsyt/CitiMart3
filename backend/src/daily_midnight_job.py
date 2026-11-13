@@ -70,24 +70,56 @@ def finalize_day(target_date: date) -> None:
             logger.exception("Midnight auto-finalize failed for %s %s.", store, target_date)
 
 
-async def run_midnight_finalizer() -> None:
-    """Runs forever as a background task (started from app.py's lifespan);
-    cancel it on shutdown. Blocking DB I/O (pymongo is a sync driver) is
-    offloaded via asyncio.to_thread so a slow query never stalls the event
-    loop or other requests.
+# Held (never released) for an hour: long enough that every replica/worker
+# firing at the same midnight -- even a slow or late one -- sees it taken.
+MIDNIGHT_LOCK_TTL_SECONDS = 3600
 
-    Correct as long as the deployed app is a single instance -- if this
-    ever runs as multiple replicas, each one starts this same in-process
-    task, and all of them would fire finalize_day at the same midnight,
-    redundantly (each save_target_entry call is idempotent, so this isn't a
-    correctness bug today, just wasted duplicate work) -- moving to a
-    platform cron hitting a protected endpoint, or a MongoDB-level mutex
-    document, is the real fix if that happens."""
+
+def acquire_midnight_lock(run_date: date, target_date: date) -> bool:
+    """Exactly-once guard across processes: True for the first caller per
+    (midnight run, target date). Without Redis -- or if Redis errors -- it
+    returns True and the run proceeds; finalize_day is idempotent, so a
+    duplicate is wasted work, never wrong data."""
+    from db.redis_client import get_redis
+
+    client = get_redis()
+    if client is None:
+        return True
+    try:
+        return bool(client.set(f"lock:midnight:{run_date.isoformat()}:{target_date.isoformat()}", "1", nx=True, ex=MIDNIGHT_LOCK_TTL_SECONDS))
+    except Exception:  # noqa: BLE001
+        logger.warning("Midnight lock unavailable; finalizing %s anyway (idempotent).", target_date, exc_info=True)
+        return True
+
+
+def finalize_day_once(run_date: date, target_date: date) -> bool:
+    """finalize_day behind the cross-process lock. Returns whether it ran."""
+    if not acquire_midnight_lock(run_date, target_date):
+        logger.info("Midnight auto-finalize for %s already claimed by another process.", target_date)
+        return False
+    finalize_day(target_date)
+    return True
+
+
+def midnight_targets(now: datetime) -> tuple[date, date, date]:
+    """(run_date, finished_date, starting_date) for a midnight tick."""
+    finished_date = (now - timedelta(minutes=1)).date()
+    return now.date(), finished_date, now.date()
+
+
+async def run_midnight_finalizer() -> None:
+    """Runs forever as a background task (started from app.py's lifespan
+    unless RUN_IN_PROCESS_MIDNIGHT_JOB=false, in which case the BullMQ
+    worker's scheduler owns it); cancel it on shutdown. Blocking DB I/O
+    (pymongo is a sync driver) is offloaded via asyncio.to_thread so a slow
+    query never stalls the event loop or other requests.
+
+    Safe with any number of replicas once REDIS_URL is set: each one wakes
+    at midnight, but finalize_day_once's Redis NX lock lets exactly one of
+    them do each date's work."""
     while True:
         await asyncio.sleep(_seconds_until_next_midnight())
-        now = datetime.now(IST)
-        finished_date = (now - timedelta(minutes=1)).date()
-        starting_date = now.date()
+        run_date, finished_date, starting_date = midnight_targets(datetime.now(IST))
         logger.info("Midnight auto-finalize starting for %s (ended) and %s (starting).", finished_date, starting_date)
-        await asyncio.to_thread(finalize_day, finished_date)
-        await asyncio.to_thread(finalize_day, starting_date)
+        await asyncio.to_thread(finalize_day_once, run_date, finished_date)
+        await asyncio.to_thread(finalize_day_once, run_date, starting_date)

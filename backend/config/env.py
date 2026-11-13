@@ -67,8 +67,85 @@ class EnvSettings(BaseSettings):
     # fresh clone + `pytest` works with zero setup; override in .env (and
     # always in production) with a long random value.
     jwt_secret: str = INSECURE_JWT_SECRET_DEFAULT
-    # Access-token lifetime in seconds (default 12h).
+    # DEPRECATED: the pre-session-registry 12h access-token lifetime. Access
+    # tokens now live access_token_ttl_seconds and are renewed through the
+    # rotating refresh token below; this field is kept only so an existing
+    # .env carrying JWT_TTL_SECONDS still parses.
     jwt_ttl_seconds: int = 12 * 3600
+    # Short-lived access JWT (AUTH-05: <= 15-60 min) ...
+    access_token_ttl_seconds: int = 15 * 60
+    # ... renewed via a rotating, server-revocable refresh token whose
+    # lifetime is also the session's ABSOLUTE expiry (one store shift).
+    refresh_token_ttl_seconds: int = 12 * 3600
+    # IDLE expiry: a session that hasn't refreshed for this long is revoked
+    # on its next refresh attempt.
+    session_idle_timeout_seconds: int = 2 * 3600
+    jwt_issuer: str = "citimart-daily-ops"
+    jwt_audience: str = "citimart-api"
+    # Reject access tokens that carry no `sid` (session id) claim. Tokens
+    # minted before the session registry existed carry none and can't be
+    # revoked server-side; they expire on their own within the old 12h TTL.
+    # None = on in ENVIRONMENT=production, off elsewhere (the test suite
+    # signs sid-less tokens directly).
+    require_session_id: bool | None = None
+    # Secure flag on the HttpOnly refresh cookie. None = on unless
+    # ENVIRONMENT=development *and* the request arrived over plain http.
+    refresh_cookie_secure: bool | None = None
+
+    # --- Redis (sessions, rate limits, shared cache, queues) --------------
+    # Unset = single-process mode: every Redis-backed module falls back to
+    # its in-process equivalent (correct for ONE worker only -- see
+    # app.py's startup warning). Set it before running >1 worker/replica:
+    #   REDIS_URL=redis://:<password>@redis:6379/0
+    redis_url: str | None = None
+    # Optional separate Redis for BullMQ (needs maxmemory-policy noeviction).
+    # Defaults to redis_url.
+    redis_queue_url: str | None = None
+    redis_max_connections: int = 200
+    # BullMQ producer (report jobs, audit events). Off by default even with
+    # REDIS_URL set: enabling it without running `python -m src.queue.worker`
+    # would leave jobs and audit events queued forever. docker-compose.yml
+    # turns it on alongside the worker service.
+    bullmq_enabled: bool = False
+    # Run the midnight finalizer inside each API process. Safe with any
+    # number of replicas once REDIS_URL is set (a Redis NX lock makes each
+    # day's finalize run once); set false when the BullMQ worker owns it.
+    run_in_process_midnight_job: bool = True
+    # Render free-tier self-ping (keeps the instance from idling out). Turn
+    # off behind a real load balancer.
+    self_ping_enabled: bool = True
+    # Threadpool size for sync route handlers (every DB route is sync, so
+    # this caps in-flight requests per worker; anyio's default is 40).
+    threadpool_size: int = 100
+    # Max concurrent password hashes per process (each Argon2id verify holds
+    # 19 MiB). None = min(4, cpu_count). See src/user_store.py.
+    password_hash_concurrency: int | None = None
+
+    # --- Rate limits (API-02) ---------------------------------------------
+    # Every login attempt from one client IP, success or not -- a burst cap
+    # sized so a whole store network behind one NAT can still log in. Also
+    # bounds how much Argon2id CPU one IP can burn (see user_store).
+    login_rate_limit_per_ip: int = 300
+    # FAILED attempts for one (IP, username) pair -- the brute-force guard.
+    login_rate_limit_per_account: int = 25
+    # FAILED attempts against one account from ALL IPs combined, per
+    # login_account_lockout_window_seconds (API-02 "per account"): stops
+    # guessing spread across many IPs. A soft lockout -- it lifts on its own
+    # once failures stop -- because the four usernames are known, so a hard
+    # one would let anyone keep the admin locked out indefinitely for free.
+    login_failure_limit_per_account_global: int = 50
+    login_account_lockout_window_seconds: int = 15 * 60
+    chat_rate_limit: int = 40
+    # Proxies whose X-Forwarded-For we believe (comma-separated IPs/CIDRs).
+    # A request arriving from anywhere else has XFF ignored, so a client
+    # can't spoof its way into a fresh rate-limit bucket.
+    trusted_proxy_ips: str = "127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+
+    # --- MongoDB pool -------------------------------------------------------
+    # Per process. Mind the cluster's connection cap: Atlas M0 allows 500, and
+    # replicas x workers x maxPoolSize can exceed that quickly.
+    mongo_min_pool_size: int = 10
+    mongo_max_pool_size: int = 100
 
     # --- CORS (cross-origin frontend) --------------------------------------
     # Only needed when the SPA is served from a *different* origin than this
@@ -93,6 +170,20 @@ class EnvSettings(BaseSettings):
     environment: str = "development"
     # Swagger/ReDoc docs toggle. If None, automatically enabled in dev/staging and disabled in production.
     enable_docs: bool | None = None
+
+    def is_production(self) -> bool:
+        return self.environment.lower() == "production"
+
+    def session_id_required(self) -> bool:
+        if self.require_session_id is not None:
+            return self.require_session_id
+        return self.is_production()
+
+    def queue_redis_url(self) -> str | None:
+        return self.redis_queue_url or self.redis_url
+
+    def bullmq_active(self) -> bool:
+        return bool(self.bullmq_enabled and self.queue_redis_url())
 
     def is_docs_enabled(self) -> bool:
         if self.enable_docs is not None:

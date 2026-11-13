@@ -1,4 +1,4 @@
-import { authHeaders, handleUnauthorized } from "@/auth/tokenStore";
+import { authFetch, handleUnauthorized } from "@/auth/tokenStore";
 import { apiUrl } from "@/lib/apiBase";
 
 /** Daily Operations has exactly one export: the per-store report at
@@ -53,9 +53,7 @@ export async function downloadDailyReport(
   if (range?.start) params.set("start", range.start);
   if (range?.end) params.set("end", range.end);
 
-  const res = await fetch(apiUrl(`/api/daily/report?${params}`), {
-    headers: { ...authHeaders() },
-  });
+  const res = await authFetch(apiUrl(`/api/daily/report?${params}`));
   if (!res.ok) {
     if (res.status === 401) handleUnauthorized();
     throw new Error(await errorMessage(res));

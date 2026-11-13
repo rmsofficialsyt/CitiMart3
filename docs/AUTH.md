@@ -1,6 +1,6 @@
 # CITIMART Daily Operations — Authentication & Authorization Architecture (AUTH)
 
-> **Core Philosophy:** Stateless JWT token verification for sub-millisecond API authorization, backed by PBKDF2 credential storage in MongoDB Atlas with strict store-level multi-tenant isolation.
+> **Core Philosophy:** Short-lived JWTs bound to revocable server-side sessions (Redis), Argon2id credential storage in MongoDB Atlas, and strict store-level multi-tenant isolation. Full endpoint reference: [APIS.md §1](APIS.md).
 
 ---
 
@@ -31,15 +31,17 @@ First-run passwords are seeded into MongoDB's `users` collection via [`src/user_
 
 ## 2. Password Security & Storage
 
-### 2.1 Hashing Specification
-- **Algorithm:** PBKDF2-HMAC-SHA256.
-- **Salt:** 16 bytes of cryptographically secure randomness generated via `os.urandom(16)`.
-- **Work Factor:** **600,000 iterations** (`_ITERATIONS = 600_000`) in production.
-- **Encoded Format:** Standard modular format:
-  ```text
-  pbkdf2_sha256$<iterations>$<salt_b64>$<hash_b64>
-  ```
-- **Constant-Time Verification:** Handled using `hmac.compare_digest()` to completely eliminate timing side-channel attacks during password evaluation.
+### 2.1 Hashing Specification (AUTH-02)
+- **Algorithm:** **Argon2id** (`argon2-cffi`) for every new hash, at the OWASP minimum
+  `m=19 MiB, t=2, p=1` (~25–35 ms per verify).
+- **Legacy hashes:** PBKDF2-HMAC-SHA256 (`pbkdf2_sha256$<iterations>$<salt_b64>$<hash_b64>`,
+  600,000 iterations) still verify, and are **re-hashed to Argon2id on the next successful
+  login** (`needs_rehash` → `upgrade_password_hash`), so they disappear on their own.
+- **Timing parity (AUTH-01):** an unknown username still runs one verify against a dummy
+  hash, so it answers no faster than a wrong password.
+- **Bounded concurrency:** at most `PASSWORD_HASH_CONCURRENCY` hashes run at once per
+  process (default `min(4, cpus)`). Each Argon2id hash holds 19 MiB; unbounded, a login
+  burst OOM-killed every container in the compose load test.
 
 ### 2.2 Password Complexity Policy
 Enforced in [`src/password_policy.py`](file:///d:/Project%20CITIMART%20Sales%20Analysis/Daily%20Operations/backend/src/password_policy.py):
@@ -51,37 +53,60 @@ Enforced in [`src/password_policy.py`](file:///d:/Project%20CITIMART%20Sales%20A
 
 ## 3. Token Lifecycle & JWT Architecture
 
-### 3.1 Token Generation
-Upon successful authentication at `POST /api/auth/login`, the server issues a signed JSON Web Token (JWT):
-- **Algorithm:** `HS256` (HMAC with SHA-256).
-- **Signing Secret:** Pinned strictly to `env.jwt_secret`.
-- **Token Expiration (TTL):** Default 12 hours (`JWT_TTL_SECONDS = 43200`), aligned with a full retail store operating shift.
+### 3.1 Sessions, Access Tokens & Refresh Tokens (AUTH-05)
+Login creates a **server-side session** (`src/session_store.py`) and returns:
+- **Access token:** HS256 JWT, **15 min** (`ACCESS_TOKEN_TTL_SECONDS=900`), bound to the session by `sid`.
+- **Refresh token:** opaque 384-bit random value, stored server-side only as a SHA-256
+  hash. Sent as the HttpOnly cookie `citimart_refresh` (`Path=/api/auth`, `SameSite=Lax`,
+  `Secure`) and in the body. **Rotated on every use**; re-use of a rotated token after the
+  20 s grace window revokes the session (theft detection), within it returns `409`
+  (two tabs racing).
+- **Absolute expiry:** `REFRESH_TOKEN_TTL_SECONDS` (12 h, one shift) from login, never
+  extended by rotation. **Idle expiry:** `SESSION_IDLE_TIMEOUT_SECONDS` (2 h) without a refresh.
+- **Revocation:** logout, logout-all, `DELETE /api/auth/sessions/{sid}`, account switch
+  (revokes the caller's old session) and password change (`set_password` revokes all of
+  the account's sessions) all take effect on the very next request.
+
+Storage is Redis when `REDIS_URL` is set (`sess:{sid}`, `user_sess:{username}`,
+`rt:{hash}`, `rt_used:{hash}`, every key with a TTL), else an in-process dict, which is
+correct for a **single worker only**. `app.py` logs an error at startup if
+`WEB_CONCURRENCY > 1` without Redis.
 
 ### 3.2 Claims Schema
 ```json
 {
   "sub": "user-1",
+  "sid": "<session id>",
+  "jti": "<token id>",
+  "iss": "citimart-daily-ops",
+  "aud": "citimart-api",
   "username": "CITIMART - NEW MARKET",
   "role": "manager",
   "store_code": "NM",
-  "switched_from": null,
   "iat": 1730291400,
-  "exp": 1730334600
+  "exp": 1730292300
 }
 ```
+`switched_from` is added only for an admin-switched session.
 
-- `sub`: Canonical user identifier (`user-<id>`).
-- `username`: Operator identity.
-- `role`: Role string (`admin` or `manager`).
-- `store_code`: Assigned store identifier (`NM`, `HB`, `CHW`, or `None` for admin).
-- `switched_from`: Non-null only if token was generated via administrative account switching.
-- `iat` / `exp`: Issue time and UNIX timestamp expiry.
+### 3.3 Verification on Every Request
+1. `api/auth.py::_decode()` verifies signature (`HS256` only) and `exp`; a token carrying
+   `sid` must also carry our `iss`/`aud`.
+2. `_require_live_session()` checks the session still exists and belongs to the token's
+   `username`: one Redis `HMGET` (~0.4 ms), no MongoDB access. If Redis is configured but
+   unreachable the request gets `503` (INP-10 fail closed), never a pass.
+3. Tokens **without** `sid` predate the session registry. They're accepted only while
+   `REQUIRE_SESSION_ID` resolves false (default: false outside `ENVIRONMENT=production`)
+   and can't be revoked early; they expire within their original 12 h.
 
-### 3.3 Zero-Database Verification
-When a request arrives at the backend:
-1. `api/auth.py::_decode()` verifies the JWT signature and expiration locally.
-2. The `CurrentUser` object is constructed directly from token claims.
-3. **No database query is performed for authentication**, maintaining high throughput and low database connection pool utilization.
+### 3.4 Frontend Token Handling
+The SPA keeps the access token **in memory only** (no `localStorage`; the legacy
+`citimart.auth` key is deleted on load). After a reload, `AuthProvider` restores the
+session by calling `/api/auth/refresh` with the cookie. `tokenStore.authFetch()` retries a
+401 once after a **single-flight** refresh (concurrent 401s share one refresh, since
+tokens rotate), and the provider also renews proactively a minute before expiry. In
+direct cross-origin mode (`VITE_API_BASE_URL` set) the cookie isn't sent, so the refresh
+token from the body is held in memory instead: sessions survive token expiry but not a reload.
 
 ---
 
@@ -131,8 +156,8 @@ To support floor inspection and debugging, administrators can switch into any st
    ```json
    "switched_from": "ADMINISTRATOR"
    ```
-4. **Audit Trail:** The frontend UI displays an amber "Viewing as Store Manager" banner with a "Revert to Admin" button.
-5. **Revert:** Reverting simply switches back to the administrator's token.
+4. **Audit Trail:** The frontend UI displays an amber "Viewing as Store Manager" banner with a "Revert to Admin" button, and every switch is written to `audit_logs` (`switch_account`, actor = root admin).
+5. **Revert:** Reverting switches back to the administrator. Each switch starts a new session and revokes the previous one, so a switched token can't be replayed after the switch.
 
 ---
 
@@ -140,7 +165,7 @@ To support floor inspection and debugging, administrators can switch into any st
 
 ### 6.1 User Login
 `POST /api/auth/login`
-- **Rate Limit:** 25 requests/min per IP.
+- **Rate Limits:** all attempts per IP (default 2000/min, burst cap for NAT'd store networks) + **failed** attempts per (IP, username) (default 25/min); Redis-shared across replicas.
 - **Request Body:**
   ```json
   {
@@ -153,7 +178,10 @@ To support floor inspection and debugging, administrators can switch into any st
   {
     "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
     "token_type": "bearer",
-    "expires_in": 43200,
+    "expires_in": 900,
+    "refresh_token": "<opaque>",
+    "refresh_expires_in": 43200,
+    "session_id": "<sid>",
     "user": {
       "username": "ADMINISTRATOR",
       "role": "admin",

@@ -1,4 +1,4 @@
-import { authHeaders, handleUnauthorized } from "@/auth/tokenStore";
+import { authFetch, handleUnauthorized } from "@/auth/tokenStore";
 import { apiUrl } from "@/lib/apiBase";
 import { toSearchParams } from "@/lib/filterParams";
 import type {
@@ -63,7 +63,7 @@ function checkAuth(res: Response): void {
 }
 
 async function getJSON<T>(url: string): Promise<T> {
-  const res = await fetch(apiUrl(url), { headers: { ...authHeaders() } });
+  const res = await authFetch(apiUrl(url));
   if (!res.ok) {
     checkAuth(res);
     throw new Error(await errorMessage(res));
@@ -72,9 +72,9 @@ async function getJSON<T>(url: string): Promise<T> {
 }
 
 async function postJSON<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(apiUrl(url), {
+  const res = await authFetch(apiUrl(url), {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -85,9 +85,9 @@ async function postJSON<T>(url: string, body: unknown): Promise<T> {
 }
 
 async function putJSON<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(apiUrl(url), {
+  const res = await authFetch(apiUrl(url), {
     method: "PUT",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -98,7 +98,7 @@ async function putJSON<T>(url: string, body: unknown): Promise<T> {
 }
 
 async function deleteJSON<T>(url: string): Promise<T> {
-  const res = await fetch(apiUrl(url), { method: "DELETE", headers: { ...authHeaders() } });
+  const res = await authFetch(apiUrl(url), { method: "DELETE" });
   if (!res.ok) {
     checkAuth(res);
     throw new Error(await errorMessage(res));
@@ -204,9 +204,8 @@ export const api = {
     const form = new FormData();
     form.append("file", file);
     // No Content-Type header -- the browser sets the multipart boundary.
-    const res = await fetch(apiUrl(`/api/targets/upload?${new URLSearchParams({ store })}`), {
+    const res = await authFetch(apiUrl(`/api/targets/upload?${new URLSearchParams({ store })}`), {
       method: "POST",
-      headers: { ...authHeaders() },
       body: form,
     });
     if (!res.ok) {

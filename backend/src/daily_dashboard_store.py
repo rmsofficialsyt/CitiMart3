@@ -28,44 +28,150 @@ to filter out.
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
+import json
+import logging
+import math
 import threading
 import time as _time
 
+import redis
 from pymongo import ReturnDocument
 from pymongo.database import Database
 
 from config.settings import STORE_CODE_TO_NAME, TIME_SLOT_ORDER, time_slot_for_time
 from db.models import BILLS, FOOTFALL, NOB, TARGETS, next_id
+from db.redis_client import get_redis
 from src.kpi_engine import safe_divide
 
-# High-speed in-memory TTL caching layer for heavy read aggregation endpoints
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Read cache for the heavy aggregation endpoints: L1 (this process) + L2
+# (Redis, shared by every worker/replica), with zero-staleness invalidation.
+#
+# Every write calls invalidate_dashboard_cache(), which INCRs a global
+# version counter in Redis. Every read first GETs that counter (~0.3 ms) and
+# only trusts cache entries filed under the current version: L1 is wiped the
+# moment a new version is seen, L2 keys embed the version in their name. So
+# a write on replica A is visible on replica B's very next read -- no
+# Pub/Sub delivery window, no 30 s stale tail. (A Pub/Sub eviction would save
+# that one GET but can only shrink the stale window, not close it.)
+#
+# The version a value is filed under is the one read BEFORE the MongoDB
+# query that produced it (remembered per thread between _get_from_cache and
+# _set_in_cache): if a write lands mid-computation, the possibly-stale
+# result goes under the old, already-dead version and is never served.
+#
+# Without REDIS_URL this collapses to the original per-process TTL cache.
+# If Redis errors, reads bypass the cache (MongoDB is the source of truth)
+# rather than risk serving something stale.
+# L2 stores JSON only, and only values that survive a JSON round trip
+# unchanged (no tuples / non-str keys / dates silently altered); anything
+# else stays L1-only.
+# ---------------------------------------------------------------------------
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict[str, tuple[float, object]] = {}
 _CACHE_TTL_SECONDS = 30.0
+_CACHE_VERSION_KEY = "cache:daily:ver"
+_L1_VERSION: str | None = None
+_tls = threading.local()
+
+
+def _l1_get(key: str, now: float) -> object | None:
+    item = _CACHE.get(key)
+    if item is not None:
+        expires_at, val = item
+        if now < expires_at:
+            return val
+        _CACHE.pop(key, None)
+    return None
+
+
+def _remember_version(key: str, version: str | None) -> None:
+    versions = getattr(_tls, "versions", None)
+    if versions is None:
+        versions = _tls.versions = {}
+    versions[key] = version
 
 
 def _get_from_cache(key: str) -> object | None:
+    global _L1_VERSION
     now = _time.time()
+    client = get_redis()
+    if client is None:
+        with _CACHE_LOCK:
+            return _l1_get(key, now)
+    try:
+        version = client.get(_CACHE_VERSION_KEY) or "0"
+    except redis.RedisError:
+        logger.warning("Dashboard cache: Redis unavailable, reading through to MongoDB.")
+        _remember_version(key, None)
+        return None
+    _remember_version(key, version)
     with _CACHE_LOCK:
-        item = _CACHE.get(key)
-        if item is not None:
-            expires_at, val = item
-            if now < expires_at:
-                return val
-            _CACHE.pop(key, None)
-    return None
+        if _L1_VERSION != version:
+            _CACHE.clear()
+            _L1_VERSION = version
+        hit = _l1_get(key, now)
+    if hit is not None:
+        return hit
+    try:
+        raw = client.get(f"cache:daily:v{version}:{key}")
+    except redis.RedisError:
+        return None
+    if raw is None:
+        return None
+    try:
+        val = json.loads(raw)
+    except ValueError:
+        return None
+    with _CACHE_LOCK:
+        if _L1_VERSION == version:
+            _CACHE[key] = (now + _CACHE_TTL_SECONDS, val)
+    return val
 
 
 def _set_in_cache(key: str, val: object, ttl: float = _CACHE_TTL_SECONDS) -> None:
     now = _time.time()
+    client = get_redis()
+    if client is None:
+        with _CACHE_LOCK:
+            _CACHE[key] = (now + ttl, val)
+        return
+    versions = getattr(_tls, "versions", {})
+    if key not in versions:
+        return  # no version observed before the read -> can't prove freshness
+    version = versions.pop(key)
+    if version is None:
+        return  # Redis was down at read time
     with _CACHE_LOCK:
-        _CACHE[key] = (now + ttl, val)
+        if _L1_VERSION == version:
+            _CACHE[key] = (now + ttl, val)
+    try:
+        encoded = json.dumps(val)
+        if json.loads(encoded) != val:
+            return
+    except (TypeError, ValueError):
+        return
+    try:
+        client.set(f"cache:daily:v{version}:{key}", encoded, ex=max(1, math.ceil(ttl)))
+    except redis.RedisError:
+        pass
 
 
 def invalidate_dashboard_cache() -> None:
-    """Invalidates the in-memory aggregated dashboard cache upon any write."""
+    """Called after every write: drops this process's L1 and bumps the shared
+    version so every other worker/replica treats its cache as dead."""
     with _CACHE_LOCK:
         _CACHE.clear()
+    client = get_redis()
+    if client is None:
+        return
+    try:
+        client.incr(_CACHE_VERSION_KEY)
+    except redis.RedisError:
+        # Other replicas' entries now age out via their TTL (<= 30 s).
+        logger.error("Dashboard cache: version bump failed; other replicas may serve data up to %ss old.", int(_CACHE_TTL_SECONDS))
 
 
 def _validate_store(store: str) -> None:

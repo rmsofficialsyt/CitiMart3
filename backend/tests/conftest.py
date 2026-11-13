@@ -35,8 +35,50 @@ TEST_JWT_SECRET = "test-secret"
 
 # PBKDF2 at production strength (600k iterations) x four accounts per db_session
 # fixture dominates the suite runtime; the hashing behaviour under test is
-# iteration-count-independent.
+# iteration-count-independent. Same for Argon2id's memory/time cost.
 user_store._ITERATIONS = 1000
+user_store._ARGON2_TIME_COST = 1
+user_store._ARGON2_MEMORY_COST = 1024
+
+
+@pytest.fixture(autouse=True)
+def _isolate_shared_state():
+    """Session registry, rate-limit fallbacks and the Redis override are
+    process-global; reset them so no test sees another's sessions or 429s.
+    Tests run Redis-less unless they opt in via the `fake_redis` fixture."""
+    from db.redis_client import set_redis_for_tests
+    from src import rate_limiter, session_store
+
+    set_redis_for_tests(None)
+    session_store.reset_for_tests()
+    for limiter in (
+        rate_limiter.login_ip_limiter,
+        rate_limiter.login_failure_limiter,
+        rate_limiter.login_account_limiter,
+        rate_limiter.chat_limiter,
+    ):
+        limiter.reset()
+    yield
+    set_redis_for_tests(None)
+    session_store.reset_for_tests()
+
+
+@pytest.fixture()
+def fake_redis():
+    """A fakeredis server (Lua-capable via lupa) wired in as REDIS_URL's
+    client for the duration of one test. Yields the str-decoding client."""
+    import fakeredis
+
+    from db.redis_client import set_redis_for_tests
+
+    server = fakeredis.FakeServer()
+    text = fakeredis.FakeRedis(server=server, decode_responses=True)
+    raw = fakeredis.FakeRedis(server=server, decode_responses=False)
+    set_redis_for_tests(text, raw)
+    try:
+        yield text
+    finally:
+        set_redis_for_tests(None)
 
 
 @pytest.fixture()

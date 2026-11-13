@@ -87,6 +87,41 @@ def _save_weather_cache(cache: dict) -> None:
         logger.exception("Failed to persist weather cache; continuing without it.")
 
 
+# Shared weather cache (REDIS_URL set): one Open-Meteo lookup per date for
+# every replica, instead of one per container's local JSON file. Today's and
+# future readings change as forecasts update -> 6 h; past days are settled
+# archive data -> 7 d. The JSON file stays as the no-Redis fallback.
+_MISS = object()
+_WEATHER_TTL_RECENT = 6 * 3600
+_WEATHER_TTL_ARCHIVE = 7 * 24 * 3600
+
+
+def _redis_weather_get(key: str):
+    from db.redis_client import get_redis
+
+    client = get_redis()
+    if client is None:
+        return _MISS
+    try:
+        raw = client.get(f"weather:kolkata:{key}")
+        return _MISS if raw is None else json.loads(raw)
+    except Exception:  # noqa: BLE001 -- the file cache / live lookup still works
+        return _MISS
+
+
+def _redis_weather_set(target_date: date, value: dict | None) -> None:
+    from db.redis_client import get_redis
+
+    client = get_redis()
+    if client is None:
+        return
+    ttl = _WEATHER_TTL_ARCHIVE if target_date < date.today() else _WEATHER_TTL_RECENT
+    try:
+        client.set(f"weather:kolkata:{target_date.isoformat()}", json.dumps(value), ex=ttl)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 @dataclass
 class WeatherReading:
     condition: str
@@ -102,10 +137,14 @@ def get_weather(target_date: date) -> WeatherReading | None:
     -- never raises -- on any network failure, missing data, or a date
     outside both APIs' supported range, so callers can render "Weather
     unavailable" instead of breaking the page."""
-    cache = _load_weather_cache()
     key = target_date.isoformat()
+    shared = _redis_weather_get(key)
+    if shared is not _MISS:
+        return WeatherReading(**shared) if shared else None
+    cache = _load_weather_cache()
     if key in cache:
         cached = cache[key]
+        _redis_weather_set(target_date, cached)
         return WeatherReading(**cached) if cached else None
 
     is_past = target_date <= date.today()
@@ -129,6 +168,7 @@ def get_weather(target_date: date) -> WeatherReading | None:
         if not codes:
             cache[key] = None
             _save_weather_cache(cache)
+            _redis_weather_set(target_date, None)
             return None
         reading = WeatherReading(
             condition=_weather_label(codes[0]),
@@ -138,6 +178,7 @@ def get_weather(target_date: date) -> WeatherReading | None:
         )
         cache[key] = reading.__dict__
         _save_weather_cache(cache)
+        _redis_weather_set(target_date, reading.__dict__)
         return reading
     except Exception:
         logger.warning("Weather lookup failed for %s; showing 'unavailable' instead.", key, exc_info=True)

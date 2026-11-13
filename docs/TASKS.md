@@ -63,17 +63,21 @@
 
 ## 4. Future Roadmap & Backlog (Phase 6)
 
-### 4.1 Distributed Rate Limiting & High Availability
+### 4.1 Distributed Rate Limiting & High Availability — ✅ Done (Nov 2026)
 - **Task ID:** `DO-TASK-601`
 - **Priority:** Medium
 - **Description:** Replace or augment the in-memory sliding window rate limiter with an optional Redis / Valkey adapter (`REDIS_URL`) when scaling Render backend services horizontally across multiple worker nodes.
 - **Spec Reference:** `API-02`
+- **Delivered:** Redis Lua limiter + session registry + L1/L2 cache + midnight lock + BullMQ worker + Docker/Nginx stack (see ARCHITECTURE.md §3).
 
-### 4.2 Security Audit Logging Collection
+### 4.2 Security Audit Logging Collection — 🟡 Partially done (Nov 2026)
 - **Task ID:** `DO-TASK-602`
 - **Priority:** High
 - **Description:** Implement an immutable `audit_logs` collection in MongoDB to log all sensitive administrative actions (e.g., target spreadsheet uploads, user password resets, status threshold overrides) capturing timestamp, actor user ID, client IP, and affected entity.
 - **Spec Reference:** `LOG-01`, `LOG-02`
+- **Delivered:** `src/audit.py` + `audit_logs` for auth/session events and target uploads.
+- **Still open:** status-threshold and KPI-override changes are not audited yet; the
+  collection is append-only by convention, not enforced (no Mongo role/validator yet).
 
 ### 4.3 Floor Terminal Offline Cache & Synchronization
 - **Task ID:** `DO-TASK-603`

@@ -1,12 +1,21 @@
 """Authentication + authorization primitives for every /api/* route.
 
-An incoming bearer token is an HS256 JWT this app issued itself in
-api/routes_auth.py (after checking the password against the MongoDB `users`
-collection). We verify it here with PyJWT against `env.jwt_secret` -- no
-network round-trip, and no database lookup: `role` / `store_code` /
-`username` are read straight off the token's own claims, so *verifying* a
-request costs nothing beyond a signature check even though every route it
-guards goes on to read MongoDB.
+An incoming bearer token is a short-lived HS256 JWT this app issued itself
+in api/routes_auth.py (after checking the password against the MongoDB
+`users` collection). We verify it here with PyJWT against `env.jwt_secret`
+(fixed algorithm, exp/sub required, iss/aud checked) and read `role` /
+`store_code` / `username` straight off its claims -- no MongoDB lookup.
+
+The one lookup we do make is the session check (AUTH-05 server-side
+revocation): a token carrying `sid` is only honored while
+src/session_store.py still holds that session -- one Redis HMGET, or a dict
+lookup in single-process mode. If Redis is configured but unreachable the
+request is refused with 503 (INP-10 fail closed), never waved through.
+
+Tokens without `sid` predate the session registry. They're accepted only
+while env.session_id_required() is False (default outside
+ENVIRONMENT=production; the test suite signs such tokens directly) and
+can't be revoked early -- they simply run out their original TTL.
 
 Enforcement points (wired in app.py + api/deps.py + api/routes_daily.py):
   * every router gets dependencies=[Depends(get_current_user)]  -> 401 without a token
@@ -16,6 +25,8 @@ Enforcement points (wired in app.py + api/deps.py + api/routes_daily.py):
 """
 from __future__ import annotations
 
+import secrets
+import time
 from dataclasses import dataclass
 
 import jwt
@@ -25,6 +36,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from config.auth_users import AUTH_USERS
 from config.env import env
 from config.settings import STORE_CODE_TO_NAME
+from src import session_store
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -39,6 +51,7 @@ class CurrentUser:
     role: str
     store_code: str | None  # None for admin
     switched_from: str | None = None  # Original admin username if switched
+    sid: str | None = None  # server-side session id (None on legacy tokens)
 
     @property
     def is_admin(self) -> bool:
@@ -55,16 +68,62 @@ class CurrentUser:
         return [self.store_code] if self.store_code else []
 
 
+_INVALID = "Invalid or expired session."
+
+
+def mint_access_token(session: "session_store.Session") -> tuple[str, int]:
+    """Short-lived access JWT bound to a server-side session. Returns
+    (token, ttl_seconds)."""
+    now = int(time.time())
+    ttl = env.access_token_ttl_seconds
+    claims = {
+        "sub": session.user_id,
+        "sid": session.sid,
+        "jti": secrets.token_urlsafe(12),
+        "iss": env.jwt_issuer,
+        "aud": env.jwt_audience,
+        "iat": now,
+        "exp": now + ttl,
+        "username": session.username,
+        "role": session.role,
+        "store_code": session.store_code,
+    }
+    if session.switched_from:
+        claims["switched_from"] = session.switched_from
+    return jwt.encode(claims, env.jwt_secret, algorithm="HS256"), ttl
+
+
 def _decode(token: str) -> dict:
     try:
-        return jwt.decode(
+        claims = jwt.decode(
             token,
             env.jwt_secret,
             algorithms=["HS256"],
-            options={"require": ["exp", "sub"]},
+            options={"require": ["exp", "sub"], "verify_aud": False},
         )
     except jwt.PyJWTError as error:  # invalid signature / expired / malformed
-        raise HTTPException(status_code=401, detail="Invalid or expired session.") from error
+        raise HTTPException(status_code=401, detail=_INVALID) from error
+    # Session-bound tokens (everything minted since the registry) must carry
+    # our iss/aud. Checked by hand rather than via jwt.decode(audience=...)
+    # because that would also reject the legacy sid-less tokens outright.
+    if "sid" in claims and (claims.get("iss") != env.jwt_issuer or claims.get("aud") != env.jwt_audience):
+        raise HTTPException(status_code=401, detail=_INVALID)
+    return claims
+
+
+def _require_live_session(claims: dict) -> str | None:
+    sid = claims.get("sid")
+    if not sid:
+        if env.session_id_required():
+            raise HTTPException(status_code=401, detail=_INVALID)
+        return None
+    try:
+        active = session_store.is_session_active(str(sid), str(claims.get("username") or ""))
+    except session_store.SessionStoreUnavailable as error:
+        raise HTTPException(status_code=503, detail="Session service temporarily unavailable.") from error
+    if not active:
+        raise HTTPException(status_code=401, detail=_INVALID)
+    return str(sid)
 
 
 def get_current_user(
@@ -73,6 +132,7 @@ def get_current_user(
     if cred is None or not cred.credentials:
         raise HTTPException(status_code=401, detail="Not authenticated.")
     claims = _decode(cred.credentials)
+    sid = _require_live_session(claims)
     role = claims.get("role")
     store_code = claims.get("store_code")
     username = claims.get("username") or ""
@@ -91,6 +151,7 @@ def get_current_user(
         role=role,
         store_code=store_code,
         switched_from=str(switched_from) if switched_from else None,
+        sid=sid,
     )
 
 

@@ -1,0 +1,24 @@
+# Secrets and credentials never enter an image layer (INFRA-06, SEC-02).
+.env
+.env.*
+!.env.example
+CREDENTIALS.txt
+*.pem
+*.key
+
+# Local state / caches
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.cache/
+reports/
+.streamlit/secrets.toml
+config/kpi_thresholds.local.json
+
+# Not needed at runtime
+tests/
+.git/
+.gitignore
+Dockerfile
+.dockerignore

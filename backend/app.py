@@ -50,6 +50,7 @@ from api.routes_targets import router as targets_router
 from config.env import assert_production_secrets, env
 from config.settings import PROJECT_ROOT
 from db.engine import warmup_database
+from db.redis_client import close_redis, ping_redis, redis_configured, warmup_redis
 from src.daily_midnight_job import run_midnight_finalizer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -114,6 +115,23 @@ async def lifespan(app: FastAPI):
     # shipped dev JWT secret -- the public default could forge admin tokens.
     assert_production_secrets()
 
+    # Every DB route is a sync `def` run in anyio's threadpool (default 40
+    # threads) -- that, not the event loop, is what caps concurrent requests
+    # per worker during a login burst.
+    import anyio.to_thread
+
+    anyio.to_thread.current_default_thread_limiter().total_tokens = env.threadpool_size
+
+    import os
+
+    workers = os.environ.get("WEB_CONCURRENCY") or os.environ.get("UVICORN_WORKERS") or "1"
+    if not redis_configured() and workers.isdigit() and int(workers) > 1:
+        logger.error(
+            "WEB_CONCURRENCY=%s but REDIS_URL is unset: sessions, rate limits and the "
+            "dashboard cache are per-process, so users will be logged out at random "
+            "and limits multiply. Set REDIS_URL or run a single worker.", workers,
+        )
+
     app.state.background_tasks = []
 
     async def _keep_alive() -> None:
@@ -131,11 +149,15 @@ async def lifespan(app: FastAPI):
             await asyncio.sleep(600)  # Ping every 10 minutes
 
     async def _warmup() -> None:
-        # Pre-warm DB connection pool and seed accounts in background
+        # Pre-warm DB + Redis connection pools and seed accounts in background
         await asyncio.to_thread(warmup_database)
+        if redis_configured() and not await asyncio.to_thread(warmup_redis):
+            logger.error("REDIS_URL is set but Redis is unreachable; authenticated requests will 503 until it recovers.")
         await asyncio.to_thread(_seed_accounts_best_effort)
-        app.state.background_tasks.append(asyncio.create_task(run_midnight_finalizer()))
-        app.state.background_tasks.append(asyncio.create_task(_keep_alive()))
+        if env.run_in_process_midnight_job:
+            app.state.background_tasks.append(asyncio.create_task(run_midnight_finalizer()))
+        if env.self_ping_enabled:
+            app.state.background_tasks.append(asyncio.create_task(_keep_alive()))
 
     app.state.background_tasks.append(asyncio.create_task(_warmup()))
     logger.info("Startup complete.")
@@ -145,6 +167,10 @@ async def lifespan(app: FastAPI):
     for task in app.state.background_tasks:
         with contextlib.suppress(asyncio.CancelledError, Exception):
             await task
+    from src.queue.bullmq_client import close_producer
+
+    await asyncio.to_thread(close_producer)
+    await asyncio.to_thread(close_redis)
 
 
 docs_url = "/docs" if env.is_docs_enabled() else None
@@ -202,9 +228,15 @@ def health() -> dict[str, object]:
     """Unauthenticated liveness probe for a hosting platform's health check.
     Point Render's health check at this path, not "/" -- "/" serves the SPA
     shell only when frontend/dist happens to be built locally, and in the
-    deployed split it isn't there at all."""
+    deployed split it isn't there at all.
+
+    `redis` is "disabled" (REDIS_URL unset), "ok" or "degraded". A degraded
+    Redis still answers 200 here: the process is alive, and restarting it
+    wouldn't fix Redis -- the status field is for dashboards/alerts."""
+    redis_status = ping_redis()
     return {
-        "status": "ok",
+        "status": "degraded" if redis_status == "degraded" else "ok",
+        "redis": redis_status,
         "started_at": APP_STARTED_AT.isoformat(),
     }
 
