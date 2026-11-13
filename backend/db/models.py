@@ -71,6 +71,7 @@ STOCK_TRANSFERS = "stock_transfers"
 STAFF_MEMBERS = "staff_members"
 STAFF_ATTENDANCE = "staff_attendance"
 STOCK_SETTINGS = "stock_settings"
+AUDIT_LOGS = "audit_logs"
 
 
 def ensure_indexes(db: Database) -> None:
@@ -128,6 +129,10 @@ def ensure_indexes(db: Database) -> None:
 
     db[STAFF_ATTENDANCE].create_index([("store_code", 1), ("date", 1), ("staff_id", 1)], unique=True)
     db[STAFF_ATTENDANCE].create_index([("store_code", 1), ("date", 1), ("status", 1)])
+
+    # Security audit trail (LOG-01): newest-first reads, per-account lookups
+    db[AUDIT_LOGS].create_index([("ts", -1)])
+    db[AUDIT_LOGS].create_index([("username", 1), ("ts", -1)])
 
 
 def next_id(db: Database, collection_name: str) -> int:

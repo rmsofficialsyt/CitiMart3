@@ -35,8 +35,8 @@ def get_client() -> MongoClient:
         # minPoolSize keeps active connections hot; maxPoolSize allows concurrent worker throughput.
         _client = MongoClient(
             env.mongodb_uri,
-            minPoolSize=5,
-            maxPoolSize=50,
+            minPoolSize=env.mongo_min_pool_size,
+            maxPoolSize=env.mongo_max_pool_size,
             maxIdleTimeMS=60_000,
             serverSelectionTimeoutMS=8_000,
             connectTimeoutMS=8_000,

@@ -140,19 +140,30 @@ def test_switch_account_flow(client, admin_headers, nw_headers):
     assert admin_data["user"]["role"] == "admin"
     assert admin_data["user"].get("switched_from") is None
 
+    # A switch revokes the caller's previous session: the HB token used for
+    # step 5 is now dead, so it can't be replayed.
+    assert client.get("/api/auth/sessions", headers=switched_hb_headers).status_code == 401
+    admin_headers2 = {"Authorization": f"Bearer {admin_data['access_token']}"}
+
+    def _switch_to_hb(headers):
+        resp = client.post("/api/auth/switch-account", headers=headers, json={"username": "CITIMART - HATIBAGAN"})
+        assert resp.status_code == 200
+        return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+
     # 6. Switched manager can RETURN to Administrator with empty payload (defaults to root admin)
     return_admin_empty = client.post(
         "/api/auth/switch-account",
-        headers=switched_hb_headers,
+        headers=_switch_to_hb(admin_headers2),
         json={},
     )
     assert return_admin_empty.status_code == 200
     assert return_admin_empty.json()["user"]["role"] == "admin"
+    admin_headers3 = {"Authorization": f"Bearer {return_admin_empty.json()['access_token']}"}
 
     # 7. Switched manager can RETURN to Administrator with lowercase 'administrator'
     return_admin_lower = client.post(
         "/api/auth/switch-account",
-        headers=switched_hb_headers,
+        headers=_switch_to_hb(admin_headers3),
         json={"username": "administrator"},
     )
     assert return_admin_lower.status_code == 200

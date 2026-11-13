@@ -15,11 +15,14 @@ import io
 from datetime import date, datetime
 
 import openpyxl
-from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Request, UploadFile
 from pymongo.database import Database
 
 from config.settings import STORE_CODE_TO_NAME
+from api.auth import CurrentUser, get_current_user
 from src import daily_dashboard_store
+from src.audit import audit_event
+from src.rate_limiter import get_client_ip
 
 from db.session import get_db
 
@@ -148,9 +151,11 @@ MAX_EXCEL_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB limit (API-03 / INP-06)
 
 @router.post("/upload")
 def upload_targets(
+    request: Request,
     store: str = Query(..., description="Single store code, e.g. NM"),
     file: UploadFile = File(...),
     db: Database = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
 ):
     """Bulk-set a store's monthly SALES TARGET from a .xlsx.
     Supports 4-column format (`Previous Year Date`, `Net Sales`, `Present Year Date`, `Sales Target`)
@@ -195,6 +200,11 @@ def upload_targets(
     if not rows:
         raise HTTPException(status_code=400, detail="No data rows found in Excel file.")
     applied = _apply_target_rows(db, code, rows)
+    audit_event(
+        "target_uploaded", db=db, username=user.username,
+        ip=get_client_ip(request),
+        target=code, details={"rows": applied},
+    )
     return {"store": code, "applied": applied, "entries": daily_dashboard_store.list_store_targets(db, code)}
 
 

@@ -21,6 +21,13 @@ PyJWT==2.10.1                   # HS256 access tokens (api/auth.py)
 # --- database ---
 pymongo==4.17.0
 
+# --- distributed state: sessions, rate limits, shared cache, job queues ---
+redis[hiredis]==5.2.1           # db/redis_client.py (sync client + C parser)
+bullmq==2.14.0                  # src/queue/ producer + worker (Python port; no repeatable jobs)
+
+# --- password hashing (AUTH-02) ---
+argon2-cffi==23.1.0             # Argon2id; legacy PBKDF2 hashes upgraded on next login
+
 # --- data / charting ---
 pandas==3.0.5
 numpy==2.5.1
@@ -43,4 +50,6 @@ streamlit==1.61.1
 # --- test ---
 pytest==9.1.1
 mongomock==4.3.0                # in-memory MongoDB for the whole suite
+fakeredis==2.26.2               # in-memory Redis for the session/limiter/cache/queue tests
+lupa==2.6                       # lets fakeredis run the Lua scripts (rate limiter, refresh rotation)
 httpx==0.28.1                   # FastAPI TestClient transport

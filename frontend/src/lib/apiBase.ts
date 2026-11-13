@@ -15,9 +15,12 @@
  *    that can bump into those), but the backend must then allow this origin via
  *    `CORS_ALLOW_ORIGINS` (see backend/config/env.py).
  *
- * Auth is a bearer token in a header, never a cookie, so neither mode needs
+ * API auth is a bearer token in a header, so neither mode needs
  * `credentials: "include"` -- which is why the direct mode can stay on a
- * simple non-credentialed CORS policy.
+ * simple non-credentialed CORS policy. The one cookie is the HttpOnly
+ * refresh token on /api/auth/*, which only flows in the same-origin mode;
+ * in direct mode AuthProvider keeps the refresh token in memory instead
+ * (sessions survive token expiry, not a page reload).
  */
 
 // Trailing slashes are stripped so `apiUrl("/api/kpis")` can't produce "//api".

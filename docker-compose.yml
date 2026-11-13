@@ -1,0 +1,107 @@
+# CITIMART Daily Operations -- horizontally scalable stack.
+#
+#   cd "Daily Operations"
+#   (cd frontend && npm run build)          # nginx serves frontend/dist
+#   docker compose up --build -d --scale backend=3 --scale worker=2
+#
+# Required in the shell or a .env next to this file (never committed):
+#   REDIS_PASSWORD   long random string
+#   MONGODB_URI      MongoDB Atlas (or any) connection string
+#   JWT_SECRET       long random string (the app refuses to start on the dev default)
+#   ADMIN_INITIAL_PASSWORD, MANAGER_{NM,HB,CHW}_INITIAL_PASSWORD   (first run only)
+#
+# MongoDB is external (Atlas) -- not part of this stack.
+
+x-app-env: &app-env
+  MONGODB_URI: ${MONGODB_URI:?set MONGODB_URI}
+  MONGODB_DB_NAME: ${MONGODB_DB_NAME:-citimart}
+  JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+  ENVIRONMENT: ${ENVIRONMENT:-production}
+  # First-run account passwords. Without them each process generates its
+  # own random fallback (config/auth_users.py), so the seeded accounts would
+  # have passwords nobody knows. Seeding never overwrites an existing account.
+  ADMIN_INITIAL_PASSWORD: ${ADMIN_INITIAL_PASSWORD:-}
+  MANAGER_NM_INITIAL_PASSWORD: ${MANAGER_NM_INITIAL_PASSWORD:-}
+  MANAGER_HB_INITIAL_PASSWORD: ${MANAGER_HB_INITIAL_PASSWORD:-}
+  MANAGER_CHW_INITIAL_PASSWORD: ${MANAGER_CHW_INITIAL_PASSWORD:-}
+  REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+  BULLMQ_ENABLED: "true"
+  # The worker's scheduler owns midnight; the Redis lock would dedupe anyway.
+  RUN_IN_PROCESS_MIDNIGHT_JOB: "false"
+  SELF_PING_ENABLED: "false"
+  # Plain-http local stack: allow the refresh cookie without TLS. Remove once
+  # nginx terminates HTTPS (WEB-01).
+  REFRESH_COOKIE_SECURE: ${REFRESH_COOKIE_SECURE:-false}
+  # Pool per process: replicas x WEB_CONCURRENCY x this must stay under the
+  # cluster's connection cap (Atlas M0 = 500).
+  MONGO_MIN_POOL_SIZE: ${MONGO_MIN_POOL_SIZE:-2}
+  MONGO_MAX_POOL_SIZE: ${MONGO_MAX_POOL_SIZE:-25}
+
+services:
+  redis:
+    image: redis:7.4-alpine
+    # noeviction: BullMQ's queue/lock keys must never be evicted. Every other
+    # key the app writes carries a TTL, so memory stays bounded.
+    command: >
+      redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy noeviction
+      --requirepass ${REDIS_PASSWORD:?set REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    # Not published: only reachable on the compose network.
+
+  backend:
+    build: ./backend
+    environment:
+      <<: *app-env
+      # Each worker idles at ~200 MB (pandas/plotly/reportlab imports) and
+      # can add ~19 MiB x PASSWORD_HASH_CONCURRENCY during a login burst --
+      # keep WEB_CONCURRENCY x ~350 MB under the memory limit below. Scale
+      # out with more replicas rather than more workers per container.
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      PASSWORD_HASH_CONCURRENCY: ${PASSWORD_HASH_CONCURRENCY:-2}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    # No ports: traffic arrives only through nginx.
+
+  worker:
+    build: ./backend
+    command: ["python", "-m", "src.queue.worker"]
+    environment: *app-env
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  nginx:
+    image: nginx:1.27.5-alpine
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./frontend/dist:/usr/share/nginx/html:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  redis_data:
