@@ -76,6 +76,8 @@ services:
       resources:
         limits:
           memory: 1g
+    volumes:
+      - ./logs:/app/logs
     # No ports: traffic arrives only through nginx.
 
   worker:
@@ -92,6 +94,8 @@ services:
       resources:
         limits:
           memory: 1g
+    volumes:
+      - ./logs:/app/logs
 
   nginx:
     image: nginx:1.27.5-alpine

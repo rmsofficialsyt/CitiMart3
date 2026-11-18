@@ -37,8 +37,8 @@ RUN groupadd --system app && useradd --system --gid app --home /app --shell /usr
 WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 COPY --chown=appuser:app . .
-# .cache/ holds the weather JSON fallback; the app writes it at runtime.
-RUN mkdir -p .cache && chown appuser:app .cache
+# .cache/ holds the weather JSON fallback; logs/ holds rotated log files; app writes them at runtime.
+RUN mkdir -p .cache logs && chown -R appuser:app .cache logs
 USER appuser
 EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \

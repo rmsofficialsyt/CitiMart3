@@ -22,6 +22,8 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import secrets
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime
 
@@ -48,15 +50,61 @@ from api.routes_staff import router as staff_router
 from api.routes_stocks import router as stocks_router
 from api.routes_targets import router as targets_router
 from config.env import assert_production_secrets, env
+from config.logging_config import reset_request_id, set_request_id, setup_logging
 from config.settings import PROJECT_ROOT
 from db.engine import warmup_database
 from db.redis_client import close_redis, ping_redis, redis_configured, warmup_redis
 from src.daily_midnight_job import run_midnight_finalizer
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+# Initialize centralized logging (rotates logs in logs/app.log, logs/error.log, etc.)
+setup_logging("api")
 logger = logging.getLogger(__name__)
+access_logger = logging.getLogger("citimart.access")
 
 APP_STARTED_AT = datetime.now()
+
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """Correlates requests via X-Request-ID and writes access logs (method, path, status, latency ms)."""
+
+    async def dispatch(self, request: Request, call_next):
+        request_id = request.headers.get("x-request-id") or request.headers.get("x-correlation-id")
+        if not request_id:
+            request_id = f"req_{secrets.token_hex(6)}"
+
+        token = set_request_id(request_id)
+        start_time = time.perf_counter()
+
+        try:
+            response: Response = await call_next(request)
+        except Exception as exc:
+            duration_ms = (time.perf_counter() - start_time) * 1000.0
+            client_ip = request.client.host if request.client else "-"
+            access_logger.error(
+                "HTTP %s %s 500 error duration=%.2fms client=%s error=%s",
+                request.method, request.url.path, duration_ms, client_ip, exc,
+            )
+            reset_request_id(token)
+            raise exc
+
+        duration_ms = (time.perf_counter() - start_time) * 1000.0
+        client_ip = request.client.host if request.client else "-"
+        response.headers["X-Request-ID"] = request_id
+
+        # Keep health check noise at DEBUG level; log all other endpoints at INFO
+        if request.url.path == "/api/health":
+            access_logger.debug(
+                "HTTP %s %s %d %.2fms client=%s",
+                request.method, request.url.path, response.status_code, duration_ms, client_ip,
+            )
+        else:
+            access_logger.info(
+                "HTTP %s %s %d %.2fms client=%s",
+                request.method, request.url.path, response.status_code, duration_ms, client_ip,
+            )
+
+        reset_request_id(token)
+        return response
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -184,6 +232,9 @@ app = FastAPI(
     redoc_url=redoc_url,
     openapi_url=openapi_url,
 )
+
+# Request tracing and access logging middleware (logs/access.log)
+app.add_middleware(RequestLoggingMiddleware)
 
 # Baseline HTTP security headers middleware (WEB-02, WEB-04)
 app.add_middleware(SecurityHeadersMiddleware)

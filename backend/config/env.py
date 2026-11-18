@@ -165,6 +165,14 @@ class EnvSettings(BaseSettings):
     # Leave blank in a deployment that only serves its one production domain.
     cors_allow_origin_regex: str = ""
 
+    # --- Logging Configuration --------------------------------------------
+    log_level: str = "INFO"
+    log_dir: str | None = None
+    log_to_file: bool = True
+    log_max_bytes: int = 10 * 1024 * 1024  # 10 MiB per file
+    log_backup_count: int = 5
+    log_format_json: bool = False
+
     # --- Environment & Security Hardening ---------------------------------
     # Environment name: "development", "staging", "production"
     environment: str = "development"
@@ -197,6 +205,14 @@ class EnvSettings(BaseSettings):
         would make the env var `["https://..."]` instead of a readable
         comma-separated line."""
         return [origin.strip().rstrip("/") for origin in self.cors_allow_origins.split(",") if origin.strip()]
+
+    def resolved_log_dir(self) -> Path:
+        if self.log_dir:
+            path = Path(self.log_dir).resolve()
+            path.mkdir(parents=True, exist_ok=True)
+            return path
+        from config.settings import LOGS_DIR
+        return LOGS_DIR
 
 
 env = EnvSettings()

@@ -118,5 +118,7 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    from config.logging_config import setup_logging
+
+    setup_logging("worker")
     asyncio.run(main())

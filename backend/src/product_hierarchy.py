@@ -5,6 +5,7 @@ categories registered by managers/admins in MongoDB.
 """
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 from typing import Any, Dict, List
@@ -16,6 +17,9 @@ from config.settings import PROJECT_ROOT
 from db.models import CUSTOM_CATEGORIES
 
 logger = logging.getLogger(__name__)
+
+# Fallback pre-compiled hierarchy dataset (713 canonical lines extracted from master sheet)
+_JSON_FALLBACK_PATH = Path(__file__).resolve().parent / "product_hierarchy_data.json"
 
 # Search paths for the Excel file
 _EXCEL_CANDIDATE_PATHS = [
@@ -56,6 +60,36 @@ def load_base_hierarchy() -> tuple[Dict[str, Dict[str, List[str]]], List[Dict[st
             break
 
     if not excel_path:
+        if _JSON_FALLBACK_PATH.is_file():
+            try:
+                with open(_JSON_FALLBACK_PATH, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                for item in data:
+                    div = _clean_str(item.get("division"))
+                    sec = _clean_str(item.get("section"))
+                    dep = _clean_str(item.get("department"))
+                    if not div or not sec or not dep:
+                        continue
+                    if div not in tree:
+                        tree[div] = {}
+                    if sec not in tree[div]:
+                        tree[div][sec] = []
+                    if dep not in tree[div][sec]:
+                        tree[div][sec].append(dep)
+                    raw_lines.append({
+                        "division": div,
+                        "section": sec,
+                        "department": dep,
+                        "label": item.get("label", f"{div} ➔ {sec} ➔ {dep}"),
+                        "raw": item.get("raw", f"{div} -> {sec} -> {dep}"),
+                    })
+                logger.info("Successfully loaded %d base hierarchy lines from %s", len(raw_lines), _JSON_FALLBACK_PATH.name)
+                _CACHED_HIERARCHY = tree
+                _CACHED_RAW_LINES = raw_lines
+                return tree, raw_lines
+            except Exception as exc:
+                logger.warning("Could not read fallback JSON hierarchy: %s", exc)
+
         logger.warning("Unique Division,Section, Department.xlsx not found at candidate paths: %s", _EXCEL_CANDIDATE_PATHS)
         _CACHED_HIERARCHY = tree
         _CACHED_RAW_LINES = raw_lines

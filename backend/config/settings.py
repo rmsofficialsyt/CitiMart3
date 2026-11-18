@@ -16,6 +16,7 @@ src/daily_context.py's weather lookups.
 """
 from __future__ import annotations
 
+import os
 from datetime import time
 from pathlib import Path
 
@@ -25,6 +26,16 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CACHE_DIR = PROJECT_ROOT / ".cache"
 CACHE_DIR.mkdir(exist_ok=True)
+
+# Default logs directory: repository root logs/ when present in monorepo, else backend/logs/
+_custom_log_dir = os.environ.get("LOG_DIR")
+if _custom_log_dir:
+    LOGS_DIR = Path(_custom_log_dir).resolve()
+elif (PROJECT_ROOT.parent / "frontend").exists():
+    LOGS_DIR = PROJECT_ROOT.parent / "logs"
+else:
+    LOGS_DIR = PROJECT_ROOT / "logs"
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 CURRENCY_SYMBOL = "₹"  # INR rupee sign
 

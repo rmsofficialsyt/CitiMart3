@@ -75,7 +75,8 @@ __pycache__/
 
 # Logs and run-time output.
 *.log
-logs/
+logs/*
+!logs/.gitkeep
 
 # Build output.
 dist/

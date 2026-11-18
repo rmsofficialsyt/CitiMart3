@@ -1,0 +1,3 @@
+# CITIMART Daily Operations - Backend Logs Directory
+# This directory holds rotated runtime logs when backend runs standalone.
+# Individual .log files are ignored by git via .gitignore.

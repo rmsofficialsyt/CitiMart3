@@ -1,0 +1,3 @@
+# CITIMART Daily Operations - Logs Directory
+# This directory holds rotated runtime logs (app.log, error.log, access.log, audit.log, worker.log).
+# Individual .log files are ignored by git via .gitignore.
