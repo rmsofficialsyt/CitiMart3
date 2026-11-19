@@ -72,6 +72,8 @@ STAFF_MEMBERS = "staff_members"
 STAFF_ATTENDANCE = "staff_attendance"
 STOCK_SETTINGS = "stock_settings"
 AUDIT_LOGS = "audit_logs"
+CHAT_SESSIONS = "chat_sessions"
+CHAT_MESSAGES = "chat_messages"
 
 
 def ensure_indexes(db: Database) -> None:
@@ -85,6 +87,9 @@ def ensure_indexes(db: Database) -> None:
     db[BILLS].create_index([("entry_date", 1), ("store_code", 1)])
     db[BILLS].create_index([("store_code", 1), ("entry_date", 1), ("time_slot", 1)])
     # ESR compound indexes eliminating in-memory sorting:
+    db[BILLS].create_index([("store_code", 1), ("entry_date", -1)])
+    db[BILLS].create_index([("entry_date", -1)])
+    db[BILLS].create_index([("store_code", 1), ("entry_date", 1), ("bill_time", -1)])
     db[BILLS].create_index([("store_code", 1), ("entry_date", 1), ("bill_time", 1)])
     db[BILLS].create_index([("store_code", 1), ("entry_date", 1), ("net_amount", 1), ("bill_quantity", 1)])
 
@@ -107,9 +112,19 @@ def ensure_indexes(db: Database) -> None:
     db[DIRECTIVES].create_index([("created_at", -1)])
     db[DIRECTIVES].create_index([("active", 1)])
     db[REQUISITIONS].create_index([("store_code", 1), ("date", 1)])
+    db[REQUISITIONS].create_index([("store_code", 1), ("created_at", -1)])
     db[REQUISITIONS].create_index([("created_at", -1)])
     db[REQUISITIONS].create_index([("status", 1)])
     db[CUSTOM_CATEGORIES].create_index([("division", 1), ("section", 1), ("department", 1)], unique=True)
+
+    # Chatbot Session Memory ESR Indexes
+    db[CHAT_SESSIONS].create_index([("session_id", 1)], unique=True)
+    db[CHAT_SESSIONS].create_index([("user_id", 1), ("updated_at", -1)])
+    db[CHAT_SESSIONS].create_index([("store_code", 1), ("updated_at", -1)])
+    db[CHAT_SESSIONS].create_index([("updated_at", -1)])
+
+    db[CHAT_MESSAGES].create_index([("session_id", 1), ("timestamp", -1)])
+    db[CHAT_MESSAGES].create_index([("session_id", 1), ("timestamp", 1)])
 
     # Stocks Management indexes
     db[STOCK_INVENTORY].create_index([("store_code", 1), ("barcode", 1)], unique=True)

@@ -47,6 +47,12 @@ python-pptx==1.0.2
 # --- local Streamlit dashboard (streamlit_daily_app.py) ---
 streamlit==1.61.1
 
+# --- AI Chatbot & LangGraph Multi-Agent Stack ---
+google-genai>=1.0.0
+langchain>=0.3.0
+langgraph>=0.2.0
+duckduckgo-search>=7.0.0
+
 # --- test ---
 pytest==9.1.1
 mongomock==4.3.0                # in-memory MongoDB for the whole suite

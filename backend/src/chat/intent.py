@@ -1,0 +1,264 @@
+"""Single source of truth for copilot query intent (EN / বাংলা / हिंदी).
+
+Every routing decision in the chat pipeline -- which sub-agents run, which
+tools DbOpsAgent calls, which fallback card the synthesizer renders, which
+recovery window the target agent uses -- reads ONE `IntentResult` produced
+here. Before this module each of those layers ran its own raw substring
+keyword list, and they disagreed: "past 7 *operating* days" missed the
+history table, "Week-over-Week" (hyphenated) missed WoW, "Compare…" in the
+WoW preset fired the admin-only network ranking, "this month" in the
+peak-day preset made the synthesizer answer with MTD, and a date such as
+"14 Nov" silently switched the target agent to a 14-day window.
+
+Rules that keep it predictable:
+- The query is normalised first (lowercase, hyphens/underscores to spaces,
+  Bengali/Devanagari digits to ASCII) so preset wording variants match.
+- Intents are tested in a fixed SPECIFICITY ORDER; the first hit is
+  `primary`, every later hit is a `secondary` (extra grounding data only).
+- Indic words are matched with script-aware boundaries (`_bn`/`_hi`):
+  Python's `\\b` is unreliable around Devanagari/Bengali combining marks
+  (e.g. Hindi "कल" = yesterday must not match inside "कलेक्शन").
+"""
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+
+# --- normalisation -----------------------------------------------------------
+
+_DIGIT_MAP = str.maketrans("০১২৩৪৫৬৭৮৯०१२३४५६७८९", "01234567890123456789")
+_SEPARATORS = re.compile(r"[\-_–—]+")
+_WS = re.compile(r"\s+")
+
+
+def normalize(query: str) -> str:
+    text = (query or "").translate(_DIGIT_MAP).lower()
+    text = _SEPARATORS.sub(" ", text)
+    return _WS.sub(" ", text).strip()
+
+
+def _bn(word: str) -> str:
+    """Bengali word with a script-aware left boundary (suffixes like -এর allowed)."""
+    return rf"(?<![ঀ-৿]){word}"
+
+
+def _hi(word: str, whole: bool = False) -> str:
+    """Hindi word with a script-aware left boundary (and right one if `whole`)."""
+    right = r"(?![ऀ-ॿ])" if whole else ""
+    return rf"(?<![ऀ-ॿ]){word}{right}"
+
+
+def _any(*patterns: str) -> re.Pattern[str]:
+    return re.compile("|".join(f"(?:{p})" for p in patterns))
+
+
+# --- intent patterns ----------------------------------------------------------
+
+_FORMULA = _any(r"\bformulas?\b", r"\bdefinitions?\b", r"\bhow (is|are) .{0,30} calculated\b",
+                _bn("সূত্র"), _hi("सूत्र"), _hi("फॉर्मूल"))
+
+_TARGET_ADJUST = _any(
+    r"\badjust(ed|ment)?\b", r"\bcarry ?forward\b", r"\brolling\b", r"\bdeficit\b",
+    r"\brecovery\b", r"\ba_?t ?= ?t_?t",
+    _bn("অ্যাডজাস্টমেন্ট"), _bn("ক্যারি ফরোয়ার্ড"), _bn("রোলিং"), _bn("ডেফিসিট"), _bn("রিকভারি"), _bn("ঘাটতি"),
+    _hi("एडजस्टमेंट"), _hi("समायोजन"), _hi("कैरी फॉरवर्ड"), _hi("रोलिंग"), _hi("डेफिसिट"), _hi("रिकवरी"),
+)
+_SIMULATE = _any(r"\bsimulat", r"\boptions?\b", r"\bwhich (recovery|window|pace)\b", r"\bwindows\b",
+                 r"\bvs\b|\bversus\b", _bn("তুলনা"), _bn("সিমুলেশন"), _hi("सिमुलेशन"), _hi("तुलना"), _hi("विकल्प"))
+
+_WOW = _any(r"\bweek over week\b", r"\bwow\b", r"\bsame (week)?day (of the week )?(last|previous|prior) week\b",
+            r"\bsame day of the week\b", r"\bsame weekday\b", r"\bprior weeks?\b",
+            _bn("গত সপ্তাহের একই দিন"), _hi("पिछले हफ्ते इसी दिन"), _hi("पिछले सप्ताह इसी दिन"))
+
+_PEAK_DIP = _any(
+    r"\b(best|peak|highest|top|worst|lowest|weakest|dip) (sales )?(peak |dip )?(sales )?day\b",
+    r"\b(best|worst) performing day\b",
+    _bn("পিক ডে"), _bn("সর্বোচ্চ সেলসের দিন"), _bn("সর্বনিম্ন সেলসের দিন"), _bn("সেরা দিন"),
+    _hi("पीक डे"), _hi("सबसे ज्यादा बिक्री वाला दिन"), _hi("सबसे कम बिक्री वाला दिन"), _hi("सबसे अच्छा दिन"),
+)
+
+# "past 7 days", "last 14 operating days", "বিগত 7 দিনের", "पिछले 7 दिनों"
+_HISTORY_N = re.compile(
+    r"(?:\b(?:past|last|previous|recent)|" + _bn("(?:বি)?গত") + "|" + _hi("पिछले") + r")\s+"
+    r"(\d{1,2})\s+(?:operating |business |trading |working )?(?:days?\b|দিন|दिन)"
+)
+_HISTORY_WORDS = _any(r"\b(past|last|previous) (week|fortnight)\b", r"\bhistory table\b", r"\bdaily trend\b",
+                      r"\bday by day\b", _bn("গত সপ্তাহ"), _hi("पिछले हफ्ते"))
+
+_MTD = _any(r"\bmtd\b", r"\bmonth to date\b", r"\bthis month\b", r"\bcurrent month\b", r"\brun ?rate\b",
+            _bn("চলতি মাস"), _bn("এই মাসের"), _hi("इस महीने"), _hi("महीने का"))
+
+_YOY = _any(r"\byoy\b", r"\byear over year\b", r"\btally growth\b", r"\b(previous|last|prior) year\b",
+            _bn("গত বছর"), _bn("পূর্ববর্তী বছর"), _bn("ট্যালি গ্রোথ"),
+            _hi("पिछले साल"), _hi("पिछले वर्ष"), _hi("टैली ग्रोथ"))
+
+_SURGE = _any(r"\bevening (peak|surge|rush)\b", r"\bpeak (hours?|surge|rush)\b", r"\b5 ?pm\b",
+              _bn("সন্ধ্যা"), _bn("পিক আওয়ার"), _hi("शाम", whole=True), _hi("पीक ऑवर"))
+
+_WEATHER = _any(r"\bweather\b", r"\brain", r"\btemperature\b", _bn("আবহাওয়া"), _bn("বৃষ্টি"),
+                _hi("मौसम"), _hi("बारिश"))
+_MARKET = _any(r"\bfestivals?\b", r"\bpuja\b", r"\bdiwali\b", r"\beid\b", r"\bwedding season\b",
+               _bn("উৎসব"), _bn("পূজা"), _hi("त्योहार"))
+
+_RANK_STRONG = _any(r"\brank(ing|ings)?\b", r"\bbenchmark", r"\bnetwork\b", r"\bleaderboard\b", _hi("रैंकिंग"))
+_COMPARE = _any(r"\bcompar", _bn("তুলনা"), _hi("तुलना"))
+_STORES = _any(r"\b(all|three|3|each|every|other) stores?\b", r"\bacross (all )?(the )?stores\b",
+               r"new market.{0,40}hatibagan", r"\bstores\b",
+               _bn("স্টোরের"), _bn("৩টি স্টোর"), "3টি স্টোর", _hi("स्टोर्स"), _hi("तीनों"))
+
+_BILLS = _any(r"\b(highest|largest|biggest|single) (single )?bill\b", r"\bticket size\b", r"\btransactions?\b(?! value)",
+              r"\bbilling stream\b", r"\bbills\b",
+              _bn("একক বিল"), _bn("টিকিট সাইজ"), _bn("লেনদেন"), _hi("सिंगल बिल"), _hi("टिकट साइज"))
+
+_REQUISITIONS = _any(r"\brequisitions?\b", r"\bstock\b", r"\binventory\b", _bn("রিকুইজিশন"), _bn("স্টক"),
+                     _hi("रिक्विजिशन"), _hi("स्टॉक"))
+_DIRECTIVES = _any(r"\bdirectives?\b", r"\bsop\b", r"\braphael\b", r"\bannouncements?\b", r"\bhead office\b",
+                   _bn("নির্দেশ"), _bn("রাফায়েল"), _hi("निर्देश"), _hi("राफेल"))
+
+_COACHING = _any(r"\btactics?\b", r"\bsuggest\b", r"\bhow (can|do|should|to)\b", r"\bstrateg", r"\bplaybook\b",
+                 r"\bchecklist\b", r"\btips?\b", r"\bways to\b",
+                 _bn("স্ট্র্যাটেজি"), _bn("কৌশল"), _bn("কীভাবে"), _bn("করণীয়"),
+                 _hi("तरीके"), _hi("कैसे"), _hi("चेकलिस्ट"), _hi("उपाय"))
+
+_TIMESLOT = _any(r"\btime ?slots?\b", r"\bslots?\b", r"\bhourly\b", _bn("স্লট"), _hi("स्लॉट"))
+
+_TODAY = _any(r"\btoday('?s)?\b", r"\bright now\b", r"\bso far\b", _bn("আজ"), _hi("आज", whole=True))
+
+_WINDOW = re.compile(r"\b(7|14|30)\s*(?:days?|দিন|दिन|दिवसीय)")
+_WINDOW_WORDS = {"seven": 7, "fourteen": 14, "thirty": 30, "fortnight": 14}
+
+# Intents in specificity order. Earlier = more specific = wins `primary`.
+INTENT_ORDER: tuple[str, ...] = (
+    "formula",
+    "target_simulate",
+    "target_adjust",
+    "wow",
+    "peak_dip",
+    "history_n_days",
+    "mtd",
+    "yoy",
+    "surge",
+    "weather",
+    "market",
+    "ranking",
+    "coaching",
+    "bills",
+    "requisitions",
+    "directives",
+    "timeslot",
+)
+
+# Primary intents whose answer is advice, not a figure lookup.
+ADVICE_INTENTS = frozenset({"coaching", "surge"})
+
+
+@dataclass
+class IntentResult:
+    primary: str = "day_kpis"
+    secondary: list[str] = field(default_factory=list)
+    window_days: int | None = None        # target recovery window (7/14/30), only if stated
+    history_days: int | None = None       # N in "past N days"
+    explicit_today: bool = False
+    normalized: str = ""
+
+    @property
+    def all(self) -> list[str]:
+        return [self.primary, *self.secondary]
+
+    def has(self, name: str) -> bool:
+        return name in self.all
+
+
+def _matches(intent: str, q: str) -> bool:
+    if intent == "formula":
+        return bool(_FORMULA.search(q))
+    if intent == "target_adjust":
+        return bool(_TARGET_ADJUST.search(q))
+    if intent == "target_simulate":
+        if not _TARGET_ADJUST.search(q):
+            return False
+        distinct_windows = {m.group(1) for m in _WINDOW.finditer(q)}
+        return bool(_SIMULATE.search(q)) or len(distinct_windows) >= 2
+    if intent == "wow":
+        return bool(_WOW.search(q))
+    if intent == "peak_dip":
+        return bool(_PEAK_DIP.search(q))
+    if intent == "history_n_days":
+        return bool(_HISTORY_N.search(q) or _HISTORY_WORDS.search(q))
+    if intent == "mtd":
+        return bool(_MTD.search(q))
+    if intent == "yoy":
+        return bool(_YOY.search(q))
+    if intent == "surge":
+        return bool(_SURGE.search(q))
+    if intent == "weather":
+        return bool(_WEATHER.search(q))
+    if intent == "market":
+        return bool(_MARKET.search(q))
+    if intent == "ranking":
+        return bool(_RANK_STRONG.search(q) or (_COMPARE.search(q) and _STORES.search(q)))
+    if intent == "bills":
+        return bool(_BILLS.search(q))
+    if intent == "requisitions":
+        return bool(_REQUISITIONS.search(q))
+    if intent == "directives":
+        return bool(_DIRECTIVES.search(q))
+    if intent == "coaching":
+        return bool(_COACHING.search(q))
+    if intent == "timeslot":
+        return bool(_TIMESLOT.search(q))
+    return False
+
+
+def _history_days(q: str) -> int | None:
+    m = _HISTORY_N.search(q)
+    if m:
+        n = int(m.group(1))
+        return n if 1 <= n <= 90 else None
+    if "fortnight" in q:
+        return 14
+    if _HISTORY_WORDS.search(q):
+        return 7
+    return None
+
+
+def _window_days(q: str) -> int | None:
+    m = _WINDOW.search(q)
+    if m:
+        return int(m.group(1))
+    for word, n in _WINDOW_WORDS.items():
+        if re.search(rf"\b{word}\b", q):
+            return n
+    return None
+
+
+def detect_intent(query: str) -> IntentResult:
+    q = normalize(query)
+    hits = [name for name in INTENT_ORDER if _matches(name, q)]
+
+    # target_simulate implies target_adjust; never list both.
+    if "target_simulate" in hits and "target_adjust" in hits:
+        hits.remove("target_adjust")
+    # A 7-day *recovery window* is not a 7-day history table request.
+    if any(h in hits for h in ("target_simulate", "target_adjust")) and "history_n_days" in hits:
+        hits.remove("history_n_days")
+    # "same day last week" also matches the generic "last week" history words.
+    if "wow" in hits and "history_n_days" in hits and not _HISTORY_N.search(q):
+        hits.remove("history_n_days")
+
+    # A KPI formula answer needs no data, so other hits add nothing.
+    if hits and hits[0] == "formula":
+        hits = ["formula"]
+
+    primary = hits[0] if hits else "day_kpis"
+    # The single-day card already carries the 4-slot breakdown.
+    if primary == "timeslot":
+        primary, hits = "day_kpis", ["day_kpis", *hits]
+    return IntentResult(
+        primary=primary,
+        secondary=hits[1:],
+        window_days=_window_days(q) if primary.startswith("target") else None,
+        history_days=_history_days(q),
+        explicit_today=bool(_TODAY.search(q)),
+        normalized=q,
+    )

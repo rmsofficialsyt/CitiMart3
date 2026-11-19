@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import {
+  Bot,
   ChevronDown,
   FileOutput,
   PanelRightClose,
@@ -26,6 +27,8 @@ interface TopBarProps {
   username?: string;
   roleLabel?: string;
   onSignOut?: () => void;
+  isChatOpen?: boolean;
+  onToggleChat?: () => void;
 }
 
 const ICON_BTN = "size-9 shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground";
@@ -39,6 +42,8 @@ export function TopBar({
   showPanelToggle = true,
   showReportButton = false,
   onOpenReport,
+  isChatOpen = false,
+  onToggleChat,
 }: TopBarProps) {
   const isMobile = useIsMobile();
   const [metaOpen, setMetaOpen] = useState(false);
@@ -136,6 +141,31 @@ export function TopBar({
                 <PanelRightOpen className="h-4 w-4" />
               )}
             </Button>
+          )}
+
+          {/* AI Retail Co-Pilot Circular Button */}
+          {onToggleChat && (
+            <motion.button
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              type="button"
+              onClick={onToggleChat}
+              aria-label={isChatOpen ? "Close CITIMART AI Co-Pilot" : "Open CITIMART AI Co-Pilot"}
+              aria-expanded={isChatOpen}
+              title="CITIMART Retail AI Assistant (Shift Co-Pilot)"
+              className={`relative flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 text-white shadow-md transition-all duration-200 border cursor-pointer ${
+                isChatOpen
+                  ? "border-indigo-300 ring-2 ring-indigo-400 ring-offset-2 ring-offset-background shadow-[0_0_16px_rgba(99,102,241,0.55)] scale-105"
+                  : "border-indigo-400/40 hover:border-indigo-300 hover:shadow-[0_0_14px_rgba(99,102,241,0.35)]"
+              }`}
+            >
+              <Bot className="size-4 sm:size-4.5" />
+              {/* Online pulsing emerald status dot */}
+              <span className="absolute -top-0.5 -right-0.5 flex size-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-80" />
+                <span className="relative inline-flex size-2.5 rounded-full bg-emerald-400 border border-slate-900" />
+              </span>
+            </motion.button>
           )}
 
           {/* Operational Head Avatar & Directives Button */}

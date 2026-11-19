@@ -262,16 +262,20 @@ export const api = {
 
   sendChatMessage: (payload: {
     message: string;
-    conversation_history?: Array<{ role: "user" | "assistant" | "system"; content: string }>;
+    session_id?: string | null;
     store_code?: string;
-    date_str?: string;
-    language?: "en" | "hi" | "bn";
+    target_date?: string;
+    language?: string;
+    conversation_history?: Array<{ role: "user" | "assistant" | "system"; content: string }>;
   }) =>
     postJSON<{
+      session_id?: string;
       reply: string;
-      engine: string;
-      store: string;
-      date: string;
+      subagents_executed?: string[];
+      tools_executed?: string[];
+      engine?: string;
+      store_code?: string;
+      target_date?: string;
     }>("/api/daily/chat", payload),
 
   // Product Requisitions
@@ -417,4 +421,15 @@ export const api = {
 
   saveBatchAttendance: (payload: { store_code: string; date: string; records: any[] }) =>
     postJSON<{ status: string; saved_count: number; records: any[] }>("/api/daily/staff/attendance/batch", payload),
+
+  listChatSessions: (storeCode?: string) => {
+    const qs = storeCode ? `?store_code=${storeCode}` : "";
+    return getJSON<{ sessions: any[] }>(`/api/daily/chat/sessions${qs}`);
+  },
+
+  getChatSessionHistory: (sessionId: string) =>
+    getJSON<{ session_id: string; messages: any[] }>(`/api/daily/chat/sessions/${sessionId}`),
+
+  deleteChatSession: (sessionId: string) =>
+    authFetch(apiUrl(`/api/daily/chat/sessions/${sessionId}`), { method: "DELETE" }),
 };

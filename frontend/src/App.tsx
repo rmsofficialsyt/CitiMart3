@@ -51,6 +51,7 @@ export default function App() {
 
   const [dailyStore, setDailyStore] = useState<DailyStoreSel>(OVERALL_STORE_ID);
   const [dailyView, setDailyView] = useState<DailyView>("dashboard");
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const effectiveStore: DailyStoreSel = isManager && forcedStore ? forcedStore : dailyStore;
   const isOverall = effectiveStore === OVERALL_STORE_ID;
@@ -126,6 +127,8 @@ export default function App() {
           await signOut();
           navigate("/", { replace: true });
         }}
+        isChatOpen={isChatOpen}
+        onToggleChat={() => setIsChatOpen((prev) => !prev)}
       />
 
       <div className="flex flex-col lg:flex-row items-start min-h-[calc(100vh-4.25rem)]">
@@ -173,7 +176,11 @@ export default function App() {
         </main>
       </div>
 
-      <AiChatbot activeStore={targetStoreCode} />
+      <AiChatbot
+        activeStore={targetStoreCode}
+        isOpen={isChatOpen}
+        onOpenChange={setIsChatOpen}
+      />
       <Toaster />
     </div>
   );
