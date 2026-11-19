@@ -1,19 +1,26 @@
 import { useMutation } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  ArrowUpDown,
+  Award,
   Bot,
+  Calendar,
   Check,
   Clock,
+  CloudRain,
   Copy,
   Flame,
+  History,
   IndianRupee,
   Layers,
   Maximize2,
   Minimize2,
+  Plus,
   RefreshCw,
   Send,
   Sparkles,
   Store,
+  Target,
   Trash2,
   TrendingUp,
   User,
@@ -24,7 +31,6 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { api } from "@/api/client";
-import { useAuth } from "@/auth/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/context/LanguageContext";
 import type { Language } from "@/lib/translations";
@@ -40,11 +46,14 @@ interface ChatMessage {
 interface AiChatbotProps {
   activeStore?: string;
   selectedDate?: string;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showFloatingTrigger?: boolean;
 }
 
 export interface PresetItem {
   id: string;
-  category: "all" | "sales" | "conversion" | "peakhours" | "benchmark" | "sop" | "formula";
+  category: "all" | "sales" | "history" | "target_adjust" | "conversion" | "peakhours" | "market" | "benchmark" | "sop" | "formula";
   categoryLabel: string;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
@@ -53,9 +62,12 @@ export interface PresetItem {
 
 const PRESET_CATEGORIES: { id: PresetItem["category"]; labelEn: string; labelBn: string; labelHi: string }[] = [
   { id: "all", labelEn: "All Presets", labelBn: "সকল প্রশ্ন", labelHi: "सभी प्रश्न" },
+  { id: "history", labelEn: "📅 History & Sales", labelBn: "📅 পূর্বের সেলস ও ইতিহাস", labelHi: "📅 पिछली बिक्री व इतिहास" },
+  { id: "target_adjust", labelEn: "🎯 Target Recovery", labelBn: "🎯 টার্গেট অ্যাডজাস্টমেন্ট", labelHi: "🎯 टारगेट रिकवरी" },
   { id: "sales", labelEn: "📈 Sales & Targets", labelBn: "📈 সেলস ও টার্গেট", labelHi: "📈 सेल्स व टारगेट" },
-  { id: "conversion", labelEn: "🎯 Conversion & ATV", labelBn: "🎯 কনভার্সন ও ATV", labelHi: "🎯 कन्वर्शन व ATV" },
+  { id: "conversion", labelEn: "⚡ Conversion & ATV", labelBn: "⚡ কনভার্সন ও ATV", labelHi: "⚡ कन्वर्शन व ATV" },
   { id: "peakhours", labelEn: "⏰ Peak Hours Pacing", labelBn: "⏰ পিক আওয়ার্স স্ট্র্যাটেজি", labelHi: "⏰ पीक ऑवर्स रणनीति" },
+  { id: "market", labelEn: "🌦️ Market & Weather", labelBn: "🌦️ আবহাওয়া ও বাজার ইনটেল", labelHi: "🌦️ मौसम व बाज़ार" },
   { id: "benchmark", labelEn: "🏬 Store Benchmark", labelBn: "🏬 ৩টি স্টোরের তুলনা", labelHi: "🏬 स्टोर्स तुलना" },
   { id: "sop", labelEn: "📋 SOP & Directives", labelBn: "📋 বসের নির্দেশনা", labelHi: "📋 मुख्य निर्देश" },
   { id: "formula", labelEn: "📐 KPI Formulas", labelBn: "📐 গাণিতিক সূত্র", labelHi: "📐 आधिकारिक सूत्र" },
@@ -63,6 +75,62 @@ const PRESET_CATEGORIES: { id: PresetItem["category"]; labelEn: string; labelBn:
 
 const PROMPT_PRESETS: Record<"en" | "hi" | "bn", PresetItem[]> = {
   en: [
+    {
+      id: "hist_yesterday",
+      category: "history",
+      categoryLabel: "History & Sales",
+      icon: History,
+      label: "Yesterday's Full Sales & 4-Slot Pacing",
+      prompt: "Show yesterday's complete sales report including net sales, target achievement %, footfall, conversion %, ATV, and 4-time-slot breakdown.",
+    },
+    {
+      id: "hist_7days",
+      category: "history",
+      categoryLabel: "History & Sales",
+      icon: Calendar,
+      label: "Past 7 Days Daily Sales Trend Table",
+      prompt: "Show a day-by-day table of our past 7 operating days with net sales, targets, footfall, bills, ATV, and overall daily averages.",
+    },
+    {
+      id: "hist_mtd",
+      category: "history",
+      categoryLabel: "History & Sales",
+      icon: TrendingUp,
+      label: "Month-To-Date (MTD) Sales Pacing",
+      prompt: "Calculate our Month-To-Date (MTD) cumulative sales, active days, achievement %, and required daily run-rate for the rest of the month.",
+    },
+    {
+      id: "hist_peak_day",
+      category: "history",
+      categoryLabel: "History & Sales",
+      icon: Award,
+      label: "Best Peak Day vs Lowest Dip Day",
+      prompt: "What was our highest sales peak day and lowest sales dip day this month, and what were the contributing factors?",
+    },
+    {
+      id: "hist_wow",
+      category: "history",
+      categoryLabel: "History & Sales",
+      icon: ArrowUpDown,
+      label: "Week-over-Week (WoW) Comparison",
+      prompt: "Compare our performance against the same weekday last week and two weeks ago (Week-over-Week momentum).",
+    },
+    {
+      id: "target_7d",
+      category: "target_adjust",
+      categoryLabel: "Target Recovery",
+      icon: Target,
+      label: "7-Day Rolling Target Adjustment (At = Tt + Ct)",
+      prompt: "Calculate our 7-day rolling target adjustment (At = Tt + Ct). Show original target, carry-forward, adjusted target, and remaining balance.",
+    },
+    {
+      id: "target_sim",
+      category: "target_adjust",
+      categoryLabel: "Target Recovery",
+      icon: Sparkles,
+      label: "Simulate 7-Day vs 14-Day vs 30-Day Recovery",
+      prompt: "Simulate rolling deficit recovery across 7-day vs 14-day vs 30-day windows. Which recovery pace is safest for our store?",
+    },
     {
       id: "sales_today",
       category: "sales",
@@ -76,8 +144,8 @@ const PROMPT_PRESETS: Record<"en" | "hi" | "bn", PresetItem[]> = {
       category: "sales",
       categoryLabel: "Sales & Targets",
       icon: TrendingUp,
-      label: "YoY Growth (08.10.2026 vs 08.10.2025)",
-      prompt: "What is our YoY growth comparing baseline 08.10.2026 vs previous year 08.10.2025?",
+      label: "YoY Growth Benchmark",
+      prompt: "What is our YoY growth comparing current operating performance against the previous year same day?",
     },
     {
       id: "sales_bills",
@@ -104,14 +172,6 @@ const PROMPT_PRESETS: Record<"en" | "hi" | "bn", PresetItem[]> = {
       prompt: "How can cashiers and sales staff actively push Average Transaction Value (ATV) above ₹1,800 and basket size above 2.8?",
     },
     {
-      id: "stock_req",
-      category: "sop",
-      categoryLabel: "SOP & Directives",
-      icon: Layers,
-      label: "Product Requisitions & Stock Shortage",
-      prompt: "Show the latest product requisition slips, pending stock demands, and urgent items.",
-    },
-    {
       id: "peak_evening",
       category: "peakhours",
       categoryLabel: "Peak Hours Pacing",
@@ -120,12 +180,36 @@ const PROMPT_PRESETS: Record<"en" | "hi" | "bn", PresetItem[]> = {
       prompt: "What is the priority checklist for floor supervisors during the primary evening peak surge (5 PM - 8 PM)?",
     },
     {
+      id: "market_weather",
+      category: "market",
+      categoryLabel: "Market & Weather",
+      icon: CloudRain,
+      label: "Kolkata Weather & Footfall Forecast",
+      prompt: "What is the live Kolkata weather and rain probability today, and how will it impact afternoon and evening footfall in New Market, Hatibagan, and Chowringhee?",
+    },
+    {
+      id: "market_festivals",
+      category: "market",
+      categoryLabel: "Market & Weather",
+      icon: Store,
+      label: "Kolkata Festivals & Shopping Rush",
+      prompt: "What upcoming Kolkata festivals, weekend dates, and wedding season surges should we prepare inventory and extra staff for?",
+    },
+    {
       id: "bench_ranking",
       category: "benchmark",
       categoryLabel: "Store Benchmark",
       icon: Store,
       label: "Compare All 3 Kolkata Stores",
       prompt: "Compare live sales, target achievement, and ATV across New Market, Hatibagan, and Chowringhee.",
+    },
+    {
+      id: "stock_req",
+      category: "sop",
+      categoryLabel: "SOP & Directives",
+      icon: Layers,
+      label: "Product Requisitions & Stock Shortage",
+      prompt: "Show the latest product requisition slips, pending stock demands, and urgent items.",
     },
     {
       id: "sop_directives",
@@ -146,6 +230,54 @@ const PROMPT_PRESETS: Record<"en" | "hi" | "bn", PresetItem[]> = {
   ],
   bn: [
     {
+      id: "hist_yesterday",
+      category: "history",
+      categoryLabel: "পূর্বের সেলস",
+      icon: History,
+      label: "গতকালের পূর্ণাঙ্গ সেলস ও ৪-স্লট রিপোর্ট",
+      prompt: "গতকালের সম্পূর্ণ সেলস রিপোর্ট দিন—যার মধ্যে নেট সেলস, টার্গেট অর্জন, ফুটফল, কনভার্সন %, ATV এবং ৪টি সময়ভিত্তিক স্লটের হিসেব থাকবে।",
+    },
+    {
+      id: "hist_7days",
+      category: "history",
+      categoryLabel: "পূর্বের সেলস",
+      icon: Calendar,
+      label: "বিগত ৭ দিনের দৈনিক সেলস টেবিল",
+      prompt: "বিগত ৭ দিনের দৈনিক সেলস, টার্গেট, ফুটফল, বিল সংখ্যা ও ATV সম্বলিত একটি টেবিল এবং দৈনিক গড় দেখান।",
+    },
+    {
+      id: "hist_mtd",
+      category: "history",
+      categoryLabel: "পূর্বের সেলস",
+      icon: TrendingUp,
+      label: "চলতি মাসের MTD সেলস ও প্রয়োজনীয় রান-রেট",
+      prompt: "চলতি মাসের MTD মোট সেলস, সক্রিয় দিন, অর্জন % এবং বাকি দিনগুলির জন্য প্রয়োজনীয় দৈনিক রান-রেট হিসেব করুন।",
+    },
+    {
+      id: "hist_peak_day",
+      category: "history",
+      categoryLabel: "পূর্বের সেলস",
+      icon: Award,
+      label: "মাসের সর্বোচ্চ ও সর্বনিম্ন সেলসের দিন",
+      prompt: "এই মাসে আমাদের স্টোরের সর্বোচ্চ সেলসের দিন (পিক ডে) এবং সর্বনিম্ন সেলসের দিন কোনটি ছিল এবং তার মেট্রিক্স কী?",
+    },
+    {
+      id: "target_7d",
+      category: "target_adjust",
+      categoryLabel: "টার্গেট রিকভারি",
+      icon: Target,
+      label: "৭ দিনের রোলিং টার্গেট অ্যাডজাস্টমেন্ট (At = Tt + Ct)",
+      prompt: "আমাদের ৭ দিনের রোলিং টার্গেট অ্যাডজাস্টমেন্ট (At = Tt + Ct) হিসেব করুন। মূল টার্গেট, ক্যারি-ফরোয়ার্ড এবং সমন্বিত টার্গেট দেখান।",
+    },
+    {
+      id: "target_sim",
+      category: "target_adjust",
+      categoryLabel: "টার্গেট রিকভারি",
+      icon: Sparkles,
+      label: "৭ বনাম ১৪ বনাম ৩০ দিনের রিকভারি সিমুলেশন",
+      prompt: "৭ দিন, ১৪ দিন এবং ৩০ দিনের রোলিং ডেফিসিট রিকভারি উইন্ডোর তুলনা করুন। আমাদের স্টোরের জন্য কোনটি সবচেয়ে নিরাপদ?",
+    },
+    {
       id: "sales_today",
       category: "sales",
       categoryLabel: "সেলস ও টার্গেট",
@@ -158,8 +290,8 @@ const PROMPT_PRESETS: Record<"en" | "hi" | "bn", PresetItem[]> = {
       category: "sales",
       categoryLabel: "সেলস ও টার্গেট",
       icon: TrendingUp,
-      label: "YoY গ্রোথ (০৮.১০.২০২৬ বনাম ০৮.১০.২০২৫)",
-      prompt: "গত বছরের একই দিন (০৮.১০.২০২৫) এর তুলনায় বেসলাইন ০৮.১০.২০২৬ এর ট্যালি গ্রোথ পেস কত শতাংশ?",
+      label: "YoY গ্রোথ পেস ও তুলনা",
+      prompt: "পূর্ববর্তী বছরের একই দিনের তুলনায় বর্তমান সেলসের ট্যালি গ্রোথ পেস কত শতাংশ?",
     },
     {
       id: "sales_bills",
@@ -186,14 +318,6 @@ const PROMPT_PRESETS: Record<"en" | "hi" | "bn", PresetItem[]> = {
       prompt: "ক্যাশ ডেস্কে ক্রস-সেলিং বাড়িয়ে কীভাবে ATV ₹১,৮০০+ এবং বাস্কেট সাইজ ২.৮+ এ নিয়ে যাওয়া যায়?",
     },
     {
-      id: "stock_req",
-      category: "sop",
-      categoryLabel: "বসের নির্দেশ",
-      icon: Layers,
-      label: "প্রোডাক্ট রিকুইজিশন ও স্টক ঘাটতি",
-      prompt: "সাম্প্রতিক প্রোডাক্ট রিকুইজিশন স্লিপ ও অপেক্ষমাণ জরুরি পণ্যের তালিকা দেখান।",
-    },
-    {
       id: "peak_evening",
       category: "peakhours",
       categoryLabel: "পিক আওয়ার্স",
@@ -202,12 +326,28 @@ const PROMPT_PRESETS: Record<"en" | "hi" | "bn", PresetItem[]> = {
       prompt: "সন্ধ্যার প্রধান পিক আওয়ারে (৫টা থেকে ৮টা) ফ্লোর সুপারভাইজারদের অগ্রাধিকারমূলক করণীয় কী?",
     },
     {
+      id: "market_weather",
+      category: "market",
+      categoryLabel: "আবহাওয়া ও বাজার",
+      icon: CloudRain,
+      label: "কলকাতার লাইভ আবহাওয়া ও ফুটফল পূর্বাভাস",
+      prompt: "আজ কলকাতার লাইভ আবহাওয়া ও বৃষ্টির সম্ভাবনা কেমন এবং এটি নিউ মার্কেট, হাতিবাগান ও চৌরঙ্গীর ফুটফলে কী প্রভাব ফেলবে?",
+    },
+    {
       id: "bench_ranking",
       category: "benchmark",
       categoryLabel: "স্টোর তুলনা",
       icon: Store,
       label: "৩টি স্টোরের লাইভ তুলনা",
       prompt: "নিউ মার্কেট, হাতিবাগান ও চৌরঙ্গী—৩টি স্টোরের লাইভ সেলস ও অ্যাচিভমেন্ট তুলনা দেখান।",
+    },
+    {
+      id: "stock_req",
+      category: "sop",
+      categoryLabel: "বসের নির্দেশ",
+      icon: Layers,
+      label: "প্রোডাক্ট রিকুইজিশন ও স্টক ঘাটতি",
+      prompt: "সাম্প্রতিক প্রোডাক্ট রিকুইজিশন স্লিপ ও অপেক্ষমাণ জরুরি পণ্যের তালিকা দেখান।",
     },
     {
       id: "sop_directives",
@@ -228,6 +368,54 @@ const PROMPT_PRESETS: Record<"en" | "hi" | "bn", PresetItem[]> = {
   ],
   hi: [
     {
+      id: "hist_yesterday",
+      category: "history",
+      categoryLabel: "पिछली बिक्री",
+      icon: History,
+      label: "कल की पूरी बिक्री व ४-स्लॉट रिपोर्ट",
+      prompt: "कल की पूरी बिक्री रिपोर्ट दें, जिसमें नेट सेल्स, टारगेट अचीवमेंट %, फुटफॉल, कन्वर्शन दर, ATV और ४-टाइम स्लॉट ब्रेकडाउन शामिल हो।",
+    },
+    {
+      id: "hist_7days",
+      category: "history",
+      categoryLabel: "पिछली बिक्री",
+      icon: Calendar,
+      label: "पिछले 7 दिनों की दैनिक बिक्री तालिका",
+      prompt: "पिछले 7 दिनों की दैनिक बिक्री, टारगेट, फुटफॉल, बिल और ATV की तालिका और कुल औसत दिखाएं।",
+    },
+    {
+      id: "hist_mtd",
+      category: "history",
+      categoryLabel: "पिछली बिक्री",
+      icon: TrendingUp,
+      label: "इस महीने की MTD बिक्री व रन-रेट",
+      prompt: "इस महीने की MTD कुल बिक्री, सक्रिय दिन, अचीवमेंट % और शेष दिनों के लिए आवश्यक दैनिक रन-रेट बताएं।",
+    },
+    {
+      id: "hist_peak_day",
+      category: "history",
+      categoryLabel: "पिछली बिक्री",
+      icon: Award,
+      label: "महीने का सबसे अच्छा व सबसे धीमा दिन",
+      prompt: "इस महीने हमारे स्टोर का सबसे ज्यादा बिक्री वाला दिन (पीक डे) और सबसे कम बिक्री वाला दिन कौन सा था?",
+    },
+    {
+      id: "target_7d",
+      category: "target_adjust",
+      categoryLabel: "टारगेट रिकवरी",
+      icon: Target,
+      label: "7-दिवसीय रोलिंग टारगेट एडजस्टमेंट (At = Tt + Ct)",
+      prompt: "हमारी 7-दिवसीय रोलिंग टारगेट एडजस्टमेंट (At = Tt + Ct) की गणना करें और मूल लक्ष्य, कैरी-फॉरवर्ड व नया लक्ष्य दिखाएं।",
+    },
+    {
+      id: "target_sim",
+      category: "target_adjust",
+      categoryLabel: "टारगेट रिकवरी",
+      icon: Sparkles,
+      label: "7 बनाम 14 बनाम 30 दिन रिकवरी सिमुलेशन",
+      prompt: "7 दिन, 14 दिन और 30 दिन की डेफिसिट रिकवरी विंडो का तुलनात्मक सिमुलेशन दिखाएं।",
+    },
+    {
       id: "sales_today",
       category: "sales",
       categoryLabel: "सेल्स व टारगेट",
@@ -240,8 +428,8 @@ const PROMPT_PRESETS: Record<"en" | "hi" | "bn", PresetItem[]> = {
       category: "sales",
       categoryLabel: "सेल्स व टारगेट",
       icon: TrendingUp,
-      label: "YoY ग्रोथ (08.10.2026 बनाम 08.10.2025)",
-      prompt: "पिछले वर्ष (08.10.2025) के मुकाबले बेसलाइन 08.10.2026 की शुद्ध बिक्री की टैली ग्रोथ क्या है?",
+      label: "YoY ग्रोथ गति व तुलना",
+      prompt: "पिछले वर्ष के समान दिन के मुकाबले वर्तमान शुद्ध बिक्री की टैली ग्रोथ क्या है?",
     },
     {
       id: "sales_bills",
@@ -268,14 +456,6 @@ const PROMPT_PRESETS: Record<"en" | "hi" | "bn", PresetItem[]> = {
       prompt: "कैशियर द्वारा क्रॉस-सेलिंग करके एवरेज टिकट साइज ₹1,800+ और बास्केट साइज 2.8+ कैसे ले जाएं?",
     },
     {
-      id: "stock_req",
-      category: "sop",
-      categoryLabel: "मुख्य निर्देश",
-      icon: Layers,
-      label: "प्रोडक्ट रिक्विजिशन व स्टॉक कमी",
-      prompt: "हालिया प्रोडक्ट रिक्विजिशन स्लिप्स, पेंडिंग स्टॉक डिमांड और अर्जेंट आइटम्स की सूची दिखाएं।",
-    },
-    {
       id: "peak_evening",
       category: "peakhours",
       categoryLabel: "पीक ऑवर्स",
@@ -284,12 +464,28 @@ const PROMPT_PRESETS: Record<"en" | "hi" | "bn", PresetItem[]> = {
       prompt: "शाम के मुख्य पीक ऑवर्स (5 PM से 8 PM) के दौरान फ्लोर मैनेजमेंट की चेकलिस्ट क्या है?",
     },
     {
+      id: "market_weather",
+      category: "market",
+      categoryLabel: "मौसम व बाज़ार",
+      icon: CloudRain,
+      label: "कोलकाता मौसम व फुटफॉल पूर्वानुमान",
+      prompt: "आज कोलकाता का मौसम और बारिश का पूर्वानुमान क्या है, और यह न्यू मार्केट, हाथीबागान व चौरंगी के फुटफॉल को कैसे प्रभावित करेगा?",
+    },
+    {
       id: "bench_ranking",
       category: "benchmark",
       categoryLabel: "स्टोर्स तुलना",
       icon: Store,
       label: "तीनों स्टोर्स की लाइव तुलना",
       prompt: "न्यू मार्केट, हाथीबागान और चौरंगी तीनों स्टोर्स की लाइव बिक्री और अचीवमेंट की तुलना करें।",
+    },
+    {
+      id: "stock_req",
+      category: "sop",
+      categoryLabel: "मुख्य निर्देश",
+      icon: Layers,
+      label: "प्रोडक्ट रिक्विजिशन व स्टॉक कमी",
+      prompt: "हालिया प्रोडक्ट रिक्विजिशन स्लिप्स, पेंडिंग स्टॉक डिमांड और अर्जेंट आइटम्स की सूची दिखाएं।",
     },
     {
       id: "sop_directives",
@@ -310,110 +506,151 @@ const PROMPT_PRESETS: Record<"en" | "hi" | "bn", PresetItem[]> = {
   ],
 };
 
-export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) {
-  const { user } = useAuth();
+export function AiChatbot({
+  activeStore = "NM",
+  selectedDate,
+  isOpen: controlledIsOpen,
+  onOpenChange,
+  showFloatingTrigger = false,
+}: AiChatbotProps) {
   const { language: globalLanguage } = useLanguage();
   const [chatLanguage, setChatLanguage] = useState<Language>(globalLanguage);
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
+  const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
+
+  const setIsOpen = (value: boolean | ((prev: boolean) => boolean)) => {
+    const nextVal = typeof value === "function" ? value(isOpen) : value;
+    if (controlledIsOpen === undefined) {
+      setInternalIsOpen(nextVal);
+    }
+    onOpenChange?.(nextVal);
+  };
+
   const [isExpanded, setIsExpanded] = useState(false);
   const [inputMessage, setInputMessage] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<PresetItem["category"]>("all");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [showSessionDrawer, setShowSessionDrawer] = useState(false);
+  const [sessionsList, setSessionsList] = useState<any[]>([]);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
 
-  // Sync with globalLanguage if not overridden locally
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const getWelcomeMessage = (lang: Language): ChatMessage => {
+    const welcomeMap: Record<Language, string> = {
+      en: `👋 **Welcome to CITIMART Retail AI Co-Pilot!**\n\nI am your dedicated operations assistant for **${activeStore}**.\n\n- Full MongoDB live database & 79+ days historical operations records\n- Yesterday's full sales, 4-time-slot breakdown & past 7-day tables\n- 7/14/30-day Rolling Deficit Target Adjustment ($A_t = T_t + C_t$)\n- Real-time Kolkata weather & floor conversion tactics (>70%)\n\n*Select a preset below or ask any operational query.*`,
+      bn: `👋 **সিটিমার্ট রিটেইল এআই কো-পাইলটে স্বাগতম!**\n\nআমি **${activeStore}** স্টোরের আপনার সার্বক্ষণিক অপারেশন অ্যাসিস্ট্যান্ট।\n\n- লাইভ মঙ্গোডিবি ও বিগত ৭৯+ দিনের ঐতিহাসিক সেলস রেকর্ড অ্যাক্সেস\n- গতকালের সেলস, ৪টি সময়ভিত্তিক স্লট ও বিগত ৭ দিনের পারফরম্যান্স টেবিল\n- ৭/১৪/৩০ দিনের রোলিং টার্গেট রিকভারি ($A_t = T_t + C_t$)\n- কলকাতার আবহাওয়া ও ফ্লোর কনভার্সন বৃদ্ধির কৌশল (>৭০%)\n\n*নিচের প্রিসেট বেছে নিন বা আপনার প্রশ্ন লিখুন।*`,
+      hi: `👋 **सिटीमार्ट रिटेल AI को-पायलट में आपका स्वागत है!**\n\nमैं **${activeStore}** स्टोर के लिए आपका समर्पित ऑपरेशंस असिस्टेंट हूँ।\n\n- लाइव मोंगोडीबी व पिछले 79+ दिनों के ऐतिहासिक रिकॉर्ड्स तक पूरी पहुंच\n- कल की कुल बिक्री, ४-टाइम स्लॉट व पिछले 7 दिनों की दैनिक तालिका\n- 7/14/30-दिवसीय रोलिंग डेफिसिट टारगेट रिकवरी ($A_t = T_t + C_t$)\n- कोलकाता का लाइव मौसम व फ्लोर कन्वर्शन दर बढ़ाने के उपाय (>70%)\n\n*नीचे दिए गए प्रीसेट चुनें या अपना प्रश्न पूछें।*`,
+    };
+    return {
+      id: "welcome",
+      role: "assistant",
+      content: welcomeMap[lang] || welcomeMap.en,
+      engine: "citimart-multi-agent-system",
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+  };
+
   useEffect(() => {
     setChatLanguage(globalLanguage);
   }, [globalLanguage]);
 
-  // Initial welcome message tailored to language
-  const getInitialMessage = (): ChatMessage => {
-    const storeLabel =
-      activeStore === "NM"
-        ? "New Market"
-        : activeStore === "HB"
-        ? "Hatibagan"
-        : activeStore === "CHW"
-        ? "Chowringhee"
-        : "All Stores";
-
-    if (chatLanguage === "bn") {
-      return {
-        id: "welcome",
-        role: "assistant",
-        content: `নমস্কার ${user?.username || "ম্যানেজার"}! আমি **CITIMART AI ডিসিশন অ্যাডভাইজার ও কো-পাইলট**। বর্তমানে **${storeLabel}** এর লাইভ ডেটা সংযুক্ত রয়েছে। আপনি আজকের সেলস টার্গেট, কনভার্সন রেট, টাইম-স্লট স্ট্র্যাটেজি বা রাফায়েল স্যারের নির্দেশাবলী সম্পর্কিত যেকোনো প্রশ্ন করতে পারেন।`,
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        engine: "CITIMART Intelligence",
-      };
-    } else if (chatLanguage === "hi") {
-      return {
-        id: "welcome",
-        role: "assistant",
-        content: `नमस्ते ${user?.username || "मैनेजर"}! मैं **CITIMART AI डिसीजन एडवाइजर व को-पायलट** हूँ। वर्तमान में **${storeLabel}** का लाइव डेटा कनेक्टेड है। आप आज के सेल्स टारगेट, कन्वर्शन रेट, पीक आवर्स रणनीति या ऑपरेशन्स हेड के निर्देशों से जुड़ा कोई भी सवाल पूछ सकते हैं।`,
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        engine: "CITIMART Intelligence",
-      };
+  // Restore active session from localStorage on store change or mount
+  useEffect(() => {
+    const storageKey = `citimart_ai_active_session_${activeStore}`;
+    const savedSessionId = localStorage.getItem(storageKey);
+    if (savedSessionId) {
+      api.getChatSessionHistory(savedSessionId)
+        .then((res) => {
+          if (res.messages && res.messages.length > 0) {
+            const restored: ChatMessage[] = res.messages.map((m: any, idx: number) => ({
+              id: `restored_${idx}_${m.timestamp || Date.now()}`,
+              role: m.role as "user" | "assistant",
+              content: m.content,
+              engine: m.metadata?.engine || "citimart-memory",
+              timestamp: m.timestamp
+                ? new Date(m.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                : new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            }));
+            setMessages(restored);
+            setActiveSessionId(savedSessionId);
+          } else {
+            setActiveSessionId(null);
+            setMessages([getWelcomeMessage(chatLanguage)]);
+          }
+        })
+        .catch(() => {
+          localStorage.removeItem(storageKey);
+          setActiveSessionId(null);
+          setMessages([getWelcomeMessage(chatLanguage)]);
+        });
+    } else {
+      setActiveSessionId(null);
+      setMessages([getWelcomeMessage(chatLanguage)]);
     }
-    return {
-      id: "welcome",
-      role: "assistant",
-      content: `Hello ${user?.username || "Manager"}! I am the **CITIMART AI Decision Advisor & Operations Co-Pilot**. Connected to **${storeLabel}** live operational state. Ask me anything about today's target gaps, conversion pacing, ATV boosters, peak hour strategies, or Operational Head's directives.`,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      engine: "CITIMART Intelligence",
-    };
-  };
+  }, [activeStore]);
 
-  const [messages, setMessages] = useState<ChatMessage[]>([getInitialMessage()]);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
-  // Auto-scroll on message additions
   useEffect(() => {
     if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages, isOpen]);
-
-  // Focus input when opened
-  useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 200);
+      setTimeout(() => inputRef.current?.focus(), 250);
     }
   }, [isOpen]);
 
-  // Chat Mutation
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen]);
+
   const chatMutation = useMutation({
-    mutationFn: (msg: string) =>
-      api.sendChatMessage({
-        message: msg,
-        conversation_history: messages.map((m) => ({ role: m.role, content: m.content })),
+    mutationFn: async ({ message, lang }: { message: string; lang: Language }) => {
+      return api.sendChatMessage({
+        message,
+        session_id: activeSessionId,
         store_code: activeStore,
-        date_str: selectedDate,
-        language: chatLanguage,
-      }),
-    onSuccess: (res) => {
+        target_date: selectedDate,
+        language: lang,
+      });
+    },
+    onSuccess: (data) => {
+      if (data.session_id) {
+        setActiveSessionId(data.session_id);
+        localStorage.setItem(`citimart_ai_active_session_${activeStore}`, data.session_id);
+      }
       const assistantMsg: ChatMessage = {
-        id: Date.now().toString(),
+        id: `assistant_${Date.now()}`,
         role: "assistant",
-        content: res.reply,
-        engine: res.engine,
+        content: data.reply || "No response received.",
+        engine: data.engine || "gemini-2.5-flash",
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
       setMessages((prev) => [...prev, assistantMsg]);
     },
-    onError: (err: Error) => {
-      toast.error(`AI Assistant error: ${err.message}`);
-      const errorMsg: ChatMessage = {
-        id: Date.now().toString(),
-        role: "assistant",
-        content:
-          chatLanguage === "bn"
-            ? "দুঃখিত, সংযোগে ত্রুটি দেখা দিয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।"
-            : chatLanguage === "hi"
-            ? "क्षमा करें, नेटवर्क में त्रुटि हुई है। कृपया पुनः प्रयास करें।"
-            : "Apologies, there was an issue processing your query. Please try again.",
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      };
-      setMessages((prev) => [...prev, errorMsg]);
+    onError: (err: any) => {
+      const errMsg = err?.response?.data?.detail || err?.message || "Failed to communicate with AI Chatbot.";
+      toast.error(errMsg);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `err_${Date.now()}`,
+          role: "assistant",
+          content: `⚠️ **Error:** ${errMsg}\n\nPlease verify network connection or your session access.`,
+          engine: "error-handler",
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        },
+      ]);
     },
   });
 
@@ -422,7 +659,7 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
     if (!text || chatMutation.isPending) return;
 
     const userMsg: ChatMessage = {
-      id: Date.now().toString(),
+      id: `user_${Date.now()}`,
       role: "user",
       content: text,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
@@ -430,177 +667,356 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
 
     setMessages((prev) => [...prev, userMsg]);
     setInputMessage("");
-    chatMutation.mutate(text);
+    chatMutation.mutate({ message: text, lang: chatLanguage });
   };
 
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
-    toast.success("Copied to clipboard!");
+    toast.success("Copied to clipboard");
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleClearChat = () => {
-    setMessages([getInitialMessage()]);
-    toast.info("Conversation cleared.");
+  const handleClearHistory = () => {
+    const storageKey = `citimart_ai_active_session_${activeStore}`;
+    localStorage.removeItem(storageKey);
+    setActiveSessionId(null);
+    setMessages([getWelcomeMessage(chatLanguage)]);
+    setShowSessionDrawer(false);
+    toast.info("Started fresh shift conversation.");
   };
 
-  const activePresetList = PROMPT_PRESETS[chatLanguage] || PROMPT_PRESETS.en;
+  const fetchSessions = async () => {
+    setIsLoadingSessions(true);
+    try {
+      const res = await api.listChatSessions(activeStore);
+      setSessionsList(res.sessions || []);
+    } catch {
+      toast.error("Failed to load shift conversations");
+    } finally {
+      setIsLoadingSessions(false);
+    }
+  };
 
-  const filteredPresets = activePresetList.filter((p) => {
-    return selectedCategory === "all" || p.category === selectedCategory;
-  });
+  const handleOpenDrawer = () => {
+    setShowSessionDrawer(true);
+    fetchSessions();
+  };
+
+  const handleSelectSession = async (sess: any) => {
+    try {
+      const res = await api.getChatSessionHistory(sess.session_id);
+      if (res.messages && res.messages.length > 0) {
+        const restored: ChatMessage[] = res.messages.map((m: any, idx: number) => ({
+          id: `restored_${idx}_${m.timestamp || Date.now()}`,
+          role: m.role as "user" | "assistant",
+          content: m.content,
+          engine: m.metadata?.engine || "citimart-memory",
+          timestamp: m.timestamp
+            ? new Date(m.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+            : new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        }));
+        setMessages(restored);
+        setActiveSessionId(sess.session_id);
+        localStorage.setItem(`citimart_ai_active_session_${activeStore}`, sess.session_id);
+        setShowSessionDrawer(false);
+        toast.success(`Loaded "${sess.title || "Shift Conversation"}"`);
+      }
+    } catch {
+      toast.error("Failed to load conversation history");
+    }
+  };
+
+  const handleDeleteSession = async (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation();
+    try {
+      await api.deleteChatSession(sessionId);
+      setSessionsList((prev) => prev.filter((s) => s.session_id !== sessionId));
+      if (activeSessionId === sessionId) {
+        handleClearHistory();
+      }
+      toast.success("Shift conversation deleted.");
+    } catch {
+      toast.error("Failed to delete session");
+    }
+  };
+
+  const currentPresets = PROMPT_PRESETS[chatLanguage] || PROMPT_PRESETS.en;
+  const filteredPresets = selectedCategory === "all"
+    ? currentPresets
+    : currentPresets.filter((p) => p.category === selectedCategory);
+
+  const getCategoryLabel = (cat: typeof PRESET_CATEGORIES[0]) => {
+    if (chatLanguage === "bn") return cat.labelBn;
+    if (chatLanguage === "hi") return cat.labelHi;
+    return cat.labelEn;
+  };
 
   return (
     <>
-      {/* Floating Trigger Button */}
-      <div className="fixed bottom-5 right-5 z-40">
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setIsOpen(true)}
-          className={`relative flex items-center gap-2.5 rounded-full px-4 py-3 text-sm font-bold text-white shadow-[0_8px_30px_rgba(79,70,229,0.35)] transition-all cursor-pointer ${
-            isOpen
-              ? "bg-slate-800 border border-slate-700 opacity-0 pointer-events-none"
-              : "bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-700 hover:from-indigo-500 hover:to-blue-500 border border-indigo-400/40"
-          }`}
-          title="Open CITIMART AI Retail Decision Advisor"
-        >
-          {/* Glowing Pulse Ring */}
-          <span className="absolute -inset-1 rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-blue-500 opacity-60 blur-[6px] animate-pulse" />
-
-          <div className="relative flex items-center justify-center size-7 rounded-full bg-white/20 backdrop-blur-sm border border-white/30">
-            <Sparkles className="size-4 text-amber-300 animate-spin" style={{ animationDuration: "8s" }} />
-          </div>
-
-          <div className="relative flex flex-col items-start leading-none text-left">
-            <span className="text-xs font-black tracking-tight flex items-center gap-1.5">
-              AI COPILOT
-              <span className="size-2 rounded-full bg-emerald-400 animate-ping" />
+      {/* Floating Trigger Button (Optional fallback, disabled by default in favor of TopBar circular trigger) */}
+      {showFloatingTrigger && (
+        <div className="fixed bottom-5 right-5 z-40">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsOpen((prev) => !prev)}
+            className="relative flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-2.5 py-1.5 text-white shadow-xl hover:shadow-indigo-500/30 transition-all border border-indigo-400/40 cursor-pointer h-8"
+            aria-label="Open AI Assistant"
+          >
+            <div className="relative">
+              <Bot className="size-3.5" />
+              <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-emerald-400 animate-pulse border border-slate-900" />
+            </div>
+            <span className="text-[11px] font-bold tracking-tight hidden sm:inline">CITIMART AI</span>
+            <span className="rounded bg-indigo-500/40 px-1 py-0.2 text-[9px] font-mono tracking-tight text-indigo-100">
+              {activeStore}
             </span>
-            <span className="text-[10px] text-blue-200/90 font-medium">Store Decision Advisor</span>
-          </div>
-        </motion.button>
-      </div>
+          </motion.button>
+        </div>
+      )}
 
       {/* Slide-over / Modal Chat Window */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            initial={{ opacity: 0, y: -16, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className={`fixed z-50 flex flex-col bg-slate-950/95 backdrop-blur-xl border border-indigo-500/30 shadow-[0_20px_60px_rgba(0,0,0,0.7)] text-slate-100 transition-all ${
+            exit={{ opacity: 0, y: -16, scale: 0.96 }}
+            transition={{ duration: 0.2 }}
+            className={`fixed z-50 flex flex-col bg-slate-950/95 backdrop-blur-xl border border-slate-800 shadow-2xl rounded-2xl overflow-hidden transition-all ${
               isExpanded
-                ? "inset-4 sm:inset-10 rounded-2xl"
-                : "bottom-4 right-4 sm:bottom-6 sm:right-6 w-[94vw] sm:w-[500px] h-[88vh] sm:h-[660px] max-h-[90vh] rounded-2xl"
+                ? "inset-4 sm:inset-10"
+                : "top-16 right-3 sm:right-6 w-[94vw] sm:w-[500px] h-[640px] max-h-[calc(100vh-5rem)]"
             }`}
           >
             {/* Header */}
-            <div className="relative border-b border-indigo-500/20 bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950/40 p-3.5 sm:p-4 rounded-t-2xl">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="relative size-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-blue-500 p-0.5 shadow-lg shrink-0 flex items-center justify-center">
-                    <Bot className="size-5 text-white" />
-                    <span className="absolute -bottom-0.5 -right-0.5 size-3 rounded-full bg-emerald-500 border-2 border-slate-950" />
+            <div className="flex items-center justify-between border-b border-slate-800/80 px-4 py-3 bg-gradient-to-r from-slate-900/90 via-indigo-950/40 to-slate-900/90">
+              <div className="flex items-center gap-2.5">
+                <div className="relative size-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md border border-indigo-400/30">
+                  <Bot className="size-5" />
+                  <span className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-emerald-400 ring-2 ring-slate-950" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs font-bold text-slate-100 tracking-wide">
+                      CITIMART AI Co-Pilot
+                    </h3>
+                    <span className="rounded-full bg-blue-500/20 px-2 py-0.5 text-[10px] font-bold text-blue-400 border border-blue-500/30">
+                      {activeStore}
+                    </span>
                   </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-sm font-black text-white tracking-tight flex items-center gap-1.5">
-                        CITIMART AI Copilot
-                        <span className="rounded bg-indigo-500/20 px-1.5 py-0.5 text-[9px] font-extrabold uppercase text-indigo-300 border border-indigo-500/40">
-                          {activeStore === "ALL" ? "All Stores" : activeStore}
-                        </span>
-                      </h3>
-                    </div>
-                    <p className="text-[11px] text-indigo-200/80 font-medium truncate">
-                      Real-Time Retail Diagnostics · Decision Advisor
-                    </p>
-                  </div>
+                  <p className="text-[10px] text-slate-400 flex items-center gap-1">
+                    <span className="size-1.5 rounded-full bg-emerald-400" />
+                    Multi-Agent LangGraph • 79+ Days DB
+                  </p>
+                </div>
+              </div>
+
+              {/* Actions & Language Selector */}
+              <div className="flex items-center gap-1">
+                {/* Language Switcher */}
+                <div className="flex items-center bg-slate-800/60 rounded-lg p-0.5 border border-slate-700/60 mr-1">
+                  {(["en", "bn", "hi"] as Language[]).map((l) => (
+                    <button
+                      key={l}
+                      onClick={() => setChatLanguage(l)}
+                      className={`px-1.5 py-0.5 text-[10px] font-bold rounded uppercase transition cursor-pointer ${
+                        chatLanguage === l
+                          ? "bg-indigo-600 text-white shadow-xs"
+                          : "text-slate-400 hover:text-slate-200"
+                      }`}
+                      title={l === "en" ? "English" : l === "bn" ? "বাংলা" : "हिंदी"}
+                    >
+                      {l}
+                    </button>
+                  ))}
                 </div>
 
-                {/* Header Controls */}
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {/* Chatbot Language Quick Selector */}
-                  <div className="flex items-center rounded-lg bg-slate-900/80 p-0.5 border border-slate-800">
-                    {(["en", "bn", "hi"] as const).map((lang) => (
-                      <button
-                        key={lang}
-                        type="button"
-                        onClick={() => setChatLanguage(lang)}
-                        className={`px-1.5 py-0.5 text-[10px] font-bold rounded transition cursor-pointer ${
-                          chatLanguage === lang
-                            ? "bg-indigo-600 text-white shadow-sm"
-                            : "text-slate-400 hover:text-white"
-                        }`}
-                      >
-                        {lang === "en" ? "EN" : lang === "bn" ? "বাং" : "हिं"}
-                      </button>
-                    ))}
-                  </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`size-7 ${
+                    showSessionDrawer
+                      ? "bg-indigo-600 text-white"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+                  }`}
+                  onClick={() => {
+                    if (showSessionDrawer) {
+                      setShowSessionDrawer(false);
+                    } else {
+                      handleOpenDrawer();
+                    }
+                  }}
+                  title="Past Shift Conversations"
+                >
+                  <History className="size-3.5" />
+                </Button>
 
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleClearChat}
-                    className="size-7 text-slate-400 hover:text-white hover:bg-slate-800/60"
-                    title="Clear Chat History"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+                  onClick={handleClearHistory}
+                  title="Clear conversation"
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
 
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    className="size-7 text-slate-400 hover:text-white hover:bg-slate-800/60 hidden sm:flex"
-                    title={isExpanded ? "Minimize" : "Expand"}
-                  >
-                    {isExpanded ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
-                  </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 hidden sm:inline-flex"
+                  onClick={() => setIsExpanded((prev) => !prev)}
+                  title={isExpanded ? "Collapse" : "Expand"}
+                >
+                  {isExpanded ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+                </Button>
 
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setIsOpen(false)}
-                    className="size-7 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10"
-                    title="Close"
-                  >
-                    <X className="size-4" />
-                  </Button>
-                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 text-slate-400 hover:text-rose-400 hover:bg-slate-800/60"
+                  onClick={() => setIsOpen(false)}
+                  title="Close"
+                >
+                  <X className="size-4" />
+                </Button>
               </div>
             </div>
 
-            {/* Granular Preset Category Tabs & Quick Picker */}
-            <div className="border-b border-slate-800/80 bg-slate-900/60 px-3 py-2 space-y-2">
-              {/* Category Pills */}
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-                {PRESET_CATEGORIES.map((cat) => {
-                  const label =
-                    chatLanguage === "bn" ? cat.labelBn : chatLanguage === "hi" ? cat.labelHi : cat.labelEn;
-                  const isActive = selectedCategory === cat.id;
-                  return (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => setSelectedCategory(cat.id)}
-                      className={`shrink-0 rounded-lg px-2.5 py-1 text-[10px] font-bold transition-all cursor-pointer ${
-                        isActive
-                          ? "bg-indigo-600 text-white shadow-xs border border-indigo-400/40"
-                          : "bg-slate-800/60 text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-slate-700/40"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
+            {/* Past Shift Conversations Drawer Overlay */}
+            <AnimatePresence>
+              {showSessionDrawer && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="absolute inset-0 top-[57px] z-30 bg-slate-950/98 backdrop-blur-md flex flex-col"
+                >
+                  <div className="flex items-center justify-between border-b border-slate-800/80 px-4 py-2.5 bg-slate-900/80">
+                    <div className="flex items-center gap-2">
+                      <History className="size-4 text-indigo-400" />
+                      <span className="text-xs font-bold text-slate-200">Past Shift Conversations</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleClearHistory}
+                        className="h-7 text-[11px] border-slate-700 bg-slate-800/80 hover:bg-indigo-600 hover:text-white flex items-center gap-1.5"
+                      >
+                        <Plus className="size-3" />
+                        <span>New Shift Chat</span>
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setShowSessionDrawer(false)}
+                        className="size-7 text-slate-400 hover:text-slate-200"
+                      >
+                        <X className="size-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* List of Sessions */}
+                  <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                    {isLoadingSessions ? (
+                      <div className="flex items-center justify-center p-8 text-slate-400 text-xs gap-2">
+                        <RefreshCw className="size-4 animate-spin text-indigo-400" />
+                        <span>Loading shift conversations...</span>
+                      </div>
+                    ) : sessionsList.length === 0 ? (
+                      <div className="text-center p-8 text-slate-500 text-xs">
+                        No previous shift conversations recorded for {activeStore}.
+                      </div>
+                    ) : (
+                      sessionsList.map((s) => {
+                        const isActive = s.session_id === activeSessionId;
+                        const phaseLabels: Record<string, string> = {
+                          morning_briefing: "🌅 Morning Briefing",
+                          midday_pacing: "☀️ Mid-day Pacing",
+                          evening_surge: "🌆 Evening Surge",
+                          night_closing: "🌙 Night Closing",
+                        };
+                        const phaseName = phaseLabels[s.shift_phase] || s.shift_phase || "Shift Chat";
+                        const updatedDate = s.updated_at
+                          ? new Date(s.updated_at).toLocaleDateString([], {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "";
+
+                        return (
+                          <div
+                            key={s.session_id}
+                            onClick={() => handleSelectSession(s)}
+                            className={`group flex items-center justify-between p-2.5 rounded-xl border transition cursor-pointer ${
+                              isActive
+                                ? "bg-indigo-950/60 border-indigo-500/60 text-slate-100 shadow-md"
+                                : "bg-slate-900/60 border-slate-800/80 hover:bg-slate-850 hover:border-slate-700 text-slate-300"
+                            }`}
+                          >
+                            <div className="flex-1 min-w-0 pr-2">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono">
+                                  {phaseName}
+                                </span>
+                                <span className="text-[10px] text-slate-500 font-mono">
+                                  {updatedDate}
+                                </span>
+                              </div>
+                              <p className="text-xs font-medium truncate text-slate-200">
+                                {s.title || "Retail Shift Conversation"}
+                              </p>
+                              <div className="text-[10px] text-slate-400 mt-0.5">
+                                {s.message_count || 0} messages • Store: {s.store_code || activeStore}
+                              </div>
+                            </div>
+
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => handleDeleteSession(e, s.session_id)}
+                              className="size-7 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 shrink-0 opacity-80 group-hover:opacity-100"
+                              title="Delete shift conversation"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Presets Header Ribbon */}
+            <div className="border-b border-slate-800/70 bg-slate-900/60 px-3 py-2 space-y-1.5">
+              {/* Category Filter Pills */}
+              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-0.5">
+                {PRESET_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setSelectedCategory(cat.id)}
+                    className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] font-semibold transition cursor-pointer border ${
+                      selectedCategory === cat.id
+                        ? "bg-indigo-600 text-white border-indigo-400 shadow-sm"
+                        : "bg-slate-800/70 text-slate-300 border-slate-700/50 hover:bg-slate-800 hover:text-white"
+                    }`}
+                  >
+                    {getCategoryLabel(cat)}
+                  </button>
+                ))}
               </div>
 
               {/* Granular Preset Chips */}
               <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-                {filteredPresets.slice(0, 8).map((p) => {
+                {filteredPresets.slice(0, 10).map((p) => {
                   const Icon = p.icon;
                   return (
                     <button
@@ -644,7 +1060,7 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
 
                     {/* Bubble Content */}
                     <div
-                      className={`group relative max-w-[88%] sm:max-w-[82%] rounded-2xl px-3.5 py-2.5 text-xs sm:text-[13px] leading-relaxed shadow-md ${
+                      className={`group relative max-w-[92%] sm:max-w-[85%] rounded-2xl px-3.5 py-2.5 text-xs sm:text-[13px] leading-relaxed shadow-md ${
                         isUser
                           ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-tr-none"
                           : "bg-slate-900/90 text-slate-200 border border-slate-800 rounded-tl-none"
@@ -661,8 +1077,8 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
                         </button>
                       )}
 
-                      {/* Render text with Markdown formatting */}
-                      <div className="whitespace-pre-wrap space-y-1.5">
+                      {/* Render text with Markdown & Table formatting */}
+                      <div className="space-y-2">
                         {m.content.split("\n\n").map((para, pIdx) => {
                           if (para.startsWith("### ")) {
                             return (
@@ -671,8 +1087,46 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
                               </h4>
                             );
                           }
+                          // Check if paragraph is a markdown table
+                          if (para.includes("|") && para.includes("\n|")) {
+                            const lines = para.split("\n").filter((l) => l.trim().startsWith("|"));
+                            if (lines.length >= 2) {
+                              const headerCols = lines[0].split("|").map((c) => c.trim()).filter(Boolean);
+                              const dataLines = lines.slice(2); // Skip separator row
+                              return (
+                                <div key={pIdx} className="overflow-x-auto my-2 rounded-lg border border-slate-700/60 bg-slate-950/60 p-1">
+                                  <table className="w-full text-left text-[11px] border-collapse">
+                                    <thead>
+                                      <tr className="border-b border-slate-700 bg-slate-800/80 text-slate-300">
+                                        {headerCols.map((col, cIdx) => (
+                                          <th key={cIdx} className="p-1.5 font-semibold text-center first:text-left">
+                                            {col}
+                                          </th>
+                                        ))}
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-800/60 font-mono">
+                                      {dataLines.map((rowStr, rIdx) => {
+                                        const cols = rowStr.split("|").map((c) => c.trim()).filter(Boolean);
+                                        return (
+                                          <tr key={rIdx} className="hover:bg-indigo-950/30 transition-colors">
+                                            {cols.map((cell, cIdx) => (
+                                              <td key={cIdx} className="p-1.5 text-center first:text-left text-slate-200">
+                                                {cell}
+                                              </td>
+                                            ))}
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              );
+                            }
+                          }
+
                           return (
-                            <p key={pIdx} className="leading-relaxed">
+                            <p key={pIdx} className="leading-relaxed whitespace-pre-wrap">
                               {para}
                             </p>
                           );
@@ -698,24 +1152,22 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
                 );
               })}
 
-              {/* Loading Indicator */}
+              {/* Typing / Thinking Indicator */}
               {chatMutation.isPending && (
                 <motion.div
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="flex items-start gap-2.5"
+                  className="flex items-center gap-2 text-slate-400 text-xs pl-2"
                 >
-                  <div className="size-7 rounded-lg shrink-0 flex items-center justify-center bg-indigo-600 text-white">
-                    <Bot className="size-3.5 animate-pulse" />
+                  <div className="size-7 rounded-lg bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-300">
+                    <RefreshCw className="size-3.5 animate-spin" />
                   </div>
-                  <div className="rounded-2xl rounded-tl-none bg-slate-900/90 border border-slate-800 px-4 py-3 text-xs text-slate-400 shadow flex items-center gap-2">
-                    <span className="size-2 rounded-full bg-indigo-400 animate-ping" />
-                    <span className="animate-pulse">
-                      {chatLanguage === "bn"
-                        ? "লাইভ মেট্রিক্স বিশ্লেষণ ও স্ট্র্যাটেজি তৈরি করা হচ্ছে..."
-                        : chatLanguage === "hi"
-                        ? "लाइव डेटा का विश्लेषण और रणनीति तैयार की जा रही है..."
-                        : "Analyzing live store metrics & preparing recommendations..."}
+                  <div className="flex items-center gap-1.5 font-mono text-[11px] text-indigo-300">
+                    <span>Multi-Agent Swarm Reasoning</span>
+                    <span className="flex gap-0.5">
+                      <span className="size-1 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <span className="size-1 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                      <span className="size-1 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: "300ms" }} />
                     </span>
                   </div>
                 </motion.div>
@@ -725,7 +1177,7 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
             </div>
 
             {/* Input Bar */}
-            <div className="border-t border-slate-800/80 bg-slate-950/90 p-3 rounded-b-2xl">
+            <div className="border-t border-slate-800 p-3 bg-slate-900/90">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -741,26 +1193,22 @@ export function AiChatbot({ activeStore = "NM", selectedDate }: AiChatbotProps) 
                     onChange={(e) => setInputMessage(e.target.value)}
                     placeholder={
                       chatLanguage === "bn"
-                        ? "সেলস, টার্গেট, কনভার্সন বা নির্দেশাবলী নিয়ে প্রশ্ন করুন..."
+                        ? "আপনার প্রশ্ন লিখুন (যেমন: গতকালের সেলস ও স্লট কত?)..."
                         : chatLanguage === "hi"
-                        ? "सेल्स, टारगेट, कन्वर्शन या निर्देशों पर सवाल पूछें..."
-                        : "Ask about sales, target gaps, ATV, peak pacing, or directives..."
+                        ? "अपना प्रश्न लिखें (जैसे: कल की कुल बिक्री और पीक स्लॉट क्या थे?)..."
+                        : "Ask about yesterday's sales, 7-day table, rolling target recovery..."
                     }
-                    className="w-full rounded-xl bg-slate-900/90 border border-slate-800 px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-inner"
                     disabled={chatMutation.isPending}
+                    className="w-full rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
                   />
                 </div>
 
                 <Button
                   type="submit"
                   disabled={!inputMessage.trim() || chatMutation.isPending}
-                  className="h-10 px-3.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold rounded-xl shadow-md border border-indigo-400/40 disabled:opacity-50 cursor-pointer"
+                  className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 px-3.5 py-2.5 text-white shadow-md transition disabled:opacity-50 cursor-pointer"
                 >
-                  {chatMutation.isPending ? (
-                    <RefreshCw className="size-4 animate-spin" />
-                  ) : (
-                    <Send className="size-4" />
-                  )}
+                  <Send className="size-4" />
                 </Button>
               </form>
             </div>

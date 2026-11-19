@@ -179,6 +179,17 @@ class EnvSettings(BaseSettings):
     # Swagger/ReDoc docs toggle. If None, automatically enabled in dev/staging and disabled in production.
     enable_docs: bool | None = None
 
+    # --- AI Chatbot & Google GenAI Multi-Agent Engine --------------------
+    # Read strictly from environment / .env, never hardcoded.
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-2.5-flash"
+    llm_temperature: float = 0.2
+    llm_max_output_tokens: int = 1536
+    llm_request_timeout_seconds: int = 15
+    tavily_api_key: str | None = None
+    chat_session_ttl_days: int = 30
+    chat_max_history_turns: int = 10
+
     def is_production(self) -> bool:
         return self.environment.lower() == "production"
 
