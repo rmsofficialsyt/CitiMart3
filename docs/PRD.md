@@ -1,45 +1,72 @@
 # CITIMART Daily Operations — Product Requirements Document (PRD)
 
-**Product Name:** CITIMART Live Daily Operations & Store Floor Portal  
-**Target Users:** Store Managers (NM, HB, CHW), Executive Operations Head (Raphael Sir), Operations Supervisors  
-**Release:** v3.2.0
+![PRD](https://img.shields.io/badge/CITIMART-Product%20Requirements-00D26A?style=for-the-badge&logo=readme&logoColor=white)
+![Status](https://img.shields.io/badge/Status-Approved%20for%20Production-success?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-3.2.0-blue?style=for-the-badge)
+
+> **Official Product Requirements Document for CITIMART Live Floor Operations**  
+> Covers retail operational objectives, user personas, functional specifications, and non-functional requirements for **New Market (`NM`)**, **Hatibagan (`HB`)**, and **Chowringhee (`CHW`)**.
 
 ---
 
-## 1. Problem Statement
-Previously, floor managers recorded customer walk-ins and hourly bill amounts in paper logbooks or disparate WhatsApp messages. This resulted in:
-- Executive leadership having zero real-time visibility into whether stores were meeting intraday sales targets.
-- Delayed response to evening rush hour bottlenecks and stock shortages.
-- Lack of immediate target gap awareness to mobilize sales staff before closing.
-- Inconsistent conversion rate tracking between visitor footfall and checkout bills.
+## 📑 Requirements Directory
+1. [Executive Summary & Problem Statement](#1-executive-summary--problem-statement)
+2. [Product Goals & Success Metrics](#2-product-goals--success-metrics)
+3. [User Personas & Core Journeys](#3-user-personas--core-journeys)
+4. [Functional Requirements Catalog](#4-functional-requirements-catalog)
+5. [Non-Functional & Operational Requirements](#5-non-functional--operational-requirements)
 
 ---
 
-## 2. Product Objectives
-1. **Intraday Visibility:** Provide real-time live KPI calculations updated immediately upon bill and footfall entry.
-2. **Simplified Floor Entry:** Low-friction data entry optimized for store manager mobile and desktop terminals with clear layman guidelines.
-3. **Executive Governance:** Enable Raphael Sir to broadcast binding operational directives and monitor all 3 stores simultaneously.
-4. **Actionable AI Assistance:** Provide store managers with instant advice in their native language (English, Bengali, Hindi) on how to close sales target gaps.
+## 1. Executive Summary & Problem Statement
+
+Historically, CITIMART store managers recorded daily footfall and sales receipts in paper workbooks or unstructured messaging channels. This created severe operational inefficiencies:
+* Executive leadership possessed zero real-time visibility into intraday sales pace.
+* Floor managers lacked immediate awareness of deficit gaps, missing evening catch-up opportunities.
+* Merchandise shortages were communicated casually, leading to unfulfilled high-demand inventory.
+* Footfall-to-buyer conversion ratios could not be calculated until hours after closing.
+
+**Solution:** The CITIMART Daily Operations Platform provides an integrated, real-time operating system delivering sub-second KPI updates, unified row logging, executive broadcasts, and trilingual AI copilot assistance.
+
+---
+
+## 2. Product Goals & Success Metrics
+
+* **Intraday Visibility:** $100\%$ of active store registers submit hourly figures within 15 minutes of observation.
+* **Hot-Path Speed:** Sub-10ms response latency on live dashboard endpoints via Redis L2 caching.
+* **Zero Cross-Store IDOR:** $100\%$ enforcement of store isolation at API and database layers.
+* **Operational Continuity:** Automated midnight settlement ensures zero uncommitted or lost shift logs.
 
 ---
 
 ## 3. User Personas & Core Journeys
 
-### Persona 1: Store Floor Manager (e.g. New Market Manager)
-- **Journey:** Arrives at 10:30 AM -> logs morning setup -> logs mid-day footfall & billing at 2:00 PM -> checks Target Gap on hero card -> consults AI Copilot in Bengali for evening surge pacing -> submits product requisition for out-of-stock sizes -> finalizes closing log at 10:30 PM.
+### Persona 1: Floor Store Manager (e.g., New Market Manager)
+* **Goal:** Monitor shift sales, record hourly footfall, close daily deficit gaps, and request restocks.
+* **Journey:** Logs in at 10:30 AM $\to$ Records hourly receipts $\to$ Inspects live pacing chart $\to$ Queries AI Copilot in Bengali for evening surge strategy $\to$ Submits product requisition $\to$ Finalizes shift at 10:30 PM.
 
-### Persona 2: Executive Admin / Operations Head (Raphael Sir)
-- **Journey:** Logs into portal -> reviews Overall Stores Summary comparing NM, HB, and CHW -> identifies a store lagging behind target -> issues high-priority Executive Directive -> switches into store context using View As Manager -> uploads next month's sales targets via Excel import.
+### Persona 2: Executive Directorate (Raphael Sir)
+* **Goal:** Monitor all 3 stores simultaneously, dispatch urgent floor directives, and allocate monthly sales targets.
+* **Journey:** Opens executive dashboard $\to$ Compares NM, HB, and CHW pacing $\to$ Broadcasts urgent directive to a lagging store $\to$ Uploads next month's sales targets via bulk Excel upload.
 
 ---
 
-## 4. Key Functional Requirements
+## 4. Functional Requirements Catalog
 
-- **FR-01: Authentication & Account Selector:** Landing page grid displaying 4 distinct account cards leading to credential validation.
-- **FR-02: Live Daily Dashboard:** Hero card with Achievement %, Remaining %, ATV, RPV, Conversion Rate, and 4-slot pacing chart.
-- **FR-03: Manual Data Logger:** Consolidated table supporting inline additions, edits, and deletions of bill and footfall records.
-- **FR-04: History Archive:** Date-picker driven browser displaying past operational days grouped by timeslots.
-- **FR-05: Product Requisitions:** Multi-department stock shortfall request workflow with priority tags.
-- **FR-06: Executive Directives:** Admin modal allowing broadcast of time-sensitive operational instructions to specific stores.
-- **FR-07: AI Chatbot / Copilot:** Multi-lingual conversational drawer answering sales queries grounded in live MongoDB data.
-- **FR-08: Certified PDF / Excel Export:** One-click export of verified operational logs.
+| Requirement ID | Module | Specification Summary |
+|:---|:---|:---|
+| **FR-01: Identity & Role Selection** | Authentication | 4-card role selector landing screen leading to credential validation and JWT issuance. |
+| **FR-02: Live Daily Dashboard** | Telemetry | Hero card displaying Net Sales, Target, Gap, Achievement %, ATV, RPV, and 4-slot pacing chart. |
+| **FR-03: Unified Manual Logger** | Data Entry | Consolidated table for inline logging, editing, and deletion of hourly bills and footfall. |
+| **FR-04: Executive Directives** | Governance | Admin broadcast modal for dispatching high-priority operational instructions with read receipts. |
+| **FR-05: Product Requisitions** | Inventory | Stockout size request workflow with priority flags (`Urgent`, `High`, `Normal`). |
+| **FR-06: Trilingual AI Copilot** | Intelligence | Natural language retail assistant answering queries in English, Bengali, and Hindi. |
+| **FR-07: Certified Multi-Export** | Reporting | One-click certified Excel (`.xlsx`) and PDF (`.pdf`) report generation. |
+
+---
+
+## 5. Non-Functional & Operational Requirements
+
+* **Performance:** Sub-10ms response times for cached dashboard reads; sub-50ms for uncached writes.
+* **Availability:** $99.9\%$ operational uptime during store hours (10:30 AM to 11:59 PM).
+* **Security:** Strict compliance with [Production-grade-Security-checks-spec-check.md](file:///d:/Project%20CITIMART%20Sales%20Analysis/Production-grade-Security-checks-spec-check.md) and OWASP Top 10 standards.

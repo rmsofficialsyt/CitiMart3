@@ -1,134 +1,156 @@
-# CITIMART Daily Operations — Manager's Manual Data Entry User Guide
+# CITIMART Daily Operations — Store Manager's Operational Handbook
 
-A comprehensive, step-by-step operational guide designed for store managers and administrators to accurately record **Footfall**, **Billing Details**, **NOB**, **Remarks**, and **Sales Targets**, and to understand real-time dashboard analytics, environmental context, and multi-period comparative performance.
+![Handbook](https://img.shields.io/badge/CITIMART-Manager's%20Handbook-00D26A?style=for-the-badge&logo=gitbook&logoColor=white)
+![Audience](https://img.shields.io/badge/Audience-Store%20Managers-blue?style=for-the-badge)
+![Compliance](https://img.shields.io/badge/Compliance-Mandatory%20SOP-success?style=for-the-badge)
 
----
-
-## 1. Store Operating Hours & Automatic Time Slots
-
-- **Store Operating Hours**: `10:30 AM` to `11:59 PM` (IST).
-- **Time Stamp Selection**: Whenever you record customer or sales counter figures, select the exact 12-hour clock time when the activity took place.
-- **Automatic 3-Hour Time Slot Mapping**: The system automatically allocates your timestamp to the correct standard operational band:
-  - **Slot 1 (`11.00 AM - 01.59 PM`)**: Opening and morning traffic (includes 10:30 AM opening).
-  - **Slot 2 (`02.00 PM - 04.59 PM`)**: Post-lunch and afternoon shift.
-  - **Slot 3 (`05.00 PM - 07.59 PM`)**: Prime evening shopping rush.
-  - **Slot 4 (`08.00 PM - 11.59 PM`)**: Night peak, closing rush, and end-of-day tallying.
-- *Note*: Managers do not need to calculate slot boundaries manually; the system handles slot assignment automatically.
+> **Step-by-Step Operating Guide for Retail Floor Managers & Cash Desk Staff**  
+> For **New Market (`NM`)**, **Hatibagan (`HB`)**, and **Chowringhee (`CHW`)** store operations.  
+> Governed by [docs/CONSTITUTION.md](file:///d:/Project%20CITIMART%20Sales%20Analysis/Daily%20Operations/docs/CONSTITUTION.md) and [docs/SPEC.md](file:///d:/Project%20CITIMART%20Sales%20Analysis/Daily%20Operations/docs/SPEC.md).
 
 ---
 
-## 2. Footfall Entry (Customer Walk-ins)
+## 📑 Table of Contents
+1. [Operating Window & Automated Timeslots](#1-operating-window--automated-timeslots)
+2. [Logging Footfall (Customer Walk-ins)](#2-logging-footfall-customer-walk-ins)
+3. [Logging Sales Receipts & Paying Buyers (NOB)](#3-logging-sales-receipts--paying-buyers-nob)
+4. [Inline Row Editing & Deletion](#4-inline-row-editing--deletion)
+5. [Form Reset Safety Guarantees](#5-form-reset-safety-guarantees)
+6. [Environmental Remarks & Special Factors](#6-environmental-remarks--special-factors)
+7. [Shift Updates vs Midnight Auto-Finalization](#7-shift-updates-vs-midnight-auto-finalization)
+8. [Executive Directives & Stock Requisitions](#8-executive-directives--stock-requisitions)
+9. [Operational Dos & Don'ts](#9-operational-dos--donts)
+10. [Frequently Asked Questions (FAQ)](#10-frequently-asked-questions-faq)
 
-- **What is Footfall?**
-  Footfall is the total count of visitors who walked through the store entrance during the specified time period, regardless of whether they made a purchase.
-- **How to Log**:
-  1. Set the **Time Stamp** to the observation time.
-  2. Type the visitor count in the **Footfall (visitors)** field (e.g., `52`).
+---
+
+## 1. Operating Window & Automated Timeslots
+
+* **Mandatory Store Hours:** `10:30 AM` to `11:59 PM` (IST).
+* **Automatic Timeslot Allocation:** Whenever you record an entry, the system automatically assigns it to the appropriate operational slot:
+  * **Slot 1 (Morning Shift):** `10:30 AM – 01:59 PM` (Store opening, initial footfall, setup)
+  * **Slot 2 (Afternoon Shift):** `02:00 PM – 04:59 PM` (Mid-day shopping, post-lunch traffic)
+  * **Slot 3 (Evening Peak):** `05:00 PM – 07:59 PM` (Prime footfall rush, peak sales conversion)
+  * **Slot 4 (Night Rush):** `08:00 PM – 11:59 PM` (Closing purchases, billing consolidation)
+
+> [!NOTE]
+> Store staff never need to select slot numbers manually. Simply pick the exact observation time (e.g., `04:15 PM`), and the system handles slot attribution.
+
+---
+
+## 2. Logging Footfall (Customer Walk-ins)
+
+* **Definition:** The total number of visitors who crossed the store entrance during the observation window, regardless of whether they purchased merchandise.
+* **Step-by-Step Procedure:**
+  1. Select the **Time Stamp** (e.g., `12:00 PM`).
+  2. Input the visitor count in the **Footfall (visitors)** field (e.g., `64`).
   3. Click **"Update Footfall"**.
-  4. The live Footfall KPI, RPV (Revenue Per Visitor), and Conversion % update immediately on your dashboard.
+  4. The dashboard immediately updates **Total Footfall**, **RPV (Revenue Per Visitor)**, and **Conversion %**.
 
 ---
 
-## 3. Billing Details & NOB (Sales & Transactions)
+## 3. Logging Sales Receipts & Paying Buyers (NOB)
 
-Enter sales counter receipts and cashier transactions in this section:
-- **Net Amount (₹)**:
-  The net money collected from sales receipts in Rupees after discounts (e.g., `18500`).
-- **Bill Quantity (units sold)**:
-  The total number of physical articles or garment/product units sold in those receipts (e.g., `12`).
-- **NOB (Number of Bills / Paying Buyers)**:
-  The number of customer bills/transactions generated (e.g., `4`). Every bill represents 1 paying customer/buyer.
-- **How to Log**:
-  1. Set the **Time Stamp**.
-  2. Enter **Net Amount**, **Bill Quantity (units sold)**, and **NOB**.
-  3. Click **"Update Bills & NOB"**.
-  4. The dashboard instantly recalculates:
-     - **Net Sales (₹)**: Cumulative revenue for the day.
-     - **ATV (Average Transaction Value)**: $\text{Net Sales} / \text{NOB}$.
-     - **Basket Size (UPT)**: $\text{Bill Quantity} / \text{NOB}$.
-     - **Conversion %**: $(\text{NOB} / \text{Footfall}) \times 100$.
-     - **Achievement % & Remaining Target %**: Measured against the admin-set daily Sales Target.
+Record sales counter transactions and cashier receipts in this panel:
+
+| Data Field | Plain Meaning | Practical Example |
+|:---|:---|:---|
+| **Net Amount (₹)** | Actual net cash/card collections in Rupees (post-discount). | `₹ 38,500` |
+| **Bill Quantity** | Total count of physical garment or item units sold across these bills. | `14` pieces |
+| **NOB (Number of Bills)** | Number of distinct receipts generated (each bill = 1 paying buyer). | `5` bills |
+
+### Operational Metric Formulations
+Upon saving, the dashboard recalculates all retail ratios in real-time:
+$$\text{Average Transaction Value (ATV)} = \frac{\text{Net Amount}}{\text{NOB}}$$
+$$\text{Basket Size (UPT)} = \frac{\text{Bill Quantity}}{\text{NOB}}$$
+$$\text{Conversion Rate} = \left(\frac{\text{NOB}}{\text{Footfall}}\right) \times 100$$
+$$\text{Remaining Deficit Gap} = \max(0, \text{Daily Target} - \text{Cumulative Net Sales})$$
 
 ---
 
-## 4. Understanding "Reset" (Safe Form Clearing)
+## 4. Inline Row Editing & Deletion
 
-Each input panel includes a dedicated **Reset** button to help you clear entered text before saving:
+If an incorrect figure or timestamp was logged:
+1. Locate the entry in the **Logged Operations Table**.
+2. Click the **Edit (✏️)** button in that row.
+3. Modify the values directly in the row inputs.
+4. Click **Save (💾)** to apply the correction, or **Cancel (✖)** to discard.
+5. If an entry was logged by mistake, click **Delete (🗑️)** and confirm. All daily ratios will recalculate immediately.
 
-- **Reset Footfall**: Clears only the *Footfall (visitors)* input field.
-- **Reset Bills & NOB**: Clears the *Net Amount*, *Bill Quantity*, and *NOB* input fields.
-- **Reset All (Bottom)**: Clears all unsaved input fields across all sections including *Remarks*.
+---
+
+## 5. Form Reset Safety Guarantees
+
+Every input panel includes a dedicated **Reset** button:
+* **Reset Footfall:** Clears unsaved text from the visitor count field.
+* **Reset Bills & NOB:** Clears unsaved values from the Net Amount, Bill Quantity, and NOB fields.
+* **Reset All:** Clears all uncommitted input fields on the screen.
 
 > [!IMPORTANT]
-> **Safety Guarantee — Reset Never Deletes Saved Records**:
-> Clicking **Reset** ONLY clears unsaved text in your browser inputs so you can re-type fresh numbers. It will **NEVER delete, modify, or erase any entries already logged** in the database.
->
-> To edit or remove an existing entry, use the **Edit** or **Delete** buttons in the *Logged Footfall* and *Logged Bills & NOB* tables.
+> **Zero Data Loss Guarantee:**  
+> The **Reset** button ONLY clears unsaved text in your browser window. It **NEVER modifies, deletes, or alters records already saved** to MongoDB Atlas.
 
 ---
 
-## 5. Remarks & Environmental Context
+## 6. Environmental Remarks & Special Factors
 
-- **What are Remarks?**
-  A brief note explaining any special factor that influenced store footfall or sales performance during the shift.
-  - Examples: *"Heavy rain between 4 PM and 6 PM"*, *"Festival shopping rush — Durga Puja"*, *"End-of-season flat 50% discount launch"*, *"POS server downtime for 20 mins"*.
-- **Automatic Context Tracking**:
-  The system automatically tracks:
-  - **Atmospheric Weather**: Real-time Kolkata weather, temperature range (°C), and precipitation (mm rain).
-  - **Day Classification**: Weekday vs Weekend, Official Holidays, and Election dates.
-  - **Inferred Floor Insights**: AI-generated operational recommendations and conversion pacing analysis.
+Record any external condition that impacted customer walk-ins or buying patterns:
+* **Weather Conditions:** Sudden rainstorms, waterlogging, or severe heatwaves.
+* **Festive Traffic:** Durga Puja, Diwali, Poila Boishakh, Christmas, or weekend sale promotions.
+* **Store Infrastructure:** POS network downtime, escalator maintenance, or localized power issues.
+
+The system automatically enriches your entry with real-time Kolkata weather observations and regional holiday calendars.
 
 ---
 
-## 6. "Update" vs "Final Submission" & Auto-Midnight Safety
+## 7. Shift Updates vs Midnight Auto-Finalization
 
-| Action | When to Use | What Happens |
-| :--- | :--- | :--- |
-| **Update** (Footfall / Bills & NOB) | Throughout the day as hourly batches complete | Saves shift entries immediately to MongoDB so the live dashboard and boss directives update in real time. |
-| **Final Submission** | At store closing before leaving | Saves any final inputs and locks today's official daily summary record and Remarks. |
-
-> [!TIP]
-> **Automatic Midnight Final Submission (Safety Net)**:
-> If a store manager forgets to click **Final Submission** before leaving, the automated backend midnight job finalizes today's submission at **00:00 midnight**, ensuring all calculations and daily summaries are archived safely without data loss.
+| Action | Schedule | System Outcome |
+|:---|:---|:---|
+| **Hourly Updates** | Every 1–2 hours throughout the day | Synchronizes live figures with executive dashboards and Raphael Sir's monitoring view. |
+| **End-of-Day Finalize** | Store closing (around 10:30 PM – 11:30 PM) | Verifies daily total, seals the shift, and generates certified PDF/Excel summaries. |
+| **Midnight Auto-Seal** | Automated nightly at `00:00:00` | Background safety worker automatically seals any open shift to prevent data loss. |
 
 ---
 
-## 7. Admin Monthly Sales Targets & Previous Year Comparison
+## 8. Executive Directives & Stock Requisitions
 
-Administrators configure daily targets via the **Sales Target** portal (`/sales-targets/<store>`):
-1. **Select Month**: Choose any month to view or edit the full monthly target schedule.
-2. **Set Daily Targets**:
-   - **Sales Target (₹)**: The benchmark against which daily Achievement % and Remaining Target are tracked.
-   - **Net Sales (Prev. Year) [Editable]**: Active manual entry for the same day in the previous year (or uploaded from historical POS files).
-3. **Comprehensive KPI Visibility**: View actual performance metrics side-by-side:
-   - `Present Net Sales`, `Achievement %`, `Footfall`, `NOB`, `Bill Qty`, `ATV`, `Basket Size`, `Conversion %`.
-4. **Bulk Actions**:
-   - **Fill Down**: Copy the first day's value across the entire month.
-   - **Save Month**: Bulk-write all modified days in one transaction.
-   - **Clear Month**: Reset targets for the month with confirmation.
-   - **Upload Excel**: Bulk-import from `.xlsx` using the 4-column format (`Previous Year Date | Net Sales | Present Year Date | Sales Target`) or standard 2-column format (`Date | Sales Target`).
+### Executive Directives Channel
+* Urgent broadcasts from Executive Operations (Raphael Sir) appear as alert banners on your dashboard.
+* Click **"Acknowledge Directive"** to register an official read receipt with your store's timestamp.
+
+### Product Shortfall Requisitions
+* If high-demand items (e.g., specific shirt sizes, festive kurta colors) sell out:
+  1. Open the **Product Requisition Modal**.
+  2. Enter the Department, Item Code, Size, and Quantity needed.
+  3. Mark urgency as `Urgent`, `High`, or `Normal`.
+  4. Central merchandising will review and update dispatch status.
 
 ---
 
-## 8. "At a Glance" Multi-Period Lookback Engine
+## 9. Operational Dos & Don'ts
 
-Store managers and administrators can use the **At a Glance** analytics engine to evaluate sales velocity and floor intuition:
-- **Lookback Comparison Modes**:
-  - **1 Year Ago (YoY)**: Compare against the exact same day last year.
-  - **2 Years Ago**: Multi-year baseline comparison.
-  - **1 Month Ago (MoM)**: Compare against the exact same day last month.
-  - **1 Week Ago (WoW)**: Compare against the same day last week.
-  - **1 Quarter Ago (QoQ)**: 90-day comparative shift.
-  - **7-Day Rolling Avg**: Past week average performance.
-  - **14-Day / 30-Day Rolling Avg**: Medium-term performance baseline.
-- **Inferred Performance Insights**: Automated intelligence highlights whether the store is in a **Growth Surge**, **On Target Pace**, or experiencing a **Pacing Alert**, with floor recommendations.
+```
+┌──────────────────────────────────────────────┬──────────────────────────────────────────────┐
+│                    DOs                       │                   DON'Ts                     │
+├──────────────────────────────────────────────┼──────────────────────────────────────────────┤
+│ ✅ Log hourly entries consistently           │ ❌ Don't wait until night to enter all bills │
+│ ✅ Verify bill quantities match physical POS │ ❌ Don't enter negative sales or footfall    │
+│ ✅ Acknowledge executive directives promptly │ ❌ Don't share passwords across cashier desks│
+│ ✅ Log rain or power cuts in Remarks         │ ❌ Don't leave incorrect entries unedited    │
+│ ✅ Review daily targets before noon          │ ❌ Don't attempt to log outside store hours  │
+└──────────────────────────────────────────────┴──────────────────────────────────────────────┘
+```
 
 ---
 
-## 9. Reviewing and Correcting Mistakes (Audit Log)
+## 10. Frequently Asked Questions (FAQ)
 
-If an incorrect time, amount, or quantity was entered:
-1. Navigate to the **Dashboard** or **Logged Entries** section.
-2. Locate the row in **"Logged Footfall"** or **"Logged Bills & NOB"**.
-3. Click the **Edit** button (pencil icon) to modify time, net amount, quantity, or NOB, then click **Save**.
-4. Click **Delete** (trash icon) to remove a mistaken entry permanently. All KPIs will recalculate instantly.
+**Q: What if I entered bills under the wrong timestamp?**  
+A: Use the **Edit (✏️)** button on the row to update the timestamp. The system will automatically move the entry to the correct timeslot.
+
+**Q: Can I see another store's sales numbers?**  
+A: No. By constitutional security design (BOLA/IDOR isolation), store managers can only access figures for their assigned store.
+
+**Q: What if the internet disconnects while I am entering data?**  
+A: The portal will display an offline alert. Keep cash counter physical register slips safe. As soon as the network restores, log the accumulated hourly slips.
