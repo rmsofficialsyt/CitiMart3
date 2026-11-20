@@ -558,7 +558,7 @@ def safe_divide(numerator: float | None, denominator: float | None) -> float | N
     return numerator / denominator
 ```
 
-$$\text{safe\_divide}(a, b) = \begin{cases} \frac{a}{b} & \text{if } a \ne \text{null}, b \ne \text{null}, b \ne 0, \text{and } \neg\text{isnan}(a, b) \\ \text{null} & \text{otherwise} \end{cases}$$
+$$\text{safeDivide}(a, b) = \begin{cases} \frac{a}{b} & \text{if } a \ne \text{null}, b \ne \text{null}, b \ne 0, \text{and } \neg\text{isnan}(a, b) \\ \text{null} & \text{otherwise} \end{cases}$$
 
 ---
 
@@ -568,18 +568,18 @@ The single source of truth for all live operational calculations across stores (
 
 | Metric Name | Mathematical Definition | Return Type | Missing/Null Handling |
 |:---|:---|:---|:---|
-| **Net Sales ($₹$)** | $\sum \text{net\_amount} \quad \forall \text{ bills on } (\text{store}, \text{date})$ | `float` | `0.0` if no bills logged |
-| **Bill Quantity** | $\sum \text{bill\_qty} \quad \forall \text{ bills on } (\text{store}, \text{date})$ | `int` | `0` if no bills logged |
-| **Footfall** | $\sum \text{footfall\_count} \quad \forall \text{ logs on } (\text{store}, \text{date})$ | `int` | `0` if no footfall logged |
-| **NOB (Number of Buyers)** | $\sum \text{nob} \quad \forall \text{ bills on } (\text{store}, \text{date})$ | `int` | `0` if no bills logged |
+| **Net Sales (₹)** | `sum(net_amount)` for all bills on (store, date) | `float` | `0.0` if no bills logged |
+| **Bill Quantity** | `sum(bill_qty)` for all bills on (store, date) | `int` | `0` if no bills logged |
+| **Footfall** | `sum(footfall_count)` for all logs on (store, date) | `int` | `0` if no footfall logged |
+| **NOB (Number of Buyers)** | `sum(nob)` for all bills on (store, date) | `int` | `0` if no bills logged |
 | **Sales Target ($T$)** | Stored `sales_target` in `targets` collection | `float \| None` | `None` if admin has not set target |
 | **Remaining Deficit / Surplus** | $T - \text{Net Sales}$ | `float \| None` | `None` if $T$ is `None` |
-| **Target Achievement %** | $\text{safe\_divide}(\text{Net Sales}, T) \times 100$ | `float \| None` | `None` if $T$ is `None` or $0$ |
-| **Remaining %** | $\text{safe\_divide}(\text{Remaining}, T) \times 100$ | `float \| None` | `None` if $T$ is `None` or $0$ |
-| **Average Transaction Value (ATV)**| $\text{safe\_divide}(\text{Net Sales}, \text{NOB})$ | `float \| None` | `None` if $\text{NOB} = 0$ |
-| **Revenue Per Visitor (RPV)** | $\text{safe\_divide}(\text{Net Sales}, \text{Footfall})$ | `float \| None` | `None` if $\text{Footfall} = 0$ |
-| **Basket Size (UPT)** | $\text{safe\_divide}(\text{Bill Quantity}, \text{NOB})$ | `float \| None` | `None` if $\text{NOB} = 0$ |
-| **Conversion %** | $\text{safe\_divide}(\text{NOB}, \text{Footfall}) \times 100$ | `float \| None` | `None` if $\text{Footfall} = 0$ |
+| **Target Achievement %** | `safe_divide(Net Sales, T) * 100` | `float \| None` | `None` if $T$ is `None` or $0$ |
+| **Remaining %** | `safe_divide(Remaining, T) * 100` | `float \| None` | `None` if $T$ is `None` or $0$ |
+| **Average Transaction Value (ATV)**| `safe_divide(Net Sales, NOB)` | `float \| None` | `None` if $\text{NOB} = 0$ |
+| **Revenue Per Visitor (RPV)** | `safe_divide(Net Sales, Footfall)` | `float \| None` | `None` if $\text{Footfall} = 0$ |
+| **Basket Size (UPT)** | `safe_divide(Bill Quantity, NOB)` | `float \| None` | `None` if $\text{NOB} = 0$ |
+| **Conversion %** | `safe_divide(NOB, Footfall) * 100` | `float \| None` | `None` if $\text{Footfall} = 0$ |
 
 > [!NOTE]
 > When `sales_target` is not set by an admin, the system preserves `achievement_pct = None` rather than fabricating an artificial estimate. The midnight settlement job (`src/daily_midnight_job.py`) intentionally skips unconfigured target dates.

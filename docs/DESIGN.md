@@ -24,7 +24,7 @@
 1. **3-Second Glanceability:** In high-traffic retail environments, floor managers must understand their daily sales gap and pacing status within 3 seconds of glancing at the screen.
 2. **Tabular Numerics First:** All currency figures (`₹`), percentages, and quantities use monospaced tabular figures (`tabular-nums`) to prevent layout jitter during live updates.
 3. **Intentional Color Economy:** Color is never purely decorative; every vibrant hue communicates an exact operational threshold.
-4. **Tactile Touch Targets:** All clickable actions feature minimum $44 \times 44\text{ px}$ tap zones suitable for touchscreen POS kiosks.
+4. **Tactile Touch Targets:** All clickable actions feature minimum 44 × 44 px tap zones suitable for touchscreen POS kiosks.
 
 ---
 
