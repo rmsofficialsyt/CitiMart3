@@ -38,9 +38,11 @@
    - [9.1 Product Shortfall Requisition Lifecycle](#91-product-shortfall-requisition-lifecycle)
    - [9.2 Executive Directive Broadcast & Read Receipt Workflow](#92-executive-directive-broadcast--read-receipt-workflow)
 10. [Algorithmic Formulations & Mathematical Specifications](#10-algorithmic-formulations--mathematical-specifications)
-   - [10.1 Safe Division & Intraday Metric Formulations](#101-safe-division--intraday-metric-formulations)
-   - [10.2 Rolling Target Recovery Run-Rate Algorithm](#102-rolling-target-recovery-run-rate-algorithm)
-   - [10.3 Timeslot Boundary Normalization Engine](#103-timeslot-boundary-normalization-engine)
+   - [10.1 Safe Division & The "Don't Fabricate" Non-Zero Ratio Law](#101-safe-division--the-dont-fabricate-non-zero-ratio-law)
+   - [10.2 Authoritative Intraday Metric Formulations (`compute_live_kpis`)](#102-authoritative-intraday-metric-formulations-compute_live_kpis)
+   - [10.3 Single Source of Truth KPI Status Thresholds (`config/kpi_thresholds.py`)](#103-single-source-of-truth-kpi-status-thresholds-configkpi_thresholdspy)
+   - [10.4 Canonical Timeslot Normalization Engine (`config/settings.py`)](#104-canonical-timeslot-normalization-engine-configsettingspy)
+   - [10.5 Rolling Target Recovery Run-Rate Algorithm (`src/chat/`)](#105-rolling-target-recovery-run-rate-algorithm-srcchat)
 11. [Memory Management, Glibc Tuning & Concurrency Limits](#11-memory-management-glibc-tuning--concurrency-limits)
 
 ---
@@ -526,75 +528,176 @@ return 1
 
 ## 10. Algorithmic Formulations & Mathematical Specifications
 
-### 10.1 Safe Division & Intraday Metric Formulations
+### 10.1 Safe Division & The "Don't Fabricate" Non-Zero Ratio Law
 
-To guarantee zero `ZeroDivisionError` crashes on retail floors:
+In accordance with CITIMART's core data integrity bylaws, the KPI engine adheres strictly to the **"Don't Fabricate" ratio law** implemented in `src/kpi_engine.py`. A mathematical ratio must **never** return a fabricated `0.0` when a denominator is zero, missing, or null:
 
-$$\text{safe\_divide}(a, b, \text{default} = 0.0) = \begin{cases} \frac{a}{b} & \text{if } b \ne 0 \text{ and } b \text{ is not null} \\ \text{default} & \text{otherwise} \end{cases}$$
+```python
+# src/kpi_engine.py
+def safe_divide(numerator: float | None, denominator: float | None) -> float | None:
+    """Computes numerator / denominator with strict 'don't fabricate' semantics.
+    
+    Returns None (never 0.0) if:
+    - Either numerator or denominator is None
+    - Denominator is exactly 0
+    - Either value is NaN (math.isnan)
+    
+    The UI presentation layer determines whether to display 'N/A' or '-' for nulls;
+    the arithmetic engine never guesses or fabricates numbers.
+    """
+    if numerator is None or denominator is None:
+        return None
+    if denominator == 0:
+        return None
+    for val in (numerator, denominator):
+        try:
+            if math.isnan(val):
+                return None
+        except (TypeError, ValueError):
+            pass
+    return numerator / denominator
+```
 
-Using `safe_divide`, intraday performance is computed as:
-$$\text{Target Achievement \%} = \text{safe\_divide}(\text{Net Sales}, \text{Allocated Target}) \times 100$$
-$$\text{Average Transaction Value (ATV)} = \text{safe\_divide}(\text{Net Sales}, \text{NOB})$$
-$$\text{Revenue Per Visitor (RPV)} = \text{safe\_divide}(\text{Net Sales}, \text{Total Footfall})$$
-$$\text{Conversion Rate \%} = \text{safe\_divide}(\text{NOB}, \text{Total Footfall}) \times 100$$
-$$\text{Basket Size (UPT)} = \text{safe\_divide}(\text{Total Units Sold}, \text{NOB})$$
+$$\text{safe\_divide}(a, b) = \begin{cases} \frac{a}{b} & \text{if } a \ne \text{null}, b \ne \text{null}, b \ne 0, \text{and } \neg\text{isnan}(a, b) \\ \text{null} & \text{otherwise} \end{cases}$$
 
 ---
 
-### 10.2 Rolling Target Recovery Run-Rate Algorithm
+### 10.2 Authoritative Intraday Metric Formulations (`compute_live_kpis`)
 
-When a store is in a deficit gap at 4:00 PM or 8:00 PM, the AI Copilot executes the recovery run-rate algorithm:
+The single source of truth for all live operational calculations across stores (`NM`, `HB`, `CHW`) is `src/daily_dashboard_store.py::compute_live_kpis`. Every metric is derived directly from atomic MongoDB logs (`sum_bill_log`, `sum_footfall_log`, `sum_nob_log`) and the store's configured target:
+
+| Metric Name | Mathematical Definition | Return Type | Missing/Null Handling |
+|:---|:---|:---|:---|
+| **Net Sales ($₹$)** | $\sum \text{net\_amount} \quad \forall \text{ bills on } (\text{store}, \text{date})$ | `float` | `0.0` if no bills logged |
+| **Bill Quantity** | $\sum \text{bill\_qty} \quad \forall \text{ bills on } (\text{store}, \text{date})$ | `int` | `0` if no bills logged |
+| **Footfall** | $\sum \text{footfall\_count} \quad \forall \text{ logs on } (\text{store}, \text{date})$ | `int` | `0` if no footfall logged |
+| **NOB (Number of Buyers)** | $\sum \text{nob} \quad \forall \text{ bills on } (\text{store}, \text{date})$ | `int` | `0` if no bills logged |
+| **Sales Target ($T$)** | Stored `sales_target` in `targets` collection | `float \| None` | `None` if admin has not set target |
+| **Remaining Deficit / Surplus** | $T - \text{Net Sales}$ | `float \| None` | `None` if $T$ is `None` |
+| **Target Achievement %** | $\text{safe\_divide}(\text{Net Sales}, T) \times 100$ | `float \| None` | `None` if $T$ is `None` or $0$ |
+| **Remaining %** | $\text{safe\_divide}(\text{Remaining}, T) \times 100$ | `float \| None` | `None` if $T$ is `None` or $0$ |
+| **Average Transaction Value (ATV)**| $\text{safe\_divide}(\text{Net Sales}, \text{NOB})$ | `float \| None` | `None` if $\text{NOB} = 0$ |
+| **Revenue Per Visitor (RPV)** | $\text{safe\_divide}(\text{Net Sales}, \text{Footfall})$ | `float \| None` | `None` if $\text{Footfall} = 0$ |
+| **Basket Size (UPT)** | $\text{safe\_divide}(\text{Bill Quantity}, \text{NOB})$ | `float \| None` | `None` if $\text{NOB} = 0$ |
+| **Conversion %** | $\text{safe\_divide}(\text{NOB}, \text{Footfall}) \times 100$ | `float \| None` | `None` if $\text{Footfall} = 0$ |
+
+> [!NOTE]
+> When `sales_target` is not set by an admin, the system preserves `achievement_pct = None` rather than fabricating an artificial estimate. The midnight settlement job (`src/daily_midnight_job.py`) intentionally skips unconfigured target dates.
+
+---
+
+### 10.3 Single Source of Truth KPI Status Thresholds (`config/kpi_thresholds.py`)
+
+Status bands (Red, Yellow, Green) are evaluated through `config/kpi_thresholds.py`. Factory defaults can be dynamically overridden by administrators at runtime via `PUT /api/kpi-thresholds`, which writes to `config/kpi_thresholds.local.json`:
 
 ```python
-def compute_recovery_run_rate(net_sales: float, target: float, current_time: str) -> dict:
-    remaining_gap = max(0.0, target - net_sales)
-    if remaining_gap <= 0.0:
-        return {"status": "achieved", "required_hourly_run_rate": 0.0}
+# Factory defaults from config/kpi_thresholds.py
+_DEFAULTS = {
+    "achievement": {"red_below": 80.0, "green_above": 100.0},
+    "conversion":  {"red_below": 45.0, "green_at_or_above": 55.0},
+    "atv":         {"red_below": 900.0, "green_at_or_above": 1100.0},
+    "rpv":         {"red_below": 500.0, "green_at_or_above": 700.0},
+    "basket_size": {"red_below": 2.0, "green_at_or_above": 5.0},
+}
+```
 
-    # Closing time is fixed at 23:59 (approx 12.0 hours total from 12:00)
-    current_hour = int(current_time.split(":")[0])
-    current_minute = int(current_time.split(":")[1])
-    remaining_hours = max(0.5, (23 - current_hour) + ((60 - current_minute) / 60.0))
+#### Evaluation Rules:
+1. **Achievement % Status:**
+   $$\text{status}(\text{ach}) = \begin{cases} \text{Green} & \text{if } \text{ach} > 100.0 \\ \text{Red} & \text{if } \text{ach} < 80.0 \\ \text{Yellow} & \text{if } 80.0 \le \text{ach} \le 100.0 \end{cases}$$
+   *(Note: Achievement uses strict `>` for Green, per the business rule that $100\%$ exact is on-target Yellow/Slate, while $>100\%$ represents surplus).*
 
-    required_hourly_sales = remaining_gap / remaining_hours
+2. **ATV, RPV, Conversion %, and Basket Size Status:**
+   $$\text{status}(v, \text{low}, \text{high}) = \begin{cases} \text{Green} & \text{if } v \ge \text{high} \\ \text{Red} & \text{if } v < \text{low} \\ \text{Yellow} & \text{if } \text{low} \le v < \text{high} \end{cases}$$
 
-    return {
-        "status": "deficit",
-        "deficit_gap": remaining_gap,
-        "remaining_hours": round(remaining_hours, 2),
-        "required_hourly_run_rate": round(required_hourly_sales, 2),
-        "target_hourly_bills": math.ceil(required_hourly_sales / 2500.0) # Using historical ATV baseline
-    }
+---
+
+### 10.4 Canonical Timeslot Normalization Engine (`config/settings.py`)
+
+Floor timestamps are bucketed into four canonical bands matching historical reporting. Implemented in `config/settings.py::time_slot_for_time`:
+
+```python
+# config/settings.py
+TIME_SLOT_ORDER = [
+    "11.00 AM - 01.59 PM",
+    "02.00 PM - 04.59 PM",
+    "05.00 PM - 07.59 PM",
+    "08.00 PM - 11.59 PM",
+]
+
+_TIME_SLOT_BANDS = [
+    (TIME_SLOT_ORDER[0], 10 * 60 + 30, 14 * 60),  # 630 <= m < 840 (includes 10:30 opening)
+    (TIME_SLOT_ORDER[1], 14 * 60,       17 * 60),  # 840 <= m < 1020
+    (TIME_SLOT_ORDER[2], 17 * 60,       20 * 60),  # 1020 <= m < 1200
+    (TIME_SLOT_ORDER[3], 20 * 60,       24 * 60),  # 1200 <= m < 1440
+]
+
+def time_slot_for_time(value: time) -> str | None:
+    """Buckets a clock time into one of TIME_SLOT_ORDER's 4 bands.
+    Returns None for any time outside all 4 bands (before 10:30 AM).
+    """
+    minutes = value.hour * 60 + value.minute
+    for label, start, end in _TIME_SLOT_BANDS:
+        if start <= minutes < end:
+            return label
+    return None
+```
+
+```
+00:00        10:30 AM                 02:00 PM                 05:00 PM                 08:00 PM           23:59
+  │             │                        │                        │                        │                 │
+  ▼             ▼                        ▼                        ▼                        ▼                 ▼
+[ Invalid: None ] [ "11.00 AM - 01.59 PM" ] [ "02.00 PM - 04.59 PM" ] [ "05.00 PM - 07.59 PM" ] [ "08.00 PM - 11.59 PM" ]
 ```
 
 ---
 
-### 10.3 Timeslot Boundary Normalization Engine
+### 10.5 Rolling Target Recovery Run-Rate Algorithm (`src/chat/`)
 
-Timestamps resolve into standardized slots via integer-minute arithmetic:
+When a store is in a deficit gap during afternoon or evening pacing reviews, the AI Copilot executes the recovery run-rate algorithm to calculate the catch-up velocity required before store closing:
 
 ```python
-def resolve_timeslot(timestamp_str: str) -> str:
-    """
-    Normalizes HH:MM string to the four store timeslot bands:
-    - 10:30 to 13:59: Slot 1 (Morning)
-    - 14:00 to 16:59: Slot 2 (Afternoon)
-    - 17:00 to 19:59: Slot 3 (Evening)
-    - 20:00 to 23:59: Slot 4 (Night)
-    """
-    parts = timestamp_str.split(":")
-    total_minutes = int(parts[0]) * 60 + int(parts[1])
+import math
+from datetime import datetime
 
-    if 630 <= total_minutes <= 839:
-        return "Slot 1"
-    elif 840 <= total_minutes <= 1019:
-        return "Slot 2"
-    elif 1020 <= total_minutes <= 1199:
-        return "Slot 3"
-    elif 1200 <= total_minutes <= 1439:
-        return "Slot 4"
-    else:
-        raise ValueError("Timestamp outside store operating hours (10:30 to 23:59).")
+def compute_recovery_run_rate(
+    net_sales: float,
+    sales_target: float | None,
+    current_time: str,  # Format: "HH:MM"
+    atv_baseline: float = 1100.0,
+) -> dict:
+    """Calculates the hourly sales run-rate and transaction velocity required
+    to eliminate the deficit gap before the 23:59 closing settlement.
+    """
+    if sales_target is None:
+        return {"status": "no_target", "message": "No sales target configured for today."}
+
+    deficit_gap = sales_target - net_sales
+    if deficit_gap <= 0.0:
+        return {
+            "status": "achieved",
+            "surplus": abs(deficit_gap),
+            "required_hourly_run_rate": 0.0,
+            "required_hourly_bills": 0,
+        }
+
+    hour, minute = map(int, current_time.split(":"))
+    current_minutes = hour * 60 + minute
+    closing_minutes = 23 * 60 + 59  # 1439 minutes
+
+    remaining_minutes = max(30, closing_minutes - current_minutes)
+    remaining_hours = remaining_minutes / 60.0
+
+    required_hourly_sales = deficit_gap / remaining_hours
+    required_hourly_bills = math.ceil(required_hourly_sales / atv_baseline)
+
+    return {
+        "status": "deficit",
+        "deficit_gap": round(deficit_gap, 2),
+        "remaining_hours": round(remaining_hours, 2),
+        "required_hourly_run_rate": round(required_hourly_sales, 2),
+        "required_hourly_bills": required_hourly_bills,
+        "assumed_atv": atv_baseline,
+    }
 ```
 
 ---
