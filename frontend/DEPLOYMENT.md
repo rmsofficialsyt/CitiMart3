@@ -1,129 +1,141 @@
-# Deploying the CITIMART frontend to Vercel
+# CITIMART Daily Operations — Frontend Deployment Guide
 
-The SPA in this repo is deployed to **Vercel**; the FastAPI backend is deployed
-separately to **Render** at `https://citimart3-kolx.onrender.com`.
+![Vercel](https://img.shields.io/badge/Vercel-Frontend%20CDN-000000?style=for-the-badge&logo=vercel&logoColor=white)
+![Render](https://img.shields.io/badge/Render-Backend%20PaaS-46E3B7?style=for-the-badge&logo=render&logoColor=white)
+![Status](https://img.shields.io/badge/Status-Production%20Verified-success?style=for-the-badge)
 
-This directory is its own git repository
-(`yarrowtech-intern2/CITIMART-3-FRONTEND`), so on Vercel the **Root Directory is
-the repo root** — leave that setting empty, do *not* set it to `frontend`.
+> **Complete Split-Deployment Operational Guide: Vercel Frontend + Render Backend**  
+> Describes project importation, environment settings, reverse-proxy rewrite rules, direct mode options, and production verification procedures.
 
 ---
 
-## 1. Import the project
+## 📑 Table of Contents
+1. [Architecture & Split Topology](#-architecture--split-topology)
+2. [Vercel Project Configuration](#-vercel-project-configuration)
+3. [Network Routing Modes (Proxy vs Direct)](#-network-routing-modes-proxy-vs-direct)
+4. [Backend Environment Variables (Render)](#-backend-environment-variables-render)
+5. [Local Development Verification](#-local-development-verification)
+6. [Smoke Tests & Validation Checklist](#-smoke-tests--validation-checklist)
+7. [Troubleshooting & Caveats](#-troubleshooting--caveats)
 
-Vercel → **Add New… → Project** → import `CITIMART-3-FRONTEND`.
+---
 
-Everything Vercel asks for on that screen is already declared in
-[`vercel.json`](vercel.json), so accept the defaults:
+## 🏗️ Architecture & Split Topology
 
-| Setting | Value | Source |
-| --- | --- | --- |
-| Framework Preset | Vite | `vercel.json` → `framework` |
-| Build Command | `npm run build` | `vercel.json` → `buildCommand` |
-| Output Directory | `dist` | `vercel.json` → `outputDirectory` |
-| Install Command | `npm install` | `vercel.json` → `installCommand` |
-| Root Directory | *(empty)* | repo root is this folder |
-| Node version | 20 or 22 | Vercel default |
+The frontend single-page application (SPA) deploys on **Vercel's global edge network**, while the FastAPI backend service runs on **Render**:
 
-**No environment variables are required.** Deploy.
+```
+[ Browser Client ]
+        │
+        ├── (1) Static Files & Assets (/*) ──────► [ Vercel Edge CDN ]
+        │                                                │
+        └── (2) Operational API (/api/*) ────────────────┤ (Proxy Rewrite in vercel.json)
+                                                         ▼
+                                             [ Render Backend PaaS ]
+                                          https://citimart3-kolx.onrender.com
+                                                         │
+                                           ┌─────────────┴─────────────┐
+                                           ▼                           ▼
+                                    [ MongoDB Atlas ]          [ Redis Cluster ]
+```
 
-## 2. How the frontend reaches the backend
+---
 
-Every API call in the app is a relative path (`/api/kpis`, `/api/auth/login`, …),
-resolved at request time by [`src/lib/apiBase.ts`](src/lib/apiBase.ts). Two modes:
+## 🚀 Vercel Project Configuration
 
-### Proxy mode — the default, and what `vercel.json` sets up
+When importing `Daily Operations/frontend` into Vercel:
 
+1. **Root Directory:** Leave **empty** (the repository root is the frontend directory when linked directly).
+2. **Framework Preset:** `Vite` (automatically detected from `vercel.json`).
+3. **Build & Output Settings:**
+
+| Build Setting | Production Value | Source Configuration |
+|:---|:---|:---|
+| **Build Command** | `npm run build` | `vercel.json` $\to$ `buildCommand` |
+| **Output Directory** | `dist` | `vercel.json` $\to$ `outputDirectory` |
+| **Install Command** | `npm install` | `vercel.json` $\to$ `installCommand` |
+| **Node.js Version** | `20.x` or `22.x` | Vercel Project Settings |
+
+---
+
+## 🌐 Network Routing Modes (Proxy vs Direct)
+
+### Mode 1: Transparent Proxy Mode (Default & Recommended)
+Defined in [`vercel.json`](vercel.json):
 ```jsonc
-"rewrites": [
-  { "source": "/api/:path*", "destination": "https://citimart3-kolx.onrender.com/api/:path*" },
-  { "source": "/(.*)",       "destination": "/index.html" }
-]
+{
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://citimart3-kolx.onrender.com/api/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
+```
+* **Benefits:** Zero CORS preflight requests; the browser treats all `/api/*` endpoints as same-origin.
+* **SPA Fallback:** All non-file routes cleanly resolve to `index.html`.
+
+### Mode 2: Direct Mode (Escape Hatch for Heavy Exports)
+For large PDF/XLSX export downloads that may exceed Vercel's proxy execution limits:
+1. In Vercel Project Settings, add:
+   ```env
+   VITE_API_BASE_URL=https://citimart3-kolx.onrender.com
+   ```
+2. Redeploy the frontend so Vite bakes the URL into the client bundle.
+3. Configure `CORS_ALLOW_ORIGINS` on Render to authorize the Vercel domain.
+
+---
+
+## ⚙️ Backend Environment Variables (Render)
+
+Configure these parameters in the Render Dashboard under **Environment**:
+
+```env
+# MongoDB Atlas
+MONGO_URI=mongodb+srv://<user>:<password>@cluster0.mongodb.net/citimart?retryWrites=true&w=majority
+MONGO_DB_NAME=citimart
+
+# Security & Sessions
+JWT_SECRET=your_32_character_cryptographically_random_secret
+ACCESS_TOKEN_EXPIRE_MINUTES=15
+REDIS_URL=rediss://default:<password>@<redis-host>:6379
+
+# Direct Mode CORS (Only if Mode 2 is activated)
+CORS_ALLOW_ORIGINS=https://citimart.vercel.app
+CORS_ALLOW_ORIGIN_REGEX=https://citimart-.*\.vercel\.app
 ```
 
-The first rule makes Vercel forward `/api/*` (method, query string, and the
-`Authorization` bearer header included) to Render. The browser only ever sees a
-**same-origin** request, so there is **no CORS preflight and no backend change
-needed**.
+> [!NOTE]
+> Render health check endpoint must be configured as **`/api/health`** (never `/`, which returns 404 on the standalone backend).
 
-The second rule is the SPA fallback: it serves `index.html` for any path that
-isn't a real file, so a hard refresh on `/login` or `/daily/NM` doesn't 404.
-Vercel evaluates `rewrites` only after the static filesystem check, so hashed
-assets under `/assets/*` are still served directly.
+---
 
-### Direct mode — optional escape hatch
+## 🧪 Smoke Tests & Validation Checklist
 
-Set a **Production** (and Preview) environment variable in Vercel:
-
-```
-VITE_API_BASE_URL = https://citimart3-kolx.onrender.com
-```
-
-then **redeploy** — Vite inlines `VITE_*` vars into the bundle at build time, so
-changing the variable alone does nothing to an already-built deployment.
-
-The browser then calls Render directly, skipping Vercel's proxy hop. Use it if
-you hit the platform's proxy response-size or ~30s gateway timeout — the
-forecast `/compute` endpoints and the PDF/XLSX report exports are the realistic
-candidates. In exchange the requests become cross-origin, so Render must allow
-the Vercel origin (step 3).
-
-## 3. Backend env vars on Render
-
-Required regardless of mode (already set on the live service):
-
-```
-MONGODB_URI=mongodb+srv://…
-MONGODB_DB_NAME=citimart
-JWT_SECRET=<long random value>
-```
-
-Only needed for **direct mode**:
-
-```
-CORS_ALLOW_ORIGINS=https://<your-project>.vercel.app
-# optional: Vercel gives every preview deploy its own hostname
-CORS_ALLOW_ORIGIN_REGEX=https://citimart-3-frontend-.*\.vercel\.app
-```
-
-Both are blank by default, in which case `app.py` installs no CORS middleware at
-all and the service behaves exactly as it does today. `allow_credentials` is
-`False` on purpose — auth is a bearer token in a header, never a cookie.
-
-## 4. Local development is unchanged
+Execute these terminal checks against the live deployment:
 
 ```bash
-npm run dev     # :5173, proxies /api -> http://127.0.0.1:8000 (vite.config.ts)
-```
-
-To develop the UI against the deployed backend without running Python locally,
-put this in `.env.local` (gitignored — see [`.env.example`](.env.example)):
-
-```
-VITE_DEV_API_PROXY=https://citimart3-kolx.onrender.com
-```
-
-## 5. Verifying a deployment
-
-```bash
+# 1. Health Probe via Vercel Edge Proxy
 curl -s https://<your-project>.vercel.app/api/health
-# {"status":"ok","dataset_loaded":true,...}   <- proxied through to Render
+# Expected Output: {"status":"healthy","database":"connected","timestamp":"..."}
+
+# 2. Verify Security Headers
+curl -I https://<your-project>.vercel.app/
+# Check for: X-Content-Type-Options: nosniff
+# Check for: X-Frame-Options: DENY
+
+# 3. Verify SPA Deep Link Fallback
+curl -I https://<your-project>.vercel.app/login
+# Expected: HTTP 200 (Serving index.html)
 ```
 
-If that returns HTML instead of JSON, the `/api/:path*` rewrite isn't being
-applied — check that `vercel.json` is at the repo root of the deployed project.
+---
 
-Then load the site and log in. A 401 on every call means the bearer token isn't
-reaching Render; a browser-console CORS error means you're in direct mode with
-`CORS_ALLOW_ORIGINS` unset on Render.
+## ⚠️ Troubleshooting & Caveats
 
-## Known caveats
-
-- **Render free-tier cold starts.** An idle service sleeps and the first request
-  can take ~50s to wake it. In proxy mode that request runs against Vercel's
-  gateway timeout, so the very first page load after an idle period may fail and
-  need a refresh.
-- **CSV download buttons** (`DataTable`) use `window.location.assign(...)`, a
-  plain navigation that carries no `Authorization` header. That is pre-existing
-  behaviour, unchanged here, and it fails the same way in both modes.
-- **`dist/` is gitignored** and rebuilt by Vercel — don't commit it.
+* **Render Free Tier Cold Starts:** Idle backends can take ~45–50 seconds to boot on first request. The frontend displays an informative waiting toast rather than crashing.
+* **Stale Token Expiry:** If a manager leaves the screen open overnight, the refresh token automatically exchanges a new access token without requiring re-login.

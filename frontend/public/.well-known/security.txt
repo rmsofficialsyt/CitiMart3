@@ -2,4 +2,6 @@ Contact: mailto:security@citimart.local
 Expires: 2027-10-30T00:00:00.000Z
 Preferred-Languages: en, bn, hi
 Canonical: https://citimart.local/.well-known/security.txt
-Policy: Follow Production-grade-Security-checks-spec-check.md
+Policy: https://citimart.local/docs/SECURITY.md
+Acknowledgments: https://citimart.local/docs/AUTHORS.md
+Hiring: https://citimart.local/careers

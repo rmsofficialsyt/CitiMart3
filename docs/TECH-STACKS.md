@@ -1,52 +1,80 @@
 # CITIMART Daily Operations — Technology Stack Specification (TECH-STACKS)
 
-**Stack Version:** 2026.3  
-**Architecture:** Split Deployment (Vercel Frontend + Render Backend + MongoDB Atlas)
+![Stack](https://img.shields.io/badge/CITIMART-Technology%20Stack-00D26A?style=for-the-badge&logo=stackshare&logoColor=white)
+![Version](https://img.shields.io/badge/Stack%20Version-2026.3-blue?style=for-the-badge)
+![Topology](https://img.shields.io/badge/Topology-Multi--Tier%20Distributed-purple?style=for-the-badge)
+
+> **Exhaustive Technical Stack & Dependency Specification**  
+> Covers runtime environments, libraries, database engines, distributed message brokers, and infrastructure specifications.
 
 ---
 
-## 1. Backend Service Stack
-
-| Technology | Version / Spec | Role in Architecture |
-|---|---|---|
-| **Python** | 3.11+ (tested on 3.14.7) | High-performance asynchronous backend runtime |
-| **FastAPI** | 0.115+ | Web framework providing typed schema validation and OpenAPI |
-| **Starlette** | Core ASGI | Middleware processing (Security Headers, GZip, CORS) |
-| **PyMongo** | 4.8+ | Native high-speed MongoDB driver with connection pooling |
-| **PyJWT** | 2.10 | HS256 access tokens (15 min, `iss`/`aud`, bound to a session `sid`) |
-| **redis-py + hiredis** | 5.2.1 | Sessions, distributed rate limits, L2 dashboard cache, weather cache, midnight lock (`db/redis_client.py`, sync client) |
-| **bullmq (Python)** | 2.14.0 | Job queues: `reports`, `audit-events`, `midnight-finalizer` (`src/queue/`). No repeatable jobs in the Python port; the worker schedules midnight itself |
-| **argon2-cffi** | 23.1.0 | Argon2id password hashing (AUTH-02) |
-| **Redis** | 7.4 | Shared state for multi-worker / multi-replica deployments (`maxmemory-policy noeviction`; every app key has a TTL) |
-| **Nginx** | 1.27.5 | L7 gateway + `least_conn` load balancer for the Docker stack (`nginx/nginx.conf`) |
-| **OpenPyXL** | 3.1+ | Sales target Excel upload processor |
-| **ReportLab** | 4.2+ | Headless PDF engine generating certified daily reports |
-| **Pydantic** | v2 | Request/Response schema validation and settings management |
-| **Requests / HTTPX** | Latest | Outbound communication to Google Gemini Generative AI endpoints |
-| **Pytest** | 9.1+ | Automated test runner (234 tests; mongomock + fakeredis/lupa, no external services) |
+## 📑 Stack Component Catalog
+1. [Backend Service Technologies](#1-backend-service-technologies)
+2. [Frontend Application Technologies](#2-frontend-application-technologies)
+3. [Infrastructure & Distributed Systems](#3-infrastructure--distributed-systems)
+4. [Testing & Quality Assurance Stack](#4-testing--quality-assurance-stack)
 
 ---
 
-## 2. Frontend Application Stack
+## 1. Backend Service Technologies
 
-| Technology | Version / Spec | Role in Architecture |
-|---|---|---|
-| **React** | 18.3.1 | Core UI view layer |
-| **TypeScript** | 5.5+ | Full end-to-end type safety |
-| **Vite** | 8.2+ / modern | Development server, bundling, and asset pipeline |
-| **Tailwind CSS** | 4.0+ | Modern styling system |
-| **Lucide React** | Latest | Consistent icon system |
-| **Radix UI** | Modern primitives | Dialogs, popovers, select menus, scroll areas |
-| **Sonner** | Latest | Toast notification system |
-| **Plotly.js / Recharts** | Latest | Glossy gauge and timeseries pacing charts |
+| Component | Selected Technology | Version | Purpose in Architecture |
+|:---|:---|:---|:---|
+| **Runtime** | Python | `3.11+` | Asynchronous non-blocking runtime with native type hints |
+| **API Framework** | FastAPI | `0.115+` | High-throughput REST API with automatic OpenAPI 3.1 generation |
+| **ASGI Server** | Uvicorn / Gunicorn | `0.30+` | Production ASGI worker management |
+| **Schema Validation** | Pydantic | `v2.8+` | Runtime type validation, constraints, and JSON schema parsing |
+| **Database Driver** | PyMongo | `4.8+` | MongoDB Atlas client with pooled TCP connections |
+| **In-Memory Cache** | redis-py (with hiredis) | `5.2.1` | High-speed C-optimized Redis driver for sessions & rate limits |
+| **Job Queue** | BullMQ (Python) | `2.14.0` | Asynchronous queue producer and worker framework |
+| **Auth & Crypto** | PyJWT & argon2-cffi | `2.10` / `23.1` | `HS256` token signing & Argon2id password hashing (`AUTH-02`) |
+| **Spreadsheet Engine** | OpenPyXL | `3.1.5` | Parsing uploaded sales targets & rendering `.xlsx` reports |
+| **Document Engine** | ReportLab & Kaleido | `4.2` / `1.3` | Certified PDF compilation and headless chart rasterization |
+| **AI LLM Gateway** | Google GenAI SDK | `1.0+` | Multilingual retail intelligence copilot |
 
 ---
 
-## 3. Database & Hosting Infrastructure
+## 2. Frontend Application Technologies
 
-- **Database:** MongoDB Atlas M0/M10 Cluster (`citimart` database) hosted in AWS/GCP Mumbai/Singapore region.
-- **Backend PaaS:** Render Web Service (`citimart3-kolx.onrender.com`).
-- **Frontend CDN:** Vercel Edge Network (`citimart.vercel.app` / custom domains) with `/api/*` proxy rewrite.
-- **Self-hosted / horizontally scaled alternative:** `docker-compose.yml` — Redis 7 + N
-  FastAPI replicas + M BullMQ workers behind Nginx (MongoDB stays external). See
-  [ARCHITECTURE.md §3](ARCHITECTURE.md).
+| Component | Selected Technology | Version | Purpose in Architecture |
+|:---|:---|:---|:---|
+| **View Engine** | React | `18.3.1` | Component-driven declarative user interface |
+| **Language** | TypeScript | `5.5+` | Compile-time type checking and contract safety |
+| **Bundler & HMR** | Vite | `5.0+` / `8.2+` | Sub-second Hot Module Replacement and production bundling |
+| **CSS System** | Tailwind CSS | `v4.0` | Utility-first design tokens with high-contrast palette |
+| **Server State** | TanStack React Query | `v5.0` | Cache invalidation, background refetching & optimistic updates |
+| **Client State** | React Context API | Native | Store tenant context, auth token injection & profile state |
+| **Iconography** | Lucide React | `0.400+` | Lightweight tree-shakable SVG icon components |
+| **Data Visualization**| Plotly.js & Recharts | Latest | Glossy circular gauges & 4-timeslot pacing charts |
+| **Toast Alerts** | Sonner | Latest | Non-intrusive operational notification toasts |
+
+---
+
+## 3. Infrastructure & Distributed Systems
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       DISTRIBUTED INFRASTRUCTURE                            │
+├──────────────────────┬──────────────────────┬───────────────────────────────┤
+│ Layer                │ Technology           │ Operational Specification     │
+├──────────────────────┼──────────────────────┼───────────────────────────────┤
+│ Reverse Proxy & L7   │ Nginx 1.27+          │ Least-conn load balancing     │
+│ Database             │ MongoDB Atlas        │ M0/M10 replica set (Mumbai)   │
+│ In-Memory Datastore  │ Redis 7.4 Cluster    │ Sessions, rate limits, caches │
+│ Frontend CDN         │ Vercel Edge Network  │ Global CDN + /api/* proxy     │
+│ Backend Hosting      │ Render Web Services  │ Containerized Linux instances │
+│ Container Orchestrator│ Docker Compose      │ Multi-replica local & staging │
+└──────────────────────┴──────────────────────┴───────────────────────────────┘
+```
+
+---
+
+## 4. Testing & Quality Assurance Stack
+
+* **Test Framework:** `pytest 9.1+`
+* **In-Memory Database Mock:** `mongomock 4.3+` (executes database tests with zero network latency)
+* **In-Memory Redis Mock:** `fakeredis 2.26+` with `lupa 2.6+` (executes Lua rate limiting and token rotation scripts in-memory)
+* **HTTP Test Transport:** `httpx 0.28+` TestClient
+* **Frontend Typechecker:** `tsc -b` (TypeScript build compiler)
+* **Frontend Linter:** `oxlint` / ESLint

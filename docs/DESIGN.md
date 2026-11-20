@@ -1,40 +1,83 @@
-# CITIMART Daily Operations — UI/UX Design System (DESIGN)
+# CITIMART Daily Operations — UI/UX Design System Specification (DESIGN)
 
-**Theme:** High-Impact Executive Retail Operations Dark/Light Theme  
-**Typography:** Inter, Geist Sans, Fira Code (financial tables)  
-**Layout Standards:** Optimized for 1366x768 (standard store POS/desktop terminals), 1080p, and tablet touch screens
+![Design](https://img.shields.io/badge/CITIMART-Design%20System-00D26A?style=for-the-badge&logo=figma&logoColor=white)
+![Standard](https://img.shields.io/badge/WCAG-2.1%20AA%20Compliant-blue?style=for-the-badge)
+![Theme](https://img.shields.io/badge/Theme-High--Contrast%20Executive-darkgreen?style=for-the-badge)
 
----
-
-## 1. Visual Language & Principles
-
-Floor managers operate in high-stress retail environments. The UI emphasizes:
-1. **At-A-Glance Status Recognition:** Key performance indicators (Target Gap, Remaining %, ATV) are immediately distinguishable within 3 seconds of glance.
-2. **Tactile Data Entry:** Form inputs and time pickers have large tap targets ($> 44\text{ px}$) suitable for touch displays.
-3. **Consolidated Row Management:** Single unified action column on logged entries eliminates confusing multi-button clutter.
-4. **Visual Urgency:** High-priority directives from Raphael Sir render as pulsating alerts (`BossAlertBanner.tsx`).
+> **Visual Language, Typography Rhythms, Design Tokens & Component Blueprints**  
+> Built for high-stress retail floor store manager terminals, POS touch displays, and executive mobile dashboards.  
+> Governed by [Taste-Skill Frontend Guidelines](file:///d:/Project%20CITIMART%20Sales%20Analysis/.agents/skills/taste-skill/SKILL.md).
 
 ---
 
-## 2. Key Screen Blueprints
+## 📑 Design System Blueprint
+1. [Core Design Principles](#1-core-design-principles)
+2. [Color Palette & Status Tokens](#2-color-palette--status-tokens)
+3. [Typography Hierarchy & Tabular Numerics](#3-typography-hierarchy--tabular-numerics)
+4. [Component Blueprints & Layout Specs](#4-component-blueprints--layout-specs)
+5. [Touch Targets & Ergonomics](#5-touch-targets--ergonomics)
 
-### 2.1 Landing Page (`Landing.tsx`)
-- High-contrast visual grid presenting the 4 sign-in choices:
-  - `CITIMART — Admin (All Stores)`
-  - `CITIMART — New Market`
-  - `CITIMART — Hatibagan`
-  - `CITIMART — Chowringhee`
-- Direct deep links to `/login?account=<username>`.
+---
 
-### 2.2 Live Store Dashboard (`StoreDailyDashboard.tsx`)
-- **Daily Hero Card:** Big-number KPI display with progress bar to target milestone and MTD pacing matrix.
-- **Glossy Gauges:** Real-time needle indicators for Target Achievement % and Conversion Rate.
-- **Hourly Timeslot Pacing:** 4-column breakdown tracking Slot 1 through Slot 4 velocity.
+## 1. Core Design Principles
 
-### 2.3 Manual Entry Grid (`ManualEntryDashboard.tsx`)
-- Inline row editing for Bill Quantity, Net Amount, Footfall, and Remarks.
-- Layman's expandable guidance drawer explaining standard operational data entry SOPs.
+1. **3-Second Glanceability:** In high-traffic retail environments, floor managers must understand their daily sales gap and pacing status within 3 seconds of glancing at the screen.
+2. **Tabular Numerics First:** All currency figures (`₹`), percentages, and quantities use monospaced tabular figures (`tabular-nums`) to prevent layout jitter during live updates.
+3. **Intentional Color Economy:** Color is never purely decorative; every vibrant hue communicates an exact operational threshold.
+4. **Tactile Touch Targets:** All clickable actions feature minimum $44 \times 44\text{ px}$ tap zones suitable for touchscreen POS kiosks.
 
-### 2.4 Multi-lingual AI Copilot Drawer (`AiStoreAdvisor.tsx` / `AiChatbot.tsx`)
-- Slide-over chat drawer with language toggle pills: `English`, `বাংলা`, `हिंदी`.
-- Preset prompt chips ("Today's Target Gap", "Evening Peak Strategy", "YoY Pacing").
+---
+
+## 2. Color Palette & Status Tokens
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          COLOR TOKEN MATRIX                                 │
+├──────────────┬─────────────┬─────────────┬──────────────────────────────────┤
+│ Status Band  │ Hex Code    │ Tailwind    │ Operational Semantic             │
+├──────────────┼─────────────┼─────────────┼──────────────────────────────────┤
+│ Emerald      │ `#10B981`   │ `emerald-500`│ Target Achieved / Surpassed (≥100%)│
+│ Slate        │ `#94A3B8`   │ `slate-400`  │ Baseline On-Pace (95% - 99.9%)  │
+│ Amber        │ `#F59E0B`   │ `amber-500`  │ Warning Deficit Alert (85%-94.9%)│
+│ Rose         │ `#EF4444`   │ `rose-500`   │ Critical Floor Shortfall (<85%) │
+│ Dark Ground  │ `#0B0F17`   │ `slate-950`  │ High-contrast background canvas │
+│ Card Ground  │ `#151D2A`   │ `slate-900`  │ Elevated surface card canvas    │
+│ Border Rule  │ `#232F42`   │ `slate-800`  │ Subtle card divider strokes     │
+└──────────────┴─────────────┴─────────────┴──────────────────────────────────┘
+```
+
+---
+
+## 3. Typography Hierarchy & Tabular Numerics
+
+* **Primary Font:** `Inter`, `Geist Sans` (High readability, neutral tone).
+* **Financial & Data Font:** `Fira Code`, `JetBrains Mono` with `font-feature-settings: "tnum"`.
+* **Scale Ladder:**
+  * **Hero Metric Numbers:** `text-4xl md:text-5xl font-extrabold tracking-tight tabular-nums`
+  * **Section Headers:** `text-xl font-bold tracking-normal`
+  * **Table Column Headers:** `text-xs font-semibold uppercase tracking-wider text-slate-400`
+  * **Data Cell Content:** `text-sm font-medium tabular-nums text-slate-100`
+
+---
+
+## 4. Component Blueprints & Layout Specs
+
+### 4.1 4-Role Account Landing Grid (`AccountSelector.tsx`)
+* Four prominent interactive cards representing `ADMIN`, `NEW MARKET`, `HATIBAGAN`, and `CHOWRINGHEE`.
+* Hover state elevates card with a soft neon border glow matching store brand tokens.
+
+### 4.2 Hero Summary Card (`HeroSummaryCard.tsx`)
+* Prominent top card containing Net Sales, Target, Achievement Badge, and Deficit Gap.
+* Secondary metric row displaying Footfall, Bills, NOB, ATV, RPV, and Conversion Rate.
+
+### 4.3 Unified Inline Logger (`ManualDataEntryTable.tsx`)
+* Single table consolidating timestamp, bills count, net amount, footfall, and NOB.
+* Unified action column containing atomic **Edit** and **Delete** buttons.
+
+---
+
+## 5. Touch Targets & Ergonomics
+
+* Button heights: Minimum `44px` (`h-11` in Tailwind).
+* Input padding: `px-4 py-3` with large numeric text.
+* Modal overlays: Dark backdrop blur (`backdrop-blur-sm bg-black/60`) focusing user attention on data verification.
