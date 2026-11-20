@@ -77,6 +77,7 @@ __pycache__/
 *.log
 logs/*
 !logs/.gitkeep
+!logs/README.md
 
 # Build output.
 dist/
