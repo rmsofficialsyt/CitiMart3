@@ -273,7 +273,7 @@ function SalesTargetEntry({ store }: { store: string }) {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".xlsx"
+            accept=".xlsx,.xls"
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
@@ -286,6 +286,7 @@ function SalesTargetEntry({ store }: { store: string }) {
             size="sm"
             onClick={() => fileInputRef.current?.click()}
             disabled={saveMutation.isPending || clearMutation.isPending || uploadMutation.isPending}
+            title="Upload Excel spreadsheet (DD-MM-YYYY or YYYY-MM-DD dates)"
             className="rounded-xl border-border text-xs font-semibold ml-auto cursor-pointer hover:bg-muted"
           >
             <Upload className="mr-1.5 h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400" />

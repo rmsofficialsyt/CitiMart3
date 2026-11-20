@@ -12,7 +12,8 @@ The only per-request check left is that `store` is a real store code.
 from __future__ import annotations
 
 import io
-from datetime import date, datetime
+import re
+from datetime import date, datetime, timedelta
 
 import openpyxl
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Request, UploadFile
@@ -38,11 +39,54 @@ def _validate_store(store: str, allow_all: bool = False) -> str:
     return code
 
 
-def _parse_iso_date(value: str) -> date:
+def _parse_flexible_date(value) -> date:
+    """Parse date from openpyxl cell value or string supporting both
+    DD-MM-YYYY and YYYY-MM-DD formats with '-', '/', or '.' separators."""
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        # Excel serial date (Windows 1900 date system)
+        if 1 <= value <= 2958465:
+            # Excel epoch is 1899-12-30 due to 1900 leap year bug
+            return date(1899, 12, 30) + timedelta(days=int(value))
+
+    val_str = str(value or "").strip()
+    if not val_str:
+        raise HTTPException(status_code=400, detail="date is required.")
+
+    # Strip time part if present (e.g. "25-12-2026 00:00:00" or "2026-12-25T00:00:00")
+    val_str = re.split(r"[\sT]", val_str)[0].strip()
+
+    # Match 3 parts separated by '-', '/', or '.'
+    parts = re.split(r"[-/.]", val_str)
+    if len(parts) == 3:
+        p1, p2, p3 = parts[0].strip(), parts[1].strip(), parts[2].strip()
+        # Case 1: YYYY-MM-DD (4-digit year first)
+        if len(p1) == 4 and p1.isdigit() and p2.isdigit() and p3.isdigit():
+            try:
+                return date(int(p1), int(p2), int(p3))
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=f"Invalid date: {e}")
+        # Case 2: DD-MM-YYYY (4-digit year last)
+        if len(p3) == 4 and p3.isdigit() and p1.isdigit() and p2.isdigit():
+            try:
+                return date(int(p3), int(p2), int(p1))
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=f"Invalid date: {e}")
+
+    # Fallback to standard fromisoformat if applicable
     try:
-        return date.fromisoformat(value)
+        return date.fromisoformat(val_str)
     except ValueError:
-        raise HTTPException(status_code=400, detail="date must be YYYY-MM-DD.")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid date format: {val_str!r}. Expected DD-MM-YYYY or YYYY-MM-DD.",
+        )
+
+
+_parse_iso_date = _parse_flexible_date
 
 
 def _parse_target(value, field_name: str = "sales_target") -> float | None:
@@ -137,13 +181,9 @@ def put_targets_bulk(
 
 
 def _cell_to_iso_date(value) -> str:
-    """Normalise an Excel Date cell (openpyxl gives datetime/date for real
-    date cells, a string for text) to YYYY-MM-DD for _parse_iso_date."""
-    if isinstance(value, datetime):
-        return value.date().isoformat()
-    if isinstance(value, date):
-        return value.isoformat()
-    return str(value or "").strip()[:10]
+    """Normalise an Excel Date cell (openpyxl datetime/date, serial number,
+    or DD-MM-YYYY / YYYY-MM-DD string) to ISO YYYY-MM-DD."""
+    return _parse_flexible_date(value).isoformat()
 
 
 MAX_EXCEL_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB limit (API-03 / INP-06)

@@ -251,3 +251,88 @@ def test_upload_targets_manager_forbidden(client, nw_headers):
         headers=nw_headers,
     )
     assert r.status_code == 403
+
+
+def test_upload_targets_accepts_dd_mm_yyyy_format(client, admin_headers, db_session):
+    """Verify that dates written in DD-MM-YYYY format (with -, /, ., or timestamps) are accepted."""
+    rows = [
+        ("01-09-2026", 111),
+        ("02/09/2026", 222),
+        ("03.09.2026", 333),
+        ("04-09-2026 00:00:00", 444),
+    ]
+    content = _targets_workbook(rows)
+    r = client.post(
+        "/api/targets/upload",
+        params={"store": "NM"},
+        files={"file": ("targets_dd_mm.xlsx", content, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        headers=admin_headers,
+    )
+    assert r.status_code == 200
+    assert r.json()["applied"] == 4
+    assert daily_dashboard_store.read_store_target(db_session, "NM", date(2026, 9, 1)) == 111.0
+    assert daily_dashboard_store.read_store_target(db_session, "NM", date(2026, 9, 2)) == 222.0
+    assert daily_dashboard_store.read_store_target(db_session, "NM", date(2026, 9, 3)) == 333.0
+    assert daily_dashboard_store.read_store_target(db_session, "NM", date(2026, 9, 4)) == 444.0
+
+
+def test_upload_targets_accepts_yyyy_mm_dd_variations(client, admin_headers, db_session):
+    """Verify that YYYY-MM-DD variations with -, /, or . are supported."""
+    rows = [
+        ("2026-09-05", 555),
+        ("2026/09/06", 666),
+        ("2026.09.07", 777),
+    ]
+    content = _targets_workbook(rows)
+    r = client.post(
+        "/api/targets/upload",
+        params={"store": "HB"},
+        files={"file": ("targets_yyyy_mm.xlsx", content, "application/octet-stream")},
+        headers=admin_headers,
+    )
+    assert r.status_code == 200
+    assert r.json()["applied"] == 3
+    assert daily_dashboard_store.read_store_target(db_session, "HB", date(2026, 9, 5)) == 555.0
+    assert daily_dashboard_store.read_store_target(db_session, "HB", date(2026, 9, 6)) == 666.0
+    assert daily_dashboard_store.read_store_target(db_session, "HB", date(2026, 9, 7)) == 777.0
+
+
+def test_upload_targets_4_column_dd_mm_yyyy(client, admin_headers, db_session):
+    """Verify 4-column format with DD-MM-YYYY dates."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Prev Year Date", "Prev Year Net Sales", "Present Year Date", "Sales Target"])
+    ws.append(["01-09-2025", 80000, "01-09-2026", 120000])
+    ws.append(["02/09/2025", 95000, "02/09/2026", 130000])
+    buf = io.BytesIO()
+    wb.save(buf)
+
+    r = client.post(
+        "/api/targets/upload",
+        params={"store": "CHW"},
+        files={"file": ("targets_4col.xlsx", buf.getvalue(), "application/octet-stream")},
+        headers=admin_headers,
+    )
+    assert r.status_code == 200
+    assert r.json()["applied"] == 2
+    assert daily_dashboard_store.read_store_target(db_session, "CHW", date(2026, 9, 1)) == 120000.0
+    assert daily_dashboard_store.read_store_target(db_session, "CHW", date(2026, 9, 2)) == 130000.0
+
+
+def test_bulk_targets_accepts_dd_mm_yyyy(client, admin_headers, db_session):
+    """Verify /api/targets/bulk accepts DD-MM-YYYY in JSON payload."""
+    r = client.post(
+        "/api/targets/bulk",
+        json={
+            "store": "NM",
+            "rows": [
+                {"date": "10-09-2026", "sales_target": 500},
+                {"date": "11/09/2026", "sales_target": 600},
+            ],
+        },
+        headers=admin_headers,
+    )
+    assert r.status_code == 200
+    assert r.json()["applied"] == 2
+    assert daily_dashboard_store.read_store_target(db_session, "NM", date(2026, 9, 10)) == 500.0
+    assert daily_dashboard_store.read_store_target(db_session, "NM", date(2026, 9, 11)) == 600.0

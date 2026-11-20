@@ -64,7 +64,20 @@ def generate_llm_response(
 
     # 1. Primary path: client.models.generate_content (official google-genai API)
     try:
-        from google.genai import types
+        try:
+            from google.genai import types
+        except ImportError:
+            class _Types:
+                class GenerateContentConfig:
+                    def __init__(self, **kwargs):
+                        for k, v in kwargs.items():
+                            setattr(self, k, v)
+                class HttpOptions:
+                    def __init__(self, **kwargs):
+                        for k, v in kwargs.items():
+                            setattr(self, k, v)
+            types = _Types()
+
         timeout_sec = float(env.llm_request_timeout_seconds)
         config = types.GenerateContentConfig(
             temperature=temp,
