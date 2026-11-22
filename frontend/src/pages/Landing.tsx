@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AnimatePresence, motion, type Variants } from "framer-motion";
 import {
   Activity,
   ArrowRight,
   BarChart3,
+  Building2,
   CheckCircle2,
   Clock,
   Flame,
@@ -14,6 +15,7 @@ import {
   PackageCheck,
   Percent,
   Receipt,
+  Scale,
   ShieldCheck,
   ShoppingBag,
   ShoppingCart,
@@ -28,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { STORE_NAME_BY_CODE } from "@/lib/authUsers";
 import { fmtDateDot } from "@/lib/format";
 import citimartLogo from "@/assets/citimart-logo.png";
+import { LegalNoticeModal, type LegalDocType } from "@/components/LegalNoticeModal";
 
 type StoreKey = "all" | "NM" | "HB" | "CHW";
 
@@ -260,6 +263,37 @@ export function Landing() {
   const [activeTab, setActiveTab] = useState<StoreKey>("all");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [hoveredPoint, setHoveredPoint] = useState<HourlyPoint | null>(null);
+
+  // Legal & Info modal state with deep linking
+  const [isLegalModalOpen, setIsLegalModalOpen] = useState(false);
+  const [activeLegalDoc, setActiveLegalDoc] = useState<LegalDocType>("about");
+
+  const openLegalDoc = (doc: LegalDocType) => {
+    setActiveLegalDoc(doc);
+    setIsLegalModalOpen(true);
+    window.history.replaceState(null, "", `#${doc}`);
+  };
+
+  const handleLegalModalClose = (open: boolean) => {
+    setIsLegalModalOpen(open);
+    if (!open && window.location.hash) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  };
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace("#", "").toLowerCase();
+      if (hash === "about" || hash === "terms" || hash === "privacy") {
+        setActiveLegalDoc(hash as LegalDocType);
+        setIsLegalModalOpen(true);
+      }
+    };
+
+    handleHashChange();
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
 
   // Fetch authentic previous day / latest telemetry directly from MongoDB
   const { data: heroData } = useQuery({
@@ -1012,22 +1046,181 @@ export function Landing() {
             </Button>
           </motion.div>
         </motion.section>
+      </motion.div>      {/* =========================================================================
+          FOCUSED PRODUCTION FOOTER: ABOUT CITIMART, TERMS OF USE, PRIVACY POLICY
+          ========================================================================= */}
+      <footer className="relative mt-20 w-full border-t border-slate-800/80 bg-gradient-to-b from-[#0a0f1d] via-[#070b14] to-[#03060a] text-slate-400 z-10 overflow-hidden">
+        {/* Ambient Top Glow Line */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 max-w-4xl h-[1px] bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
 
-        {/* Footer */}
-        <footer className="border-t border-white/10 pt-6 text-center text-xs text-slate-500 space-y-2 pb-6">
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 text-slate-400">
-            <div className="shrink-0 rounded bg-white px-1.5 py-0.5 shadow-sm border border-slate-200/40 flex items-center justify-center">
-              <img
-                src={citimartLogo}
-                alt="CITIMART Logo"
-                className="h-6 sm:h-7 w-auto object-contain"
-              />
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-12 sm:py-16">
+          {/* Header Bar */}
+          <div className="text-center sm:text-left mb-8 pb-6 border-b border-slate-800/70 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-white p-1.5 shadow-sm border border-slate-200/50 flex items-center justify-center">
+                <img
+                  src={citimartLogo}
+                  alt="CITIMART Retail"
+                  className="h-7 w-auto object-contain"
+                />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white tracking-tight">
+                  CITIMART Daily Operations Suite
+                </h3>
+                <p className="text-xs text-blue-400 font-medium">
+                  Corporate Governance, Operational Guidelines &amp; Telemetry Policies
+                </p>
+              </div>
             </div>
-            <span>CITIMART Sales KPI Dashboard &mdash; Retail Operations Intelligence.</span>
+
+            <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
+              <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>DPDP Act 2023 &middot; Zero Customer PII Architecture</span>
+            </div>
           </div>
-          <p>&copy; {new Date().getFullYear()} CITIMART Operations. All Rights Reserved. &middot; Kolkata, India</p>
-        </footer>
-      </motion.div>
+
+          {/* 3 Main Things: About, Terms of Use, Privacy Policy */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+            {/* 1. About CITIMART */}
+            <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 sm:p-6 flex flex-col justify-between hover:border-blue-500/40 hover:bg-slate-900/80 transition-all group">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="rounded-lg bg-blue-500/10 p-2 text-blue-400 group-hover:bg-blue-500/20 group-hover:scale-105 transition-all">
+                    <Building2 className="h-5 w-5" />
+                  </div>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20">
+                    Corporate Profile
+                  </span>
+                </div>
+                <h4 className="text-base font-bold text-white group-hover:text-blue-300 transition-colors">
+                  About CITIMART
+                </h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Decades of retail legacy anchoring 3 premier Kolkata department stores—New Market, Hatibagan, and Chowringhee. Transforming daily store operations through real-time intraday sales pacing, hourly footfall telemetry, and floor velocity intelligence.
+                </p>
+              </div>
+
+              <div className="mt-5 pt-4 border-t border-slate-800/80">
+                <button
+                  type="button"
+                  onClick={() => openLegalDoc("about")}
+                  className="w-full inline-flex items-center justify-between text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors cursor-pointer group-hover:translate-x-0.5"
+                >
+                  <span>Explore Company &amp; Operations</span>
+                  <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+                </button>
+              </div>
+            </div>
+
+            {/* 2. Terms of Use */}
+            <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 sm:p-6 flex flex-col justify-between hover:border-amber-500/40 hover:bg-slate-900/80 transition-all group">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="rounded-lg bg-amber-500/10 p-2 text-amber-400 group-hover:bg-amber-500/20 group-hover:scale-105 transition-all">
+                    <Scale className="h-5 w-5" />
+                  </div>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                    Operating Rules
+                  </span>
+                </div>
+                <h4 className="text-base font-bold text-white group-hover:text-amber-300 transition-colors">
+                  Terms of Use
+                </h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Enterprise governance rules for store staff and administrators. Covers authorized credential security, strict multi-tenant store isolation (BOLA/IDOR prevention), truthful POS floor entry, trade secrets, and automated 00:00 IST midnight lock.
+                </p>
+              </div>
+
+              <div className="mt-5 pt-4 border-t border-slate-800/80">
+                <button
+                  type="button"
+                  onClick={() => openLegalDoc("terms")}
+                  className="w-full inline-flex items-center justify-between text-xs font-semibold text-amber-400 hover:text-amber-300 transition-colors cursor-pointer group-hover:translate-x-0.5"
+                >
+                  <span>Read Operating Terms</span>
+                  <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+                </button>
+              </div>
+            </div>
+
+            {/* 3. Privacy Policy */}
+            <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 sm:p-6 flex flex-col justify-between hover:border-emerald-500/40 hover:bg-slate-900/80 transition-all group">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-400 group-hover:bg-emerald-500/20 group-hover:scale-105 transition-all">
+                    <ShieldCheck className="h-5 w-5" />
+                  </div>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                    Compliance
+                  </span>
+                </div>
+                <h4 className="text-base font-bold text-white group-hover:text-emerald-300 transition-colors">
+                  Privacy Policy
+                </h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Guaranteed Zero Customer PII collection—all billing data is processed purely as anonymous mathematical aggregates. Formulated under India&apos;s DPDP Act 2023, with Argon2id password hashing and revocable server-side Redis sessions.
+                </p>
+              </div>
+
+              <div className="mt-5 pt-4 border-t border-slate-800/80">
+                <button
+                  type="button"
+                  onClick={() => openLegalDoc("privacy")}
+                  className="w-full inline-flex items-center justify-between text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer group-hover:translate-x-0.5"
+                >
+                  <span>Review Privacy Policy</span>
+                  <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Bar */}
+          <div className="mt-12 pt-6 border-t border-slate-800/70 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 text-center sm:text-left">
+            <p>
+              &copy; {new Date().getFullYear()} CITIMART Operations. All rights reserved. &middot; Kolkata, West Bengal, India.
+            </p>
+
+            <div className="flex items-center gap-4 text-xs">
+              <button
+                type="button"
+                onClick={() => openLegalDoc("about")}
+                className="hover:text-slate-300 transition-colors cursor-pointer"
+              >
+                About Us
+              </button>
+              <span>&middot;</span>
+              <button
+                type="button"
+                onClick={() => openLegalDoc("terms")}
+                className="hover:text-slate-300 transition-colors cursor-pointer"
+              >
+                Terms of Use
+              </button>
+              <span>&middot;</span>
+              <button
+                type="button"
+                onClick={() => openLegalDoc("privacy")}
+                className="hover:text-slate-300 transition-colors cursor-pointer"
+              >
+                Privacy Policy
+              </button>
+            </div>
+          </div>
+        </div>
+      </footer>
+
+      {/* Legal & Governance Notice Modal */}
+      <LegalNoticeModal
+        open={isLegalModalOpen}
+        onOpenChange={handleLegalModalClose}
+        activeDoc={activeLegalDoc}
+        onDocChange={(doc) => {
+          setActiveLegalDoc(doc);
+          window.history.replaceState(null, "", `#${doc}`);
+        }}
+      />
     </div>
   );
 }
