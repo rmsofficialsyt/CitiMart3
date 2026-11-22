@@ -21,6 +21,7 @@ from src.chat.tools.history_tools import (
     get_exact_day_granular_kpis,
     get_month_to_date_granular_summary,
     get_recent_daily_history_table,
+    get_year_to_date_granular_summary,
 )
 
 
@@ -54,6 +55,9 @@ class DbOpsAgent:
             )
         if "mtd" in wanted:
             results["mtd_summary"] = get_month_to_date_granular_summary(db, store_code, target_date, sec_ctx)
+            results["peak_dip_days"] = get_best_and_worst_days_in_month(db, store_code, target_date, sec_ctx)
+        if "year_summary" in wanted:
+            results["year_summary"] = get_year_to_date_granular_summary(db, store_code, target_date, sec_ctx)
         if "peak_dip" in wanted:
             results["peak_dip_days"] = get_best_and_worst_days_in_month(db, store_code, target_date, sec_ctx)
         if "wow" in wanted:

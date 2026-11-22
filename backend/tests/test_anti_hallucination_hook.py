@@ -117,3 +117,28 @@ def test_post_generation_audit_sanitizes_unrecorded_data():
     )
     assert "No verified operational sales records exist" in audited
     assert "₹2,45,000" not in audited
+
+
+def test_sanitize_to_the_point_output_strips_pleasantries():
+    """Verify that sanitize_to_the_point_output strips greetings and conversational preamble."""
+    # English greetings & preamble
+    text1 = "Hello! Certainly, here is the requested sales report:\n### 📊 **New Market (NM)**\nNet Sales: ₹2,50,000"
+    cleaned1 = AntiHallucinationHook.sanitize_to_the_point_output(text1)
+    assert cleaned1.startswith("### 📊 **New Market (NM)**")
+    assert "Hello" not in cleaned1
+    assert "Certainly" not in cleaned1
+
+    # Bengali pleasantries
+    text2 = "নমস্কার! অবশ্যই এখানে বিবরণ দেওয়া হলো:\n### 📊 **হাতিবাগান (HB)**"
+    cleaned2 = AntiHallucinationHook.sanitize_to_the_point_output(text2)
+    assert cleaned2.startswith("এখানে বিবরণ দেওয়া হলো" if "এখানে বিবরণ" in cleaned2 else "### 📊 **হাতিবাগান (HB)**")
+    assert "নমস্কার" not in cleaned2
+    assert "অবশ্যই" not in cleaned2
+
+    # Hindi pleasantries
+    text3 = "नमस्ते! ज़रूर! यहाँ आंकड़े हैं:\n### 📊 **चौरींगी (CHW)**"
+    cleaned3 = AntiHallucinationHook.sanitize_to_the_point_output(text3)
+    assert "नमस्ते" not in cleaned3
+    assert "ज़रूर" not in cleaned3
+    assert "### 📊 **चौरींगी (CHW)**" in cleaned3
+

@@ -47,9 +47,10 @@ def _isolate_shared_state():
     process-global; reset them so no test sees another's sessions or 429s.
     Tests run Redis-less unless they opt in via the `fake_redis` fixture."""
     from db.redis_client import set_redis_for_tests
-    from src import rate_limiter, session_store
+    from src import daily_dashboard_store, rate_limiter, session_store
 
     set_redis_for_tests(None)
+    daily_dashboard_store.invalidate_dashboard_cache()
     session_store.reset_for_tests()
     for limiter in (
         rate_limiter.login_ip_limiter,
@@ -60,6 +61,7 @@ def _isolate_shared_state():
         limiter.reset()
     yield
     set_redis_for_tests(None)
+    daily_dashboard_store.invalidate_dashboard_cache()
     session_store.reset_for_tests()
 
 

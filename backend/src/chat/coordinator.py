@@ -68,15 +68,25 @@ def _inr(v: Any) -> str:
 
 
 def _no_records_card(store_name: str, day_iso: str, db_calendar: dict[str, Any] | None, language: str) -> str:
+    from src.daily_context import get_holiday_name
+    holiday_tag = ""
+    try:
+        d = date.fromisoformat(day_iso)
+        h_name = get_holiday_name(d)
+        if h_name:
+            holiday_tag = f" ({h_name})"
+    except Exception:
+        pass
+
     latest = (db_calendar or {}).get("latest_date")
-    hint_en = f" The latest day with recorded entries is **{latest}** — ask for that date to see its report." if latest and latest != day_iso else ""
-    hint_bn = f" সর্বশেষ রেকর্ড করা দিন **{latest}** — সেই তারিখের রিপোর্ট চাইতে পারেন।" if latest and latest != day_iso else ""
-    hint_hi = f" अंतिम रिकॉर्ड किया गया दिन **{latest}** है — उस तारीख की रिपोर्ट मांग सकते हैं।" if latest and latest != day_iso else ""
+    hint_en = f"\n\n💡 **Tip:** The latest completed operating day with verified bills is **{latest}**. Ask *'Show {latest} report'* or *'Show yesterday's sales'* to inspect full numbers." if latest and latest != day_iso else ""
+    hint_bn = f"\n\n💡 **পরামর্শ:** সর্বশেষ সম্পূর্ণ রেকর্ড করা দিন **{latest}**। সম্পূর্ণ রিপোর্ট দেখতে *'{latest} এর সেলস রিপোর্ট'* বা *'গতকালের রিপোর্ট'* দেখতে চাইতে পারেন।" if latest and latest != day_iso else ""
+    hint_hi = f"\n\n💡 **सुझाव:** नवीनतम सत्यापित कारोबारी दिन **{latest}** है। पूरा विवरण देखने के लिए *'{latest} की रिपोर्ट'* या *'कल की बिक्री'* पूछें।" if latest and latest != day_iso else ""
     return _t(
         language,
-        f"### ℹ️ **{store_name} — {day_iso}**\n\nNo sales (bills), footfall or NOB have been logged for this date yet, so there are no sales or target figures to report.{hint_en}",
-        f"### ℹ️ **{store_name} — {day_iso}**\n\nএই তারিখে এখনও কোনো সেলস (বিল), ফুটফল বা NOB এন্ট্রি হয়নি, তাই সেলস বা টার্গেটের কোনো হিসেব নেই।{hint_bn}",
-        f"### ℹ️ **{store_name} — {day_iso}**\n\nइस तारीख के लिए अभी तक कोई बिक्री (बिल), फुटफॉल या NOB दर्ज नहीं हुई है, इसलिए बिक्री या टारगेट का कोई आंकड़ा उपलब्ध नहीं है।{hint_hi}",
+        f"### ℹ️ **{store_name} — {day_iso}{holiday_tag}**\n\nNo sales (bills), footfall or NOB have been logged for this date yet.{hint_en}",
+        f"### ℹ️ **{store_name} — {day_iso}{holiday_tag}**\n\nএই তারিখে এখনও ফ্লোর থেকে কোনো সেলস (বিল), ফুটফল বা এনওবি লগ করা হয়নি।{hint_bn}",
+        f"### ℹ️ **{store_name} — {day_iso}{holiday_tag}**\n\nइस तारीख के लिए अभी तक स्टोर फ्लोर से कोई बिक्री (बिल), फुटफॉल या एनओबी लॉग नहीं हुआ है।{hint_hi}",
     )
 
 
@@ -217,8 +227,122 @@ def _synthesize_domain_response(
     store_name = store_label(active_store)
     db_ops = subagent_data.get("db_ops_agent", {})
 
-    # 0. KPI Mathematical Formulas & Definitions
+    # 0a. Conversational Greeting & Status
+    if primary == "greeting":
+        today_iso = target_date.isoformat()
+        latest = (db_calendar or {}).get("latest_date") or today_iso
+        if language == "bn":
+            return (
+                f"### 👋 **সিটিমার্ট রিটেইল এআই কো-পাইলটে স্বাগতম!**\n\n"
+                f"আমি **{store_name}** এর জন্য আপনার সার্বক্ষণিক অপারেশন অ্যাসিস্ট্যান্ট।\n\n"
+                f"- **সক্রিয় স্টোর:** {store_name}\n"
+                f"- **হিসাবের তারিখ:** {today_iso}\n"
+                f"- **সর্বশেষ সম্পূর্ণ রেকর্ড:** {latest}\n\n"
+                f"💡 **দ্রুত যা জানতে পারেন:**\n"
+                f"1. *'গতকালের সেলস ও টাইম স্লট রিপোর্ট দেখাও'*\n"
+                f"2. *'টার্গেট কত বাকি ও ৭ দিনের অ্যাডজাস্টমেন্ট কী?'*\n"
+                f"3. *'বিগত ৭ দিনের সেলস হিস্ট্রি টেবিল দাও'*\n"
+                f"4. *'কোন স্টোর সবচেয়ে এগিয়ে আছে?'*"
+            )
+        elif language == "hi":
+            return (
+                f"### 👋 **सिटीमार्ट रिटेल AI को-पायलट में आपका स्वागत है!**\n\n"
+                f"मैं **{store_name}** के लिए आपका समर्पित ऑपरेशंस असिस्टेंट हूँ।\n\n"
+                f"- **सक्रिय स्टोर:** {store_name}\n"
+                f"- **परिचालन दिनांक:** {today_iso}\n"
+                f"- **नवीनतम रिकॉर्डेड तिथि:** {latest}\n\n"
+                f"💡 **त्वरित प्रश्न सुझाव:**\n"
+                f"1. *'कल की कुल बिक्री और टाइम स्लॉट रिपोर्ट दिखाएं'*\n"
+                f"2. *'टारगेट कितना बाकी है और रिकवरी क्या है?'*\n"
+                f"3. *'पिछले 7 दिनों की दैनिक बिक्री तालिका दिखाएं'*\n"
+                f"4. *'नेटवर्क में कौन सा स्टोर आगे है?'*"
+            )
+        else:
+            return (
+                f"### 👋 **Welcome to CITIMART Retail AI Operations Co-Pilot!**\n\n"
+                f"I am your dedicated numbers-first retail decision co-pilot for **{store_name}**.\n\n"
+                f"- **Active Store:** {store_name}\n"
+                f"- **Operating Date:** {today_iso}\n"
+                f"- **Latest Verified Records:** {latest}\n\n"
+                f"💡 **Quick Operational Inquiries:**\n"
+                f"1. *'Show yesterday's sales and time slot report'*\n"
+                f"2. *'What is our target deficit and 7-day rolling recovery?'*\n"
+                f"3. *'Give me past 7 operating days sales history table'*\n"
+                f"4. *'Which store is currently leading network sales?'*"
+            )
+
+    # 0b. Help & Operational Capabilities
+    if primary == "help":
+        if language == "bn":
+            return (
+                "### ℹ️ **সিটিমার্ট এআই কো-পাইলট নির্দেশিকা ও ফিচারসমূহ**\n\n"
+                "**🤖 ৫টি বিশেষায়িত সাব-এজেন্ট ক্ষমতা:**\n"
+                "1. **DbOpsAgent:** মঙ্গোডিবি এটলাসের লাইভ সেলস, বিল কাউন্ট, ফুটফল ও ৪-স্লট ব্রেকডাউন।\n"
+                "2. **TargetAdjustmentAgent:** ৭/১৪/৩০ দিনের রোলিং ডেফিসিট ক্যারি-ফরোয়ার্ড ($A_t = T_t + C_t$)।\n"
+                "3. **ForecastingAgent:** YoY পেসিং ও রান-রেট প্রক্ষেপণ।\n"
+                "4. **MarketIntelAgent:** কলকাতার স্থানীয় আবহাওয়া ও উৎসব ট্রাফিক বিশ্লেষণ।\n"
+                "5. **RetailCoachAgent:** ফ্লোর কনভার্সন বৃদ্ধির কৌশল ও এসওপি নির্দেশিকা।\n\n"
+                "💡 যেকোনো প্রশ্ন বাংলায় বা ইংরেজিতে সরাসরি টাইপ করতে পারেন।"
+            )
+        elif language == "hi":
+            return (
+                "### ℹ️ **सिटीमार्ट AI को-पायलट मार्गदर्शिका व सुविधाएं**\n\n"
+                "**🤖 ५ समर्पित सब-एजेंट्स की क्षमताएं:**\n"
+                "1. **DbOpsAgent:** मोंगोडीबी एटलस लाइव बिक्री, बिल, फुटफॉल व ४-स्लॉट विवरण।\n"
+                "2. **TargetAdjustmentAgent:** ७/१४/३०-दिवसीय रोलिंग डेफिसिट रिकवरी ($A_t = T_t + C_t$)।\n"
+                "3. **ForecastingAgent:** YoY ऐतिहासिक तुलना व दैनिक रन-रेट।\n"
+                "4. **MarketIntelAgent:** कोलकाता का लाइव मौसम व त्योहारी मांग विश्लेषण।\n"
+                "5. **RetailCoachAgent:** फ्लोर कन्वर्शन दर बढ़ाने के व्यावहारिक उपाय।\n\n"
+                "💡 आप कोई भी परिचालन प्रश्न सीधे हिंदी या अंग्रेजी में पूछ सकते हैं।"
+            )
+        else:
+            return (
+                "### ℹ️ **CITIMART Retail AI Operations Co-Pilot Guide**\n\n"
+                "**🤖 5 Specialized Autonomous Sub-Agents:**\n"
+                "1. **DbOpsAgent:** Live MongoDB Atlas queries for net sales, bills, footfall, NOB, and 4-time-slot breakdowns.\n"
+                "2. **TargetAdjustmentAgent:** 7/14/30-day Rolling Deficit Carry-Forward ($A_t = T_t + C_t$).\n"
+                "3. **ForecastingAgent:** YoY historical pacing and run-rate projections.\n"
+                "4. **MarketIntelAgent:** Kolkata live weather and festival surge intelligence.\n"
+                "5. **RetailCoachAgent:** Floor conversion tactics (>70% target) and SOP guidance.\n\n"
+                "💡 Ask any freeform operational question or select a prompt preset."
+            )
+
+    # 0c. KPI Mathematical Formulas & Definitions
     if primary == "formula":
+        q_norm = query.lower()
+        is_all = any(w in q_norm for w in ("all", "complete", "official", "গণনার", "সূত্রগুলো", "आधिकारिक", "formule"))
+        if not is_all:
+            if "atv" in q_norm:
+                return (
+                    "### 📐 **KPI Mathematical Formulas — Average Transaction Value (ATV)**\n\n"
+                    "- **Formula:** `ATV = Net Sales / Total Bills`\n"
+                    "- **Business Meaning:** Average amount spent by a customer per completed checkout bill.\n"
+                    "- **CITIMART Target Benchmark:** ₹1,200 - ₹1,800 depending on store floor mix.\n"
+                    "💡 **Floor Tactic:** Suggest impulse accessory add-ons at cash desks to raise ATV by ₹150+."
+                )
+            if "upt" in q_norm or "basket" in q_norm or "upb" in q_norm:
+                return (
+                    "### 📐 **KPI Mathematical Formulas — Units Per Transaction (UPT / UPB)**\n\n"
+                    "- **Formula:** `UPT = Total Units Sold / Total Bills`\n"
+                    "- **Business Meaning:** Number of individual merchandise units sold per customer transaction.\n"
+                    "- **CITIMART Target Benchmark:** 2.2 - 2.8 units/bill.\n"
+                    "💡 **Floor Tactic:** Train staff on 'Buy 2 Get 1' or combo pairing across apparel rails."
+                )
+            if "conversion" in q_norm:
+                return (
+                    "### 📐 **KPI Mathematical Formulas — Store Conversion Rate (%)**\n\n"
+                    "- **Formula:** `Conversion Rate (%) = (Total Bills / Total Footfall) × 100`\n"
+                    "- **Business Meaning:** Percentage of walking store visitors that make a purchase.\n"
+                    "- **CITIMART Target Benchmark:** **> 70%**.\n"
+                    "💡 **Floor Tactic:** Eliminate fitting room bottlenecks and greet shoppers within 30 seconds."
+                )
+            if "rpv" in q_norm:
+                return (
+                    "### 📐 **KPI Mathematical Formulas — Revenue Per Visitor (RPV)**\n\n"
+                    "- **Formula:** `RPV = Net Sales / Total Footfall`\n"
+                    "- **Business Meaning:** Total revenue generated across all store walk-ins regardless of purchase.\n"
+                    "💡 **Floor Tactic:** Raising both Conversion and ATV directly compounds RPV."
+                )
         return (
             "### 📐 **CITIMART Official KPI Mathematical Formulas**\n\n"
             "- **Conversion Rate (%)** = `(Total Bills / Total Footfall) × 100`\n"
@@ -299,11 +423,70 @@ def _synthesize_domain_response(
                 f"💡 **Takeaway:** Focus on days where conversion dipped below 70% to eliminate customer walkouts."
             )
 
-    # 2. Month-To-Date (MTD) Granular Summary
+    # 2. Month-To-Date (MTD) or Completed Full Month Granular Summary
     if primary == "mtd" and "mtd_summary" in db_ops:
         mtd = db_ops["mtd_summary"]
         if mtd.get("error") == "ACCESS_DENIED":
             return f"⚠️ **{mtd.get('message')}**"
+
+        is_completed = mtd.get("is_completed", False) or mtd.get("days_remaining", 1) == 0
+        month_name = mtd.get("month_name") or target_date.strftime("%B %Y")
+        peak_dip = db_ops.get("peak_dip_days") or {}
+        best_day = peak_dip.get("best_day")
+
+        if is_completed:
+            best_day_line = ""
+            if best_day:
+                best_day_line = f"- **Peak Sales Day:** {best_day.get('date')} ({best_day.get('day_name')}) — ₹{best_day.get('net_sales', 0):,.2f} ({best_day.get('achievement_pct', 0):.1f}% target ach)\n"
+
+            if language == "bn":
+                best_day_line_bn = ""
+                if best_day:
+                    best_day_line_bn = f"- **সর্বোচ্চ বিক্রির দিন (পিক ডে):** {best_day.get('date')} ({best_day.get('day_name')}) — ₹{best_day.get('net_sales', 0):,.2f} (টার্গেট অর্জন: {best_day.get('achievement_pct', 0):.1f}%)\n"
+                return (
+                    f"### 📆 **{store_name} {month_name} সম্পূর্ণ মাসের সেলস ও পারফরম্যান্স সামারি**\n\n"
+                    f"- **হিসাবের মাস:** {month_name} (মোট অতিবাহিত দিন: {mtd.get('days_elapsed')} দিন)\n"
+                    f"- **সক্রিয় ব্যবসায়িক দিন:** {mtd.get('active_operating_days')} দিন\n"
+                    f"- **সম্পূর্ণ মাসের মোট নেট সেলস:** **₹{mtd.get('mtd_sales', 0):,.2f}**\n"
+                    f"- **মোট মাসিক সেলস টার্গেট:** ₹{mtd.get('mtd_target', 0):,.2f} (অর্জন: **{mtd.get('achievement_pct', 0):.1f}%**)\n"
+                    f"- **টার্গেট ঘাটতি / উদ্বৃত্ত:** ₹{mtd.get('target_gap', 0):,.2f}\n"
+                    f"- **দৈনিক গড় সেলস:** ₹{mtd.get('avg_daily_sales', 0):,.2f}\n"
+                    f"- **মোট ফুটফল:** {mtd.get('mtd_footfall', 0)} জন | **মোট বিল (NOB):** {mtd.get('mtd_bills', 0)} টি\n"
+                    f"- **সামগ্রিক কনভার্সন রেট:** **{mtd.get('mtd_conversion', 0):.1f}%** | **গড় ATV:** ₹{mtd.get('mtd_atv', 0):,.2f}\n"
+                    f"{best_day_line_bn}\n"
+                    f"💡 **ফ্লোর সামারি:** {month_name} মাসের হিসাব সম্পন্ন হয়েছে। মোট সেলস অর্জিত হয়েছে ₹{mtd.get('mtd_sales', 0):,.0f} (টার্গেটের {mtd.get('achievement_pct', 0):.1f}%)।"
+                )
+            elif language == "hi":
+                best_day_line_hi = ""
+                if best_day:
+                    best_day_line_hi = f"- **पीक सेल्स डे (सर्वोच्च बिक्री):** {best_day.get('date')} ({best_day.get('day_name')}) — ₹{best_day.get('net_sales', 0):,.2f} (लक्ष्य प्राप्ति: {best_day.get('achievement_pct', 0):.1f}%)\n"
+                return (
+                    f"### 📆 **{store_name} {month_name} पूरे महीने की बिक्री व परिचालन सारांश**\n\n"
+                    f"- **महीना:** {month_name} (कुल दिन: {mtd.get('days_elapsed')} दिन)\n"
+                    f"- **सक्रिय कारोबारी दिन:** {mtd.get('active_operating_days')} दिन\n"
+                    f"- **पूरे महीने की कुल शुद्ध बिक्री:** **₹{mtd.get('mtd_sales', 0):,.2f}**\n"
+                    f"- **कुल मासिक लक्ष्य:** ₹{mtd.get('mtd_target', 0):,.2f} (अचीवमेंट: **{mtd.get('achievement_pct', 0):.1f}%**)\n"
+                    f"- **लक्ष्य अंतर / शेष:** ₹{mtd.get('target_gap', 0):,.2f}\n"
+                    f"- **औसत दैनिक बिक्री:** ₹{mtd.get('avg_daily_sales', 0):,.2f}\n"
+                    f"- **कुल फुटफॉल:** {mtd.get('mtd_footfall', 0)} | **कुल बिल (NOB):** {mtd.get('mtd_bills', 0)}\n"
+                    f"- **कन्वर्शन रेट:** **{mtd.get('mtd_conversion', 0):.1f}%** | **औसत ATV:** ₹{mtd.get('mtd_atv', 0):,.2f}\n"
+                    f"{best_day_line_hi}\n"
+                    f"💡 **परिचालन सारांश:** {month_name} माह का लेखा-जोखा पूरा हो चुका है। कुल बिक्री ₹{mtd.get('mtd_sales', 0):,.0f} रही।"
+                )
+            else:
+                return (
+                    f"### 📆 **{store_name} {month_name} Full Month Operations Summary**\n\n"
+                    f"- **Operating Month:** {month_name} (Days Elapsed: {mtd.get('days_elapsed')} days)\n"
+                    f"- **Active Operating Days Recorded:** {mtd.get('active_operating_days')} days\n"
+                    f"- **Total Net Sales:** **₹{mtd.get('mtd_sales', 0):,.2f}**\n"
+                    f"- **Total Sales Target:** ₹{mtd.get('mtd_target', 0):,.2f} (**{mtd.get('achievement_pct', 0):.1f}%** achieved)\n"
+                    f"- **Target Deficit:** ₹{mtd.get('target_gap', 0):,.2f}\n"
+                    f"- **Average Daily Sales:** ₹{mtd.get('avg_daily_sales', 0):,.2f}\n"
+                    f"- **Total Footfall:** {mtd.get('mtd_footfall', 0)} visitors | **Total Bills (NOB):** {mtd.get('mtd_bills', 0)}\n"
+                    f"- **Overall Conversion Rate:** **{mtd.get('mtd_conversion', 0):.1f}%** | **Overall ATV:** ₹{mtd.get('mtd_atv', 0):,.2f}\n"
+                    f"{best_day_line}\n"
+                    f"💡 **Month Review:** {month_name} closed with ₹{mtd.get('mtd_sales', 0):,.0f} net sales ({mtd.get('achievement_pct', 0):.1f}% of target)."
+                )
 
         if language == "bn":
             return (
@@ -342,6 +525,84 @@ def _synthesize_domain_response(
                 f"- **Required Daily Run-Rate to Close Month on Target:** **₹{mtd.get('required_daily_run_rate', 0):,.2f}/day**\n"
                 f"- **Month-to-Date Conversion:** {mtd.get('mtd_conversion', 0):.1f}% | **Overall ATV:** ₹{mtd.get('mtd_atv', 0):,.2f}\n\n"
                 f"💡 **Pacing Directive:** Maintain a daily throughput of ₹{mtd.get('required_daily_run_rate', 0):,.0f} across remaining days."
+            )
+
+    # 2b. Full Year / Annual YTD Granular Summary
+    if primary == "year_summary" and "year_summary" in db_ops:
+        ys = db_ops["year_summary"]
+        if ys.get("error") == "ACCESS_DENIED":
+            return f"⚠️ **{ys.get('message')}**"
+        if not ys.get("has_records", True):
+            return f"⚠️ **No sales records found for year {ys.get('year')}** ({store_name})."
+
+        target_year = ys.get("year")
+        total_sales = ys.get("total_sales", 0.0)
+        total_target = ys.get("total_target", 0.0)
+        ach_pct = ys.get("achievement_pct", 0.0)
+        total_gap = ys.get("total_gap", 0.0)
+        total_ff = ys.get("total_footfall", 0)
+        total_bills = ys.get("total_bills", 0)
+        overall_conv = ys.get("overall_conversion", 0.0)
+        overall_atv = ys.get("overall_atv", 0.0)
+        active_days = ys.get("total_active_days", 0)
+        best_month = ys.get("best_month")
+
+        breakdown = ys.get("monthly_breakdown", [])
+        table_rows = []
+        for m in breakdown:
+            table_rows.append(
+                f"| {m.get('month_name')} | ₹{m.get('net_sales', 0):,.0f} | ₹{m.get('sales_target', 0):,.0f} | {m.get('achievement_pct', 0):.1f}% | {m.get('footfall', 0)} | {m.get('bills', 0)} | {m.get('conversion_pct', 0):.1f}% | ₹{m.get('atv', 0):,.0f} |"
+            )
+        monthly_table = (
+            "| Month | Net Sales | Target | Ach % | Footfall | Bills | Conv % | ATV |\n"
+            "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n" + "\n".join(table_rows)
+        )
+
+        best_month_note = ""
+        if best_month:
+            best_month_note = f"- **🏆 Top Performing Month:** **{best_month.get('month_name')}** (₹{best_month.get('net_sales', 0):,.2f} | {best_month.get('achievement_pct', 0):.1f}% ach)\n"
+
+        if language == "bn":
+            return (
+                f"### 🗓️ **{store_name} {target_year} বার্ষিক সেলস ও পারফরম্যান্স সামারি (Annual YTD)**\n\n"
+                f"- **হিসাবের বছর:** {target_year} (সক্রিয় ব্যবসায়িক দিন: {active_days} দিন)\n"
+                f"- **মোট বার্ষিক নেট সেলস:** **₹{total_sales:,.2f}**\n"
+                f"- **মোট বার্ষিক টার্গেট:** ₹{total_target:,.2f} (অর্জন: **{ach_pct:.1f}%**)\n"
+                f"- **টার্গেট ঘাটতি:** ₹{total_gap:,.2f}\n"
+                f"- **মোট বার্ষিক ফুটফল:** {total_ff} জন | **মোট বিল:** {total_bills} টি\n"
+                f"- **সামগ্রিক কনভার্সন রেট:** **{overall_conv:.1f}%** | **গড় ATV:** ₹{overall_atv:,.2f}\n"
+                f"{best_month_note}\n"
+                f"**📊 মাসভিত্তিক বিস্তারিত পারফরম্যান্স টেবিল:**\n\n"
+                f"{monthly_table}\n\n"
+                f"💡 **বার্ষিক পর্যালোচনা:** {target_year} সালে মোট সক্রিয় {active_days} দিনে ₹{total_sales:,.0f} সেলস অর্জিত হয়েছে।"
+            )
+        elif language == "hi":
+            return (
+                f"### 🗓️ **{store_name} {target_year} वार्षिक बिक्री व प्रदर्शन सारांश (Annual YTD)**\n\n"
+                f"- **वित्तीय/कैलेंडर वर्ष:** {target_year} (सक्रिय कारोबारी दिन: {active_days} दिन)\n"
+                f"- **वार्षिक कुल शुद्ध बिक्री:** **₹{total_sales:,.2f}**\n"
+                f"- **कुल वार्षिक लक्ष्य:** ₹{total_target:,.2f} (अचीवमेंट: **{ach_pct:.1f}%**)\n"
+                f"- **लक्ष्य अंतर:** ₹{total_gap:,.2f}\n"
+                f"- **कुल वार्षिक फुटफॉल:** {total_ff} | **कुल बिल:** {total_bills}\n"
+                f"- **समग्र कन्वर्शन रेट:** **{overall_conv:.1f}%** | **औसत ATV:** ₹{overall_atv:,.2f}\n"
+                f"{best_month_note}\n"
+                f"**📊 माहवार विस्तृत प्रदर्शन तालिका:**\n\n"
+                f"{monthly_table}\n\n"
+                f"💡 **वार्षिक समीक्षा:** वर्ष {target_year} में कुल {active_days} दिनों में ₹{total_sales:,.0f} की बिक्री दर्ज की गई।"
+            )
+        else:
+            return (
+                f"### 🗓️ **{store_name} {target_year} Annual Sales & Performance Summary (YTD)**\n\n"
+                f"- **Reporting Year:** {target_year} (Active Operating Days: {active_days} days)\n"
+                f"- **Consolidated Annual Net Sales:** **₹{total_sales:,.2f}**\n"
+                f"- **Total Annual Target:** ₹{total_target:,.2f} (**{ach_pct:.1f}%** achieved)\n"
+                f"- **Annual Target Gap:** ₹{total_gap:,.2f}\n"
+                f"- **Total Annual Footfall:** {total_ff} visitors | **Total Bills (NOB):** {total_bills}\n"
+                f"- **Overall Conversion Rate:** **{overall_conv:.1f}%** | **Consolidated ATV:** ₹{overall_atv:,.2f}\n"
+                f"{best_month_note}\n"
+                f"**📊 Month-by-Month Performance Breakdown:**\n\n"
+                f"{monthly_table}\n\n"
+                f"💡 **Executive Review:** Year {target_year} recorded ₹{total_sales:,.0f} across {active_days} operating days with an overall conversion of {overall_conv:.1f}%."
             )
 
     # 3. Peak & Lowest Days in Month
@@ -442,10 +703,13 @@ def _synthesize_domain_response(
         rpv_val = k.get("rpv", 0.0)
         gap_val = k.get("target_gap", 0.0)
         largest_bill = edk.get("largest_bill", 0.0)
+        from src.daily_context import get_holiday_name
+        h_name = get_holiday_name(target_date)
+        h_tag = f" — {h_name}" if h_name else ""
 
         if language == "bn":
             return (
-                f"### 📊 **{store_name} ({edk.get('date')}, {edk.get('day_name')}) সেলস ও পারফরম্যান্স রিপোর্ট**\n\n"
+                f"### 📊 **{store_name} ({edk.get('date')}, {edk.get('day_name')}{h_tag}) সেলস ও পারফরম্যান্স রিপোর্ট**\n\n"
                 f"- **মোট নেট সেলস:** **₹{sales_val:,.2f}**\n"
                 f"- **টার্গেট সেলস:** ₹{target_val:,.2f} (অর্জন: **{ach_val:.1f}%**)\n"
                 f"- **টার্গেট ঘাটতি:** ₹{gap_val:,.2f}\n"
@@ -459,7 +723,7 @@ def _synthesize_domain_response(
             )
         elif language == "hi":
             return (
-                f"### 📊 **{store_name} ({edk.get('date')}, {edk.get('day_name')}) बिक्री व प्रदर्शन रिपोर्ट**\n\n"
+                f"### 📊 **{store_name} ({edk.get('date')}, {edk.get('day_name')}{h_tag}) बिक्री व प्रदर्शन रिपोर्ट**\n\n"
                 f"- **कुल शुद्ध बिक्री:** **₹{sales_val:,.2f}**\n"
                 f"- **लक्ष्य:** ₹{target_val:,.2f} (अचीवमेंट: **{ach_val:.1f}%**)\n"
                 f"- **लक्ष्य अंतर:** ₹{gap_val:,.2f}\n"
@@ -473,7 +737,7 @@ def _synthesize_domain_response(
             )
         else:
             return (
-                f"### 📊 **{store_name} ({edk.get('date')}, {edk.get('day_name')}) Detailed Operations Report**\n\n"
+                f"### 📊 **{store_name} ({edk.get('date')}, {edk.get('day_name')}{h_tag}) Detailed Operations Report**\n\n"
                 f"- **Net Sales:** **₹{sales_val:,.2f}**\n"
                 f"- **Sales Target:** ₹{target_val:,.2f} (**{ach_val:.1f}%** achieved)\n"
                 f"- **Target Gap:** ₹{gap_val:,.2f}\n"
@@ -760,7 +1024,7 @@ def run_copilot_turn(
     history = SessionMemoryStore.get_history(db, sid, sec_ctx)
 
     # 4. Run only the sub-agents this intent needs, in parallel.
-    subagents_to_run = [] if intent.primary == "formula" else _select_agents(intent)
+    subagents_to_run = [] if intent.primary in ("formula", "greeting", "help") else _select_agents(intent)
 
     def _run_subagent(agent_name: str) -> tuple[str, Any, list[str]]:
         if agent_name == "db_ops_agent":

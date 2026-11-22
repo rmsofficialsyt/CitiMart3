@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import {
   Bot,
+  Calculator,
   ChevronDown,
   FileOutput,
   PanelRightClose,
@@ -11,6 +12,7 @@ import { useState } from "react";
 
 import citimartLogo from "@/assets/citimart-logo.png";
 import { BossAvatarButton } from "@/components/BossAvatarButton";
+import { BusinessCalculatorModal } from "@/components/BusinessCalculatorModal";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/context/LanguageContext";
 import { useIsMobile } from "@/hooks/useMediaQuery";
@@ -47,6 +49,7 @@ export function TopBar({
 }: TopBarProps) {
   const isMobile = useIsMobile();
   const [metaOpen, setMetaOpen] = useState(false);
+  const [calculatorOpen, setCalculatorOpen] = useState(false);
   const { t } = useLanguage();
 
   const liveDot = (
@@ -143,6 +146,18 @@ export function TopBar({
             </Button>
           )}
 
+          {/* Retail Business Calculator Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Open Retail Business Calculator"
+            title="Retail Business Calculator (Targets, Margins, KPIs, GST, SPH)"
+            className={`${ICON_BTN} hover:text-emerald-600 dark:hover:text-emerald-400`}
+            onClick={() => setCalculatorOpen(true)}
+          >
+            <Calculator className="h-4 w-4" />
+          </Button>
+
           {/* AI Retail Co-Pilot Circular Button */}
           {onToggleChat && (
             <motion.button
@@ -172,6 +187,9 @@ export function TopBar({
           <BossAvatarButton className="mr-0.5" />
         </div>
       </div>
+
+      {/* Retail Business Calculator Modal */}
+      <BusinessCalculatorModal open={calculatorOpen} onOpenChange={setCalculatorOpen} />
     </motion.header>
   );
 }

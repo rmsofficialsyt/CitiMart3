@@ -54,14 +54,39 @@ def _any(*patterns: str) -> re.Pattern[str]:
 
 # --- intent patterns ----------------------------------------------------------
 
-_FORMULA = _any(r"\bformulas?\b", r"\bdefinitions?\b", r"\bhow (is|are) .{0,30} calculated\b",
-                _bn("সূত্র"), _hi("सूत्र"), _hi("फॉर्मूल"))
+_GREETING = _any(
+    r"\b(hello|hi|hey|good (morning|afternoon|evening)|greetings|who are you|what is citimart( copilot)?)\b",
+    _bn("নমস্কার"), _bn("হ্যালো"), _bn("সুপ্রভাত"), _bn("আপনি কে"), _bn("তুমি কে"),
+    _hi("नमस्ते"), _hi("नमस्कार"), _hi("हेलो"), _hi("शुभ प्रभात"), _hi("आप कौन हैं"), _hi("तुम कौन हो"),
+)
+
+_HELP = _any(
+    r"\b(help|guide|what can you do|capabilities|features|menu|user manual|how to use)\b",
+    _bn("সাহায্য"), _bn("কী করতে পারো"), _bn("কীভাবে ব্যবহার করব"), _bn("কমান্ড"),
+    _hi("मदद"), _hi("क्या कर सकते हो"), _hi("सहायता"), _hi("फीचर्स"), _hi("मेनू"),
+)
+
+_FORMULA = _any(
+    r"\bformulas?\b", r"\bdefinitions?\b", r"\bhow (is|are) .{0,30} calculated\b",
+    r"\bwhat (is|are|means?) (atv|upt|rpv|nob|conversion|sph|basket size)\b",
+    r"\b(meaning|definition|formula) of (atv|upt|rpv|nob|conversion|upt)\b",
+    r"\bhow (is|to calculate) (atv|conversion|upt|rpv|nob)\b",
+    _bn("সূত্র"), _bn("সংজ্ঞা"), _bn("এটিভি কী"), _bn("কনভার্সন কী"), _bn("ইউপিটি কী"), _bn("হিসাব করা হয় কীভাবে"),
+    _hi("सूत्र"), _hi("फॉर्मूल"), _hi("परिभाषा"), _hi("atv क्या है"), _hi("कन्वर्शन क्या है"), _hi("गणना कैसे"),
+)
 
 _TARGET_ADJUST = _any(
     r"\badjust(ed|ment)?\b", r"\bcarry ?forward\b", r"\brolling\b", r"\bdeficit\b",
     r"\brecovery\b", r"\ba_?t ?= ?t_?t",
+    r"\bare we (hitting|reaching|achieving|meeting|on) (our )?targets?\b",
+    r"\b(target|sales) (shortfall|deficit|remaining)\b",
+    r"\bhow (far|much) (are we )?(from|to|is left for) (our )?targets?\b",
+    r"\bhow much target (is )?(left|remaining)\b",
+    r"\btarget (baki|baaki|kitna|koto)\b",
     _bn("অ্যাডজাস্টমেন্ট"), _bn("ক্যারি ফরোয়ার্ড"), _bn("রোলিং"), _bn("ডেফিসিট"), _bn("রিকভারি"), _bn("ঘাটতি"),
+    _bn("টার্গেট কত বাকি"), _bn("টার্গেট কি পূরণ হয়েছে"), _bn("ঘাটতি কত"),
     _hi("एडजस्टमेंट"), _hi("समायोजन"), _hi("कैरी फॉरवर्ड"), _hi("रोलिंग"), _hi("डेफिसिट"), _hi("रिकवरी"),
+    _hi("टारगेट कितना बाकी"), _hi("लक्ष्य कितना बाकी"), _hi("घाटा कितना"),
 )
 _SIMULATE = _any(r"\bsimulat", r"\boptions?\b", r"\bwhich (recovery|window|pace)\b", r"\bwindows\b",
                  r"\bvs\b|\bversus\b", _bn("তুলনা"), _bn("সিমুলেশন"), _hi("सिमुलेशन"), _hi("तुलना"), _hi("विकल्प"))
@@ -85,8 +110,33 @@ _HISTORY_N = re.compile(
 _HISTORY_WORDS = _any(r"\b(past|last|previous) (week|fortnight)\b", r"\bhistory table\b", r"\bdaily trend\b",
                       r"\bday by day\b", _bn("গত সপ্তাহ"), _hi("पिछले हफ्ते"))
 
-_MTD = _any(r"\bmtd\b", r"\bmonth to date\b", r"\bthis month\b", r"\bcurrent month\b", r"\brun ?rate\b",
-            _bn("চলতি মাস"), _bn("এই মাসের"), _hi("इस महीने"), _hi("महीने का"))
+_MONTH_NAMES_ALT = (
+    "january|february|march|april|may|june|july|august|september|october|november|december"
+    "|jan|feb|mar|apr|jun|jul|aug|sept|sep|oct|nov|dec"
+)
+
+_YEAR_SUMMARY = _any(
+    r"\b(full|entire|whole|this|current|past|previous|last)\s*(?:year|annual|yearly)\s*(?:sales|summary|summery|report|performance|numbers|figures|to date|total|status|kpis?)\b",
+    r"\b(?:sales|summary|summery|report|performance|numbers|figures|kpis?)\s+(?:for|of|in|to)\s+(?:the\s+)?(?:full\s+|whole\s+|entire\s+|this\s+|current\s+|last\s+|previous\s+)?year\b",
+    r"\bytd\b|\byear to date\b",
+    r"\bannual (report|sales|summary|summery|kpis?|performance)\b",
+    _bn("সারা বছরের"), _bn("পুরো বছরের"), _bn("বার্ষিক সেলস"), _bn("বার্ষিক রিপোর্ট"), _bn("চলতি বছরের সেলস"), _bn("বছরের সামারি"), _bn("বছরের রিপোর্ট"),
+    _hi("पूरे साल"), _hi("सालाना बिक्री"), _hi("वार्षिक रिपोर्ट"), _hi("वार्षिक बिक्री"), _hi("इस साल की बिक्री"), _hi("साल का सारांश"), _hi("साल की रिपोर्ट"),
+)
+
+_MTD = _any(
+    r"\b(previous|last|past|prior|current|this|full|entire) month('?s)?\b",
+    r"\bmonth('?s)? (summary|summery|sales|report|performance|numbers|figures|to date|total|status)\b",
+    r"\b(summary|summery|sales|report|performance|numbers|figures|status)\s+(?:for|of|in)\s+(?:the\s+)?(?:previous|last|past|prior|current|this)?\s*month\b",
+    r"\b(?:previous|last|past|prior|current|this)\s+month\s+(?:full\s+)?(?:sales\s+)?(?:summary|summery|report|numbers|figures)\b",
+    rf"\b({_MONTH_NAMES_ALT})\s*(?:month)?\s*(?:sales|report|summary|summery|performance|numbers|figures|status)\b",
+    rf"\b(?:sales|report|summary|summery|performance|numbers|figures)\s+(?:for|in|of)\s+({_MONTH_NAMES_ALT})\b",
+    r"\bmtd\b", r"\bmonth to date\b", r"\brun ?rate\b",
+    _bn("চলতি মাস"), _bn("এই মাসের"), _bn("গত মাস"), _bn("গত মাসের"), _bn("আগের মাস"), _bn("পূর্ববর্তী মাস"),
+    _bn("মাসের সেলস"), _bn("মাসিক সেলস"), _bn("মাসিক রিপোর্ট"), _bn("মাসের সামারি"),
+    _hi("इस महीने"), _hi("महीने का"), _hi("पिछले महीने"), _hi("पिछले माह"), _hi("पिछला महीना"),
+    _hi("महीने की बिक्री"), _hi("मासिक बिक्री"), _hi("मासिक रिपोर्ट"),
+)
 
 _YOY = _any(r"\byoy\b", r"\byear over year\b", r"\btally growth\b", r"\b(previous|last|prior) year\b",
             _bn("গত বছর"), _bn("পূর্ববর্তী বছর"), _bn("ট্যালি গ্রোথ"),
@@ -100,25 +150,44 @@ _WEATHER = _any(r"\bweather\b", r"\brain", r"\btemperature\b", _bn("আবহা
 _MARKET = _any(r"\bfestivals?\b", r"\bpuja\b", r"\bdiwali\b", r"\beid\b", r"\bwedding season\b",
                _bn("উৎসব"), _bn("পূজা"), _hi("त्योहार"))
 
-_RANK_STRONG = _any(r"\brank(ing|ings)?\b", r"\bbenchmark", r"\bnetwork\b", r"\bleaderboard\b", _hi("रैंकिंग"))
+_RANK_STRONG = _any(
+    r"\brank(ing|ings)?\b", r"\bbenchmark", r"\bnetwork\b", r"\bleaderboard\b",
+    r"\bwhich store is (winning|leading|ahead|top|best|first)\b",
+    r"\bwho is (the )?(top|winning|leading|best) store\b",
+    r"\bwho (is|made) (the )?(top|best|most|highest|leading) sales\b",
+    r"\b(is|how is) (nm|new market|hb|hatibagan|chw|chowringhee) (beating|competing|performing against|doing compared to)\b",
+    _bn("র‌্যাঙ্কিং"), _bn("কোন স্টোর এগিয়ে"), _bn("সেরা স্টোর"), _bn("কে এগিয়ে"), _bn("সবচেয়ে ভালো স্টোর"),
+    _hi("रैंकिंग"), _hi("कौन सा स्टोर आगे"), _hi("सबसे अच्छा स्टोर"), _hi("नंबर वन स्टोर"),
+)
 _COMPARE = _any(r"\bcompar", _bn("তুলনা"), _hi("तुलना"))
 _STORES = _any(r"\b(all|three|3|each|every|other) stores?\b", r"\bacross (all )?(the )?stores\b",
                r"new market.{0,40}hatibagan", r"\bstores\b",
                _bn("স্টোরের"), _bn("৩টি স্টোর"), "3টি স্টোর", _hi("स्टोर्स"), _hi("तीनों"))
 
-_BILLS = _any(r"\b(highest|largest|biggest|single) (single )?bill\b", r"\bticket size\b", r"\btransactions?\b(?! value)",
-              r"\bbilling stream\b", r"\bbills\b",
-              _bn("একক বিল"), _bn("টিকিট সাইজ"), _bn("লেনদেন"), _hi("सिंगल बिल"), _hi("टिकट साइज"))
+_BILLS = _any(
+    r"\b(highest|largest|biggest|single) (single )?(bill|purchase|transaction|ticket)\b",
+    r"\bwho made the (largest|biggest|highest) purchase\b",
+    r"\bticket size\b", r"\btransactions?\b(?! value)", r"\bbilling stream\b", r"\bbills\b",
+    _bn("একক বিল"), _bn("টিকিট সাইজ"), _bn("লেনদেন"), _bn("সবচেয়ে বড় কেনাকাটা"), _bn("সর্বোচ্চ বিল"),
+    _hi("सिंगल बिल"), _hi("टिकट साइज"), _hi("सबसे बड़ी खरीद"), _hi("सबसे बड़ा बिल"),
+)
 
 _REQUISITIONS = _any(r"\brequisitions?\b", r"\bstock\b", r"\binventory\b", _bn("রিকুইজিশন"), _bn("স্টক"),
                      _hi("रिक्विजिशन"), _hi("स्टॉक"))
 _DIRECTIVES = _any(r"\bdirectives?\b", r"\bsop\b", r"\braphael\b", r"\bannouncements?\b", r"\bhead office\b",
                    _bn("নির্দেশ"), _bn("রাফায়েল"), _hi("निर्देश"), _hi("राफेल"))
 
-_COACHING = _any(r"\btactics?\b", r"\bsuggest\b", r"\bhow (can|do|should|to)\b", r"\bstrateg", r"\bplaybook\b",
-                 r"\bchecklist\b", r"\btips?\b", r"\bways to\b",
-                 _bn("স্ট্র্যাটেজি"), _bn("কৌশল"), _bn("কীভাবে"), _bn("করণীয়"),
-                 _hi("तरीके"), _hi("कैसे"), _hi("चेकलिस्ट"), _hi("उपाय"))
+_COACHING = _any(
+    r"\btactics?\b", r"\bsuggest\b", r"\bhow (can|do|should|to)\b", r"\bstrateg", r"\bplaybook\b",
+    r"\bchecklist\b", r"\btips?\b", r"\bways to\b",
+    r"\bwhy is conversion (so )?(low|dropping|down|poor)\b",
+    r"\bhow (can|to|do we) (increase|improve|boost|grow) (conversion|sales|footfall|atv)\b",
+    r"\bwalkouts?\b|\bconverting shoppers\b|\bcustomer drops?\b",
+    _bn("স্ট্র্যাটেজি"), _bn("কৌশল"), _bn("কীভাবে"), _bn("করণীয়"),
+    _bn("কনভার্সন কেন কম"), _bn("কনভার্সন বাড়ানোর উপায়"), _bn("কাস্টমার চলে যাচ্ছে"),
+    _hi("तरीके"), _hi("कैसे"), _hi("चेकलिस्ट"), _hi("उपाय"),
+    _hi("कन्वर्शन कम क्यों"), _hi("कन्वर्शन कैसे बढ़ाएं"), _hi("ग्राहक क्यों लौट रहे"),
+)
 
 _TIMESLOT = _any(r"\btime ?slots?\b", r"\bslots?\b", r"\bhourly\b", _bn("স্লট"), _hi("स्लॉट"))
 
@@ -129,12 +198,15 @@ _WINDOW_WORDS = {"seven": 7, "fourteen": 14, "thirty": 30, "fortnight": 14}
 
 # Intents in specificity order. Earlier = more specific = wins `primary`.
 INTENT_ORDER: tuple[str, ...] = (
+    "greeting",
+    "help",
     "formula",
     "target_simulate",
     "target_adjust",
     "wow",
     "peak_dip",
     "history_n_days",
+    "year_summary",
     "mtd",
     "yoy",
     "surge",
@@ -149,7 +221,7 @@ INTENT_ORDER: tuple[str, ...] = (
 )
 
 # Primary intents whose answer is advice, not a figure lookup.
-ADVICE_INTENTS = frozenset({"coaching", "surge"})
+ADVICE_INTENTS = frozenset({"greeting", "help", "coaching", "surge"})
 
 
 @dataclass
@@ -170,6 +242,10 @@ class IntentResult:
 
 
 def _matches(intent: str, q: str) -> bool:
+    if intent == "greeting":
+        return bool(_GREETING.search(q))
+    if intent == "help":
+        return bool(_HELP.search(q))
     if intent == "formula":
         return bool(_FORMULA.search(q))
     if intent == "target_adjust":
@@ -185,6 +261,8 @@ def _matches(intent: str, q: str) -> bool:
         return bool(_PEAK_DIP.search(q))
     if intent == "history_n_days":
         return bool(_HISTORY_N.search(q) or _HISTORY_WORDS.search(q))
+    if intent == "year_summary":
+        return bool(_YEAR_SUMMARY.search(q))
     if intent == "mtd":
         return bool(_MTD.search(q))
     if intent == "yoy":

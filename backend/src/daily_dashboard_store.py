@@ -168,8 +168,9 @@ def invalidate_dashboard_cache() -> None:
     if client is None:
         return
     try:
-        client.incr(_CACHE_VERSION_KEY)
-    except redis.RedisError:
+        if hasattr(client, "incr"):
+            client.incr(_CACHE_VERSION_KEY)
+    except (redis.RedisError, AttributeError, Exception):
         # Other replicas' entries now age out via their TTL (<= 30 s).
         logger.error("Dashboard cache: version bump failed; other replicas may serve data up to %ss old.", int(_CACHE_TTL_SECONDS))
 
