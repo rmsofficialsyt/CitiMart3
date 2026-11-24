@@ -2,15 +2,44 @@
 from __future__ import annotations
 
 import logging
+import threading
+import time
 from typing import Any
 
 from config.env import env
 
 logger = logging.getLogger(__name__)
 
+# The agents only ever search a few fixed Kolkata queries (weather / festivals /
+# market), and a live search measured ~9s. Results barely change within the hour,
+# so successful searches are reused for 30 min. The offline fallback is never
+# cached, so a recovered network is used on the next call.
+_SEARCH_TTL_S = 1800.0
+_search_cache: dict[tuple[str, int], tuple[float, list[dict[str, str]]]] = {}
+_search_lock = threading.Lock()
+
+
+def clear_search_cache() -> None:
+    """Test hook."""
+    with _search_lock:
+        _search_cache.clear()
+
 
 def live_web_search(query: str, max_results: int = 3) -> list[dict[str, str]]:
-    """Execute live internet search using DuckDuckGo (or Tavily if configured)."""
+    """Live internet search (Tavily if configured, else DuckDuckGo), cached for 30 min."""
+    key = (query, max_results)
+    with _search_lock:
+        hit = _search_cache.get(key)
+    if hit and time.monotonic() - hit[0] < _SEARCH_TTL_S:
+        return [dict(r) for r in hit[1]]
+    results = _search_uncached(query, max_results)
+    if results and not any("citimart.internal" in r.get("url", "") for r in results):
+        with _search_lock:
+            _search_cache[key] = (time.monotonic(), results)
+    return [dict(r) for r in results]
+
+
+def _search_uncached(query: str, max_results: int) -> list[dict[str, str]]:
     # 1. Try Tavily if configured
     if env.tavily_api_key:
         try:

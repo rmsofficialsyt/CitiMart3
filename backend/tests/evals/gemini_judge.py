@@ -1,6 +1,6 @@
 """Google Gemini Evaluation Judge for CITIMART Chatbot & Copilot.
 
-Uses the official `google-genai` SDK with Gemini models (`gemini-2.5-flash` / `gemini-2.5-pro`)
+Uses the official `google-genai` SDK with Gemini models (`gemini-3.8-flash` by default)
 to evaluate:
 1. "To-The-Point" Conciseness & Zero-Fluff Compliance (Core Directive 1).
 2. User Prompt Optimization & Intent Resolution.
@@ -71,7 +71,7 @@ class GroundingAndIsolationEval(BaseModel):
 class GeminiRetailJudge:
     """Evaluates GenAI responses using Google Gemini API or deterministic calibrated rules."""
 
-    def __init__(self, api_key: str | None = None, model: str = "gemini-2.5-flash"):
+    def __init__(self, api_key: str | None = None, model: str = "gemini-3.8-flash"):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         self.model = model
         self.client = None

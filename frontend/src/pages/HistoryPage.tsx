@@ -47,6 +47,8 @@ import type { BillEntry, FootfallEntry, NobEntry, DailyLiveSnapshot, DailyOveral
 
 interface HistoryPageProps {
   storeCode?: string; // If undefined and admin, allows selecting store
+  /** YYYY-MM-DD from the URL (/app?view=history&date=…); opens that single day. */
+  date?: string;
 }
 
 const STORE_OPTIONS = [
@@ -77,7 +79,7 @@ function computeDaysAgo(isoDate: string, days: number): string {
   return addDaysISO(isoDate, -days);
 }
 
-export function HistoryPage({ storeCode }: HistoryPageProps) {
+export function HistoryPage({ storeCode, date }: HistoryPageProps) {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const queryClient = useQueryClient();
@@ -86,7 +88,8 @@ export function HistoryPage({ storeCode }: HistoryPageProps) {
 
   const [selectedStore, setSelectedStore] = useState<string>(initialStore);
   const [rangeMode, setRangeMode] = useState<HistoryRangePreset>("single");
-  const [selectedDate, setSelectedDate] = useState<string>("");
+  // A linked date seeds the picker, so the "today or latest" default below never overrides it.
+  const [selectedDate, setSelectedDate] = useState<string>(date ?? "");
   const [customStartDate, setCustomStartDate] = useState<string>("");
   const [customEndDate, setCustomEndDate] = useState<string>("");
   const [timeSlotFilter, setTimeSlotFilter] = useState<string>("ALL");

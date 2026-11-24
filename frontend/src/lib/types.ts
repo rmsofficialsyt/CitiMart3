@@ -579,3 +579,11 @@ export interface UpdateRequisitionStatusPayload {
 
 
 
+
+// Mirror of backend src/chat/links.py build_links items (ChatResponse.links).
+// "app" hrefs are in-app (/app?store=&view=&date=); "source" hrefs are external http(s).
+export interface ChatLink {
+  kind: "app" | "source";
+  label: string;
+  href: string;
+}

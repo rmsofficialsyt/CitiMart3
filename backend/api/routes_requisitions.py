@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from pymongo.database import Database
 
-from api.auth import CurrentUser, get_current_user
+from api.auth import CurrentUser, get_current_user, require_admin
 from config.settings import STORE_CODE_TO_NAME
 from db.session import get_db
 from src import product_hierarchy, requisitions_store
@@ -140,7 +140,7 @@ def get_requisition(
 def update_status(
     req_id: int,
     payload: UpdateRequisitionStatusPayload,
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(require_admin),
     db: Database = Depends(get_db),
 ):
     """Update status of a requisition slip (Admin or Operational Head action)."""
@@ -148,7 +148,7 @@ def update_status(
     if not existing:
         raise HTTPException(status_code=404, detail="Requisition slip not found")
 
-    actioned_by = f"Admin ({user.username})" if user.is_admin else f"Manager ({user.username})"
+    actioned_by = f"Operational Head ({user.username})"
 
     updated = requisitions_store.update_requisition_status(
         db=db,

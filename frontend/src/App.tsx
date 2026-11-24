@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
-import { lazy, Suspense, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthProvider";
@@ -12,6 +12,7 @@ import { AiChatbot } from "@/components/AiChatbot";
 import { Toaster } from "@/components/ui/sonner";
 import citimartLogo from "@/assets/citimart-logo.png";
 import { DAILY_STORE_ID_BY_CODE } from "@/lib/authUsers";
+import { isDailyView, isIsoDate, isStoreSel } from "@/lib/appLinks";
 
 const HistoryPage = lazy(() => import("@/pages/HistoryPage").then((m) => ({ default: m.HistoryPage })));
 const ProductRequisitionPage = lazy(() => import("@/pages/ProductRequisitionPage").then((m) => ({ default: m.ProductRequisitionPage })));
@@ -49,9 +50,38 @@ export default function App() {
 
   const { data: meta } = useQuery({ queryKey: ["meta"], queryFn: api.meta });
 
-  const [dailyStore, setDailyStore] = useState<DailyStoreSel>(OVERALL_STORE_ID);
-  const [dailyView, setDailyView] = useState<DailyView>("dashboard");
+  // Store / view / date live in the URL (/app?store=&view=&date=, lib/appLinks.ts),
+  // so views can be linked from the Co-Pilot, bookmarked, and walked with Back/Forward.
+  // The URL only selects: the role guards below still decide what is shown.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlStore = searchParams.get("store");
+  const urlView = searchParams.get("view");
+  const urlDate = searchParams.get("date");
+  const dailyStore: DailyStoreSel = isStoreSel(urlStore) ? urlStore : OVERALL_STORE_ID;
+  const dailyView: DailyView = isDailyView(urlView) ? urlView : "dashboard";
+  const historyDate = isIsoDate(urlDate) ? urlDate : undefined;
+
+  const updateParams = useCallback(
+    (patch: Record<string, string | null>) =>
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        for (const [k, v] of Object.entries(patch)) {
+          if (v === null) next.delete(k);
+          else next.set(k, v);
+        }
+        return next;
+      }),
+    [setSearchParams],
+  );
+  const setDailyStore = (store: DailyStoreSel) => updateParams({ store, date: null });
+  const setDailyView = (view: DailyView) => updateParams({ view, date: null });
+
   const [isChatOpen, setIsChatOpen] = useState(false);
+  // A shared conversation link (/app?chat=<id>) opens the Co-Pilot; AiChatbot loads it.
+  const hasChatLink = searchParams.has("chat");
+  useEffect(() => {
+    if (hasChatLink) setIsChatOpen(true);
+  }, [hasChatLink]);
 
   const effectiveStore: DailyStoreSel = isManager && forcedStore ? forcedStore : dailyStore;
   const isOverall = effectiveStore === OVERALL_STORE_ID;
@@ -72,7 +102,7 @@ export default function App() {
     } else if (effectiveView === "staff") {
       content = <StaffManagementPage initialStoreCode={targetStoreCode} />;
     } else if (effectiveView === "history") {
-      content = <HistoryPage storeCode={targetStoreCode} />;
+      content = <HistoryPage storeCode={targetStoreCode} date={historyDate} />;
     } else if (isOverall || !storeEntry) {
       content = <OverallStoresSummary />;
     } else {
@@ -108,7 +138,7 @@ export default function App() {
     );
   };
 
-  const animationKey = `daily-${effectiveStore}-${effectiveView}`;
+  const animationKey = `daily-${effectiveStore}-${effectiveView}-${historyDate ?? ""}`;
 
   return (
     <div className="bg-background min-h-screen">

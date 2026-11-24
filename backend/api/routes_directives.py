@@ -85,6 +85,7 @@ def create_new_directive(
         target_store=target_store,
         author_name=author_name,
         author_title=author_title,
+        created_by_user=user.username,
     )
     return {"status": "ok", "directive": created}
 
@@ -101,7 +102,11 @@ def update_existing_directive(
     if not existing:
         raise HTTPException(status_code=404, detail="Directive not found.")
 
-    if not user.is_admin and user.username not in existing.get("author_title", "") and user.store_code != existing.get("target_store"):
+    is_author = (
+        (existing.get("created_by_user") and existing.get("created_by_user") == user.username)
+        or (user.username and user.username in existing.get("author_title", ""))
+    )
+    if not user.is_admin and not is_author:
         raise HTTPException(status_code=403, detail="Unauthorized to modify this directive.")
 
     updates = {k: v for k, v in payload.model_dump().items() if v is not None} if hasattr(payload, "model_dump") else {k: v for k, v in payload.dict().items() if v is not None}
@@ -123,7 +128,11 @@ def delete_existing_directive(
     if not existing:
         raise HTTPException(status_code=404, detail="Directive not found.")
 
-    if not user.is_admin and user.username not in existing.get("author_title", "") and user.store_code != existing.get("target_store"):
+    is_author = (
+        (existing.get("created_by_user") and existing.get("created_by_user") == user.username)
+        or (user.username and user.username in existing.get("author_title", ""))
+    )
+    if not user.is_admin and not is_author:
         raise HTTPException(status_code=403, detail="Unauthorized to delete this directive.")
 
     success = directives_store.delete_directive(db, directive_id)

@@ -1,6 +1,6 @@
 """CITIMART AI Chatbot & Autonomous Multi-Agent Copilot Route.
 
-Powered by Google GenAI (gemini-2.5-flash), LangGraph Multi-Agent Orchestration,
+Powered by Google GenAI (gemini-3.8-flash), LangGraph Multi-Agent Orchestration,
 Target Adjustment (7/14/30-day rolling recovery), MongoDB Atlas, and Persistent Session Memory.
 """
 from __future__ import annotations
@@ -66,7 +66,7 @@ def chat_with_copilot(
 ):
     """Execute conversational turn via Coordinator Agent managing 5 dedicated sub-agents.
     
-    Supports Google GenAI (gemini-2.5-flash, temp=0.2), Target Adjustment queries,
+    Supports Google GenAI (gemini-3.8-flash, temp 0.0 for data answers), Target Adjustment queries,
     real-time MongoDB data, and persistent session memory with multi-tenant RBAC.
     """
     client_ip = get_client_ip(request)

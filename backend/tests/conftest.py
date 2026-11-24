@@ -48,7 +48,11 @@ def _isolate_shared_state():
     Tests run Redis-less unless they opt in via the `fake_redis` fixture."""
     from db.redis_client import set_redis_for_tests
     from src import daily_dashboard_store, rate_limiter, session_store
+    from src.chat.client import reset_llm_cooldown
+    from src.chat.tools.web_tools import clear_search_cache
 
+    reset_llm_cooldown()
+    clear_search_cache()
     set_redis_for_tests(None)
     daily_dashboard_store.invalidate_dashboard_cache()
     session_store.reset_for_tests()

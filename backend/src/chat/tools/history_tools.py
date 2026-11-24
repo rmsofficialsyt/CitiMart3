@@ -148,6 +148,75 @@ _TODAY_RE = re.compile(
 _PREVIOUS_DAY_RE = re.compile(
     r"\b(previous|last|past) (sales|day|business day|operating day)\b|পূর্বের সেলস|আগের সেলস|पिछली बिक्री"
 )
+# Bengali / Devanagari digits -> ASCII for the relative-date rules below.
+_INDIC_DIGITS = str.maketrans("০১২৩৪৫৬৭৮৯०१२३४५६७८९", "01234567890123456789")
+_WORD_NUMS = {"a": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6}
+_N_DAYS_AGO_RE = re.compile(
+    r"\b(\d{1,2}|a|one|two|three|four|five|six)\s+days?\s+ago\b|(\d{1,2})\s*দিন\s*আগে|(\d{1,2})\s*दिन\s*पहले"
+)
+_N_WEEKS_AGO_RE = re.compile(
+    r"\b(\d{1,2}|a|one|two|three|four)\s+weeks?\s+ago\b"
+    r"|(\d{1,2})\s*সপ্তাহ\s*আগে|(\d{1,2})\s*(?:हफ्ते|हफ़्ते|सप्ताह)\s*पहले"
+)
+# Monday=0 .. Sunday=6, matching date.weekday().
+_WEEKDAY_NAMES: tuple[tuple[int, str], ...] = (
+    (0, r"\bmonday\b|সোমবার|सोमवार"),
+    (1, r"\btuesday\b|মঙ্গলবার|मंगलवार"),
+    (2, r"\bwednesday\b|বুধবার|बुधवार"),
+    (3, r"\bthursday\b|বৃহস্পতিবার|गुरुवार|बृहस्पतिवार"),
+    (4, r"\bfriday\b|শুক্রবার|शुक्रवार"),
+    (5, r"\bsaturday\b|শনিবার|शनिवार"),
+    (6, r"\bsunday\b|রবিবার|রোববার|रविवार"),
+)
+_EN_WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+_LAST_RE = re.compile(r"\b(last|previous|past)\b|গত|পিছনের|पिछले|पिछला|बीते")
+# "this day vs the same weekday two weeks ago" is a comparison anchored on the
+# current day, not a request to move the operating date.
+_COMPARISON_RE = re.compile(
+    r"\b(same (week)?day|same day of the week|week over week|wow|compare|comparison|vs\.?|versus)\b"
+    r"|তুলনা|একই দিন|तुलना|इसी दिन|मुकाबले"
+)
+_FUTURE_RE = re.compile(r"\b(next|coming|upcoming|this coming)\b|আগামী|अगले|आने वाले")
+
+
+def _resolve_relative_days(query: str, today: date) -> tuple[date, str] | None:
+    """'3 days ago', '2 weeks ago', 'last Saturday' (EN / BN / HI).
+
+    A bare weekday ("Saturday's sales") means the most recent one before
+    today; a weekday equal to today's only means a week ago when prefixed by
+    "last". Future phrasings ("next Saturday") are left alone.
+    """
+    q = query.lower().translate(_INDIC_DIGITS)
+    is_comparison = bool(_COMPARISON_RE.search(q))
+
+    def _n(groups: tuple[str | None, ...]) -> int | None:
+        tok = next((g for g in groups if g), None)
+        if tok is None:
+            return None
+        return _WORD_NUMS.get(tok) if not tok.isdigit() else int(tok)
+
+    m = None if is_comparison else _N_DAYS_AGO_RE.search(q)
+    if m and (n := _n(m.groups())) and 1 <= n <= 90:
+        d = today - timedelta(days=n)
+        return d, f"Explicit date {d.isoformat()} ({n} days ago)"
+    m = None if is_comparison else _N_WEEKS_AGO_RE.search(q)
+    if m and (n := _n(m.groups())) and 1 <= n <= 12:
+        d = today - timedelta(weeks=n)
+        return d, f"Explicit date {d.isoformat()} ({n} week{'s' if n > 1 else ''} ago, same weekday)"
+    if _FUTURE_RE.search(q):
+        return None
+    for wd, pattern in _WEEKDAY_NAMES:
+        if re.search(pattern, q):
+            delta = (today.weekday() - wd) % 7
+            if delta == 0:
+                if not _LAST_RE.search(q):
+                    return None  # "Wednesday" on a Wednesday: leave it to "today" handling
+                delta = 7
+            d = today - timedelta(days=delta)
+            return d, f"Explicit date {d.isoformat()} ({_EN_WEEKDAYS[wd]})"
+    return None
+
+
 _VAGUE_SALES_RE = re.compile(
     r"\b(sales|targets?|deficit|recovery|carry-?forward|adjustment|performance|performing|kpis?|collection|momentum|gap|revenue|numbers|figures|status|how (are we|is) .{0,25} doing)\b"
     r"|টার্গেট|সেলস|ঘাটতি|রিকভারি|সমন্বয়|বিক্রি|बিক্রী|কেমন চলছে|অবস্থা"
@@ -426,7 +495,8 @@ def resolve_query_target_date(
       2. explicit named holidays/festivals (Gandhi birthday, Republic Day, Christmas, etc.);
       3. relative or named month ("previous month", "October sales", "this month");
       4. full year / annual summary queries;
-      5. day before yesterday / yesterday, relative to `default_date`;
+      5. "N days/weeks ago", "last Saturday", then day before yesterday /
+         yesterday, relative to `default_date`;
       6. an explicit "today" -- honoured even when nothing is logged yet, the
          caller reports that instead of silently showing another day;
       7. "previous/last day" -> latest recorded day before today;
@@ -458,6 +528,10 @@ def resolve_query_target_date(
     year_hit = _resolve_year_target(query, today)
     if year_hit is not None:
         return year_hit
+
+    relative_hit = _resolve_relative_days(query, today)
+    if relative_hit is not None:
+        return relative_hit
 
     if _DAY_BEFORE_YESTERDAY_RE.search(q_lower):
         return today - timedelta(days=2), "Day before yesterday (2 days ago)"

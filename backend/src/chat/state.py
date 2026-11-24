@@ -40,6 +40,9 @@ class ChatResponse(BaseModel):
     subagents_invoked: list[str] = Field(default_factory=list)
     subagents_executed: list[str] = Field(default_factory=list)
     tools_executed: list[str] = Field(default_factory=list)
+    # {kind: "app"|"source", label, href}, built by src.chat.links (never by the model).
+    links: list[dict[str, str]] = Field(default_factory=list)
+    suggestions: list[str] = Field(default_factory=list)
 
     def model_post_init(self, __context: Any) -> None:
         if not self.store and self.store_code:

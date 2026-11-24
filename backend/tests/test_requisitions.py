@@ -111,3 +111,25 @@ def test_create_and_list_requisition(client: TestClient):
     )
     assert del_res.status_code == 200
     assert del_res.json()["deleted"] is True
+
+
+def test_manager_cannot_update_requisition_status(client: TestClient):
+    mgr_nm = make_token("manager", "NM", "mgr_nm")
+    create_res = client.post(
+        "/api/daily/requisitions",
+        json={
+            "store_code": "NM",
+            "items": [{"division": "D", "section": "S", "department": "Dept", "product_required": "P"}],
+        },
+        headers={"Authorization": f"Bearer {mgr_nm}"},
+    )
+    assert create_res.status_code == 200
+    req_id = create_res.json()["requisition"]["_id"]
+
+    status_res = client.put(
+        f"/api/daily/requisitions/{req_id}/status",
+        json={"status": "Approved", "admin_remarks": "Self-approved"},
+        headers={"Authorization": f"Bearer {mgr_nm}"},
+    )
+    assert status_res.status_code == 403
+

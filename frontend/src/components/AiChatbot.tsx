@@ -2,6 +2,7 @@ import { useMutation } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowUpDown,
+  ArrowUpRight,
   Award,
   Bot,
   Calendar,
@@ -9,10 +10,13 @@ import {
   Clock,
   CloudRain,
   Copy,
+  CornerDownRight,
+  ExternalLink,
   Flame,
   History,
   IndianRupee,
   Layers,
+  Link2,
   Maximize2,
   Minimize2,
   Plus,
@@ -28,20 +32,96 @@ import {
   Zap,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown, { type Components } from "react-markdown";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 
 import { api } from "@/api/client";
+import { useAuth } from "@/auth/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/context/LanguageContext";
+import { appHref, isAppHref, isHttpUrl, isIsoDate, storeSelForCode } from "@/lib/appLinks";
+import { remarkChatLinks } from "@/lib/chatLinkify";
 import type { Language } from "@/lib/translations";
+import type { ChatLink } from "@/lib/types";
 
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   engine?: string;
+  /** Store + date the backend actually answered for, e.g. "NM · 2026-11-20". */
+  scope?: string;
+  storeCode?: string;
+  targetDate?: string;
+  /** Backend-built navigation chips + web sources (src/chat/links.py). */
+  links?: ChatLink[];
+  /** Follow-up questions offered under the latest reply. */
+  suggestions?: string[];
   timestamp: string;
 }
+
+// Session ids are generated server-side; anything else in ?chat= is ignored, so a
+// crafted link can't steer the transcript fetch at another API path.
+const SESSION_ID_RE = /^[A-Za-z0-9_-]{6,80}$/;
+
+const fmtTime = (ts?: string) =>
+  (ts ? new Date(ts) : new Date()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+/** Stored transcript rows (GET /api/daily/chat/sessions/{id}) -> chat messages. */
+function toChatMessages(rows: any[]): ChatMessage[] {
+  return rows.map((m: any, idx: number) => {
+    const meta = m.metadata || {};
+    return {
+      id: `restored_${idx}_${m.timestamp || Date.now()}`,
+      role: m.role as "user" | "assistant",
+      content: m.content,
+      engine: meta.engine || "citimart-memory",
+      scope: meta.store_code && meta.target_date ? `${meta.store_code} · ${meta.target_date}` : undefined,
+      storeCode: meta.store_code,
+      targetDate: meta.target_date,
+      links: Array.isArray(meta.links) ? meta.links : undefined,
+      suggestions: Array.isArray(meta.suggestions) ? meta.suggestions : undefined,
+      timestamp: fmtTime(m.timestamp),
+    };
+  });
+}
+
+/** Store code of the last assistant turn in a transcript (what the chat was about). */
+function transcriptStore(rows: any[]): string | undefined {
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const code = rows[i]?.metadata?.store_code;
+    if (rows[i]?.role === "assistant" && code) return String(code).toUpperCase();
+  }
+  return undefined;
+}
+
+// Markdown for assistant replies (GFM tables, bold, lists). react-markdown never
+// renders raw HTML from the model, so a reply cannot inject markup. Links (`a`)
+// are added per message in `markdownComponentsFor`, which only lets through
+// in-app links and the reply's own backend-provided sources.
+const MARKDOWN_COMPONENTS: Components = {
+  h1: ({ children }) => <h4 className="font-bold text-amber-300 text-[13px] mt-1 mb-0.5">{children}</h4>,
+  h2: ({ children }) => <h4 className="font-bold text-amber-300 text-[13px] mt-1 mb-0.5">{children}</h4>,
+  h3: ({ children }) => <h4 className="font-bold text-amber-300 text-[13px] mt-1 mb-0.5">{children}</h4>,
+  h4: ({ children }) => <h4 className="font-bold text-amber-300 text-[13px] mt-1 mb-0.5">{children}</h4>,
+  p: ({ children }) => <p className="leading-relaxed whitespace-pre-wrap">{children}</p>,
+  strong: ({ children }) => <strong className="font-semibold text-slate-50">{children}</strong>,
+  ul: ({ children }) => <ul className="list-disc pl-4 space-y-0.5">{children}</ul>,
+  ol: ({ children }) => <ol className="list-decimal pl-4 space-y-0.5">{children}</ol>,
+  code: ({ children }) => <code className="rounded bg-slate-800 px-1 font-mono text-[11px]">{children}</code>,
+  table: ({ children }) => (
+    <div className="overflow-x-auto my-2 rounded-lg border border-slate-700/60 bg-slate-950/60 p-1">
+      <table className="w-full text-left text-[11px] border-collapse">{children}</table>
+    </div>
+  ),
+  thead: ({ children }) => <thead className="border-b border-slate-700 bg-slate-800/80 text-slate-300">{children}</thead>,
+  tbody: ({ children }) => <tbody className="divide-y divide-slate-800/60 font-mono">{children}</tbody>,
+  tr: ({ children }) => <tr className="hover:bg-indigo-950/30 transition-colors">{children}</tr>,
+  th: ({ children }) => <th className="p-1.5 font-semibold text-center first:text-left">{children}</th>,
+  td: ({ children }) => <td className="p-1.5 text-center first:text-left text-slate-200">{children}</td>,
+};
 
 interface AiChatbotProps {
   activeStore?: string;
@@ -539,11 +619,72 @@ export function AiChatbot({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const rawChatParam = searchParams.get("chat");
+  const linkedSessionId = rawChatParam && SESSION_ID_RE.test(rawChatParam) ? rawChatParam : null;
+  const sessionKey = (store: string) => `citimart_ai_active_session_${store}`;
+
+  /** Open an in-app link; on small screens / expanded mode, get the chat out of the way. */
+  const openAppLink = (href: string) => {
+    navigate(href);
+    if (isExpanded) setIsExpanded(false);
+    if (window.matchMedia("(max-width: 1023px)").matches) setIsOpen(false);
+  };
+
+  const onLinkClick = (e: React.MouseEvent, href: string) => {
+    // Let ctrl/cmd/shift/middle-click open a new tab natively — the href is real.
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    openAppLink(href);
+  };
+
+  const shareUrl = (sid: string) => `${window.location.origin}${appHref({ chat: sid })}`;
+  const copyShareLink = (sid: string | null, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (!sid) return;
+    navigator.clipboard.writeText(shareUrl(sid));
+    toast.success("Conversation link copied — it opens for you and the admin only.");
+  };
+
+  /** Markdown components for one reply: in-app links navigate, its own sources open externally, anything else is plain text. */
+  const markdownComponentsFor = (m: ChatMessage): Components => {
+    const sources = new Set((m.links || []).filter((l) => l.kind === "source").map((l) => l.href));
+    return {
+      ...MARKDOWN_COMPONENTS,
+      a: ({ children, href }) => {
+        if (isAppHref(href)) {
+          return (
+            <a
+              href={href}
+              onClick={(e) => onLinkClick(e, href)}
+              className="text-sky-300 underline decoration-dotted underline-offset-2 hover:text-sky-200 hover:decoration-solid"
+              title="Open in the app"
+            >
+              {children}
+            </a>
+          );
+        }
+        if (isHttpUrl(href) && sources.has(href)) {
+          return (
+            <a href={href} target="_blank" rel="noopener noreferrer" className="text-indigo-300 underline">
+              {children}
+            </a>
+          );
+        }
+        // Model-written or unknown links are not clickable (no phishing via a reply).
+        return <span className="text-slate-200">{children}</span>;
+      },
+    };
+  };
+
   const getWelcomeMessage = (lang: Language): ChatMessage => {
     const welcomeMap: Record<Language, string> = {
-      en: `👋 **Welcome to CITIMART Retail AI Co-Pilot!**\n\nI am your dedicated operations assistant for **${activeStore}**.\n\n- Full MongoDB live database & 79+ days historical operations records\n- Yesterday's full sales, 4-time-slot breakdown & past 7-day tables\n- 7/14/30-day Rolling Deficit Target Adjustment ($A_t = T_t + C_t$)\n- Real-time Kolkata weather & floor conversion tactics (>70%)\n\n*Select a preset below or ask any operational query.*`,
-      bn: `👋 **সিটিমার্ট রিটেইল এআই কো-পাইলটে স্বাগতম!**\n\nআমি **${activeStore}** স্টোরের আপনার সার্বক্ষণিক অপারেশন অ্যাসিস্ট্যান্ট।\n\n- লাইভ মঙ্গোডিবি ও বিগত ৭৯+ দিনের ঐতিহাসিক সেলস রেকর্ড অ্যাক্সেস\n- গতকালের সেলস, ৪টি সময়ভিত্তিক স্লট ও বিগত ৭ দিনের পারফরম্যান্স টেবিল\n- ৭/১৪/৩০ দিনের রোলিং টার্গেট রিকভারি ($A_t = T_t + C_t$)\n- কলকাতার আবহাওয়া ও ফ্লোর কনভার্সন বৃদ্ধির কৌশল (>৭০%)\n\n*নিচের প্রিসেট বেছে নিন বা আপনার প্রশ্ন লিখুন।*`,
-      hi: `👋 **सिटीमार्ट रिटेल AI को-पायलट में आपका स्वागत है!**\n\nमैं **${activeStore}** स्टोर के लिए आपका समर्पित ऑपरेशंस असिस्टेंट हूँ।\n\n- लाइव मोंगोडीबी व पिछले 79+ दिनों के ऐतिहासिक रिकॉर्ड्स तक पूरी पहुंच\n- कल की कुल बिक्री, ४-टाइम स्लॉट व पिछले 7 दिनों की दैनिक तालिका\n- 7/14/30-दिवसीय रोलिंग डेफिसिट टारगेट रिकवरी ($A_t = T_t + C_t$)\n- कोलकाता का लाइव मौसम व फ्लोर कन्वर्शन दर बढ़ाने के उपाय (>70%)\n\n*नीचे दिए गए प्रीसेट चुनें या अपना प्रश्न पूछें।*`,
+      en: `👋 **Welcome to CITIMART Retail AI Co-Pilot!**\n\nI am your dedicated operations assistant for **${activeStore}**.\n\n- Full MongoDB live database & 79+ days historical operations records\n- Yesterday's full sales, 4-time-slot breakdown & past 7-day tables\n- 7/14/30-day Rolling Deficit Target Adjustment (A(t) = T(t) + C(t))\n- Real-time Kolkata weather & floor conversion tactics (>70%)\n\n*Select a preset below or ask any operational query.*`,
+      bn: `👋 **সিটিমার্ট রিটেইল এআই কো-পাইলটে স্বাগতম!**\n\nআমি **${activeStore}** স্টোরের আপনার সার্বক্ষণিক অপারেশন অ্যাসিস্ট্যান্ট।\n\n- লাইভ মঙ্গোডিবি ও বিগত ৭৯+ দিনের ঐতিহাসিক সেলস রেকর্ড অ্যাক্সেস\n- গতকালের সেলস, ৪টি সময়ভিত্তিক স্লট ও বিগত ৭ দিনের পারফরম্যান্স টেবিল\n- ৭/১৪/৩০ দিনের রোলিং টার্গেট রিকভারি (A(t) = T(t) + C(t))\n- কলকাতার আবহাওয়া ও ফ্লোর কনভার্সন বৃদ্ধির কৌশল (>৭০%)\n\n*নিচের প্রিসেট বেছে নিন বা আপনার প্রশ্ন লিখুন।*`,
+      hi: `👋 **सिटीमार्ट रिटेल AI को-पायलट में आपका स्वागत है!**\n\nमैं **${activeStore}** स्टोर के लिए आपका समर्पित ऑपरेशंस असिस्टेंट हूँ।\n\n- लाइव मोंगोडीबी व पिछले 79+ दिनों के ऐतिहासिक रिकॉर्ड्स तक पूरी पहुंच\n- कल की कुल बिक्री, ४-टाइम स्लॉट व पिछले 7 दिनों की दैनिक तालिका\n- 7/14/30-दिवसीय रोलिंग डेफिसिट टारगेट रिकवरी (A(t) = T(t) + C(t))\n- कोलकाता का लाइव मौसम व फ्लोर कन्वर्शन दर बढ़ाने के उपाय (>70%)\n\n*नीचे दिए गए प्रीसेट चुनें या अपना प्रश्न पूछें।*`,
     };
     return {
       id: "welcome",
@@ -560,22 +701,15 @@ export function AiChatbot({
 
   // Restore active session from localStorage on store change or mount
   useEffect(() => {
-    const storageKey = `citimart_ai_active_session_${activeStore}`;
+    // A shared conversation link (?chat=) takes precedence; the effect below loads it.
+    if (linkedSessionId) return;
+    const storageKey = sessionKey(activeStore);
     const savedSessionId = localStorage.getItem(storageKey);
     if (savedSessionId) {
       api.getChatSessionHistory(savedSessionId)
         .then((res) => {
           if (res.messages && res.messages.length > 0) {
-            const restored: ChatMessage[] = res.messages.map((m: any, idx: number) => ({
-              id: `restored_${idx}_${m.timestamp || Date.now()}`,
-              role: m.role as "user" | "assistant",
-              content: m.content,
-              engine: m.metadata?.engine || "citimart-memory",
-              timestamp: m.timestamp
-                ? new Date(m.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                : new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-            }));
-            setMessages(restored);
+            setMessages(toChatMessages(res.messages));
             setActiveSessionId(savedSessionId);
           } else {
             setActiveSessionId(null);
@@ -592,6 +726,58 @@ export function AiChatbot({
       setMessages([getWelcomeMessage(chatLanguage)]);
     }
   }, [activeStore]);
+
+  // Shared conversation link: /app?chat=<session_id>. The backend only returns a
+  // session to its owner or an admin, so anyone else gets a 404 -> toast.
+  useEffect(() => {
+    if (rawChatParam === null) return;
+    const dropParam = () =>
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete("chat");
+          return next;
+        },
+        { replace: true },
+      );
+    if (!linkedSessionId) {
+      toast.error("That conversation link is not valid.");
+      setMessages([getWelcomeMessage(chatLanguage)]);
+      dropParam();
+      return;
+    }
+    let cancelled = false;
+    api.getChatSessionHistory(linkedSessionId)
+      .then((res) => {
+        if (cancelled) return;
+        const rows = res.messages || [];
+        if (rows.length === 0) throw new Error("empty");
+        const store = transcriptStore(rows);
+        const storeSel = storeSelForCode(store);
+        if (isAdmin && store && storeSel && store !== activeStore) {
+          // Switch the app to that chat's store; the store-change restore effect
+          // then picks this session up from localStorage.
+          localStorage.setItem(sessionKey(store), linkedSessionId);
+          navigate(appHref({ store: storeSel }), { replace: true });
+        } else {
+          setMessages(toChatMessages(rows));
+          setActiveSessionId(linkedSessionId);
+          localStorage.setItem(sessionKey(activeStore), linkedSessionId);
+          dropParam();
+        }
+        setIsOpen(true);
+        toast.success("Opened shared conversation.");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        toast.error("This conversation isn't available to your account.");
+        setMessages([getWelcomeMessage(chatLanguage)]);
+        dropParam();
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [rawChatParam]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -633,8 +819,13 @@ export function AiChatbot({
         id: `assistant_${Date.now()}`,
         role: "assistant",
         content: data.reply || "No response received.",
-        engine: data.engine || "gemini-2.5-flash",
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        engine: data.engine || "gemini",
+        scope: data.store_code && data.target_date ? `${data.store_code} · ${data.target_date}` : undefined,
+        storeCode: data.store_code,
+        targetDate: data.target_date,
+        links: data.links,
+        suggestions: data.suggestions,
+        timestamp: fmtTime(),
       };
       setMessages((prev) => [...prev, assistantMsg]);
     },
@@ -707,16 +898,7 @@ export function AiChatbot({
     try {
       const res = await api.getChatSessionHistory(sess.session_id);
       if (res.messages && res.messages.length > 0) {
-        const restored: ChatMessage[] = res.messages.map((m: any, idx: number) => ({
-          id: `restored_${idx}_${m.timestamp || Date.now()}`,
-          role: m.role as "user" | "assistant",
-          content: m.content,
-          engine: m.metadata?.engine || "citimart-memory",
-          timestamp: m.timestamp
-            ? new Date(m.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-            : new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        }));
-        setMessages(restored);
+        setMessages(toChatMessages(res.messages));
         setActiveSessionId(sess.session_id);
         localStorage.setItem(`citimart_ai_active_session_${activeStore}`, sess.session_id);
         setShowSessionDrawer(false);
@@ -856,6 +1038,17 @@ export function AiChatbot({
                 <Button
                   variant="ghost"
                   size="icon"
+                  className="size-7 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 disabled:opacity-40"
+                  onClick={() => copyShareLink(activeSessionId)}
+                  disabled={!activeSessionId}
+                  title={activeSessionId ? "Copy link to this conversation" : "Ask a question first to get a link"}
+                >
+                  <Link2 className="size-3.5" />
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className="size-7 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
                   onClick={handleClearHistory}
                   title="Clear conversation"
@@ -980,6 +1173,15 @@ export function AiChatbot({
                             <Button
                               variant="ghost"
                               size="icon"
+                              onClick={(e) => copyShareLink(s.session_id, e)}
+                              className="size-7 text-slate-500 hover:text-sky-300 hover:bg-sky-500/10 shrink-0 opacity-80 group-hover:opacity-100"
+                              title="Copy link to this conversation"
+                            >
+                              <Link2 className="size-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               onClick={(e) => handleDeleteSession(e, s.session_id)}
                               className="size-7 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 shrink-0 opacity-80 group-hover:opacity-100"
                               title="Delete shift conversation"
@@ -1036,13 +1238,22 @@ export function AiChatbot({
 
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-3.5">
-              {messages.map((m) => {
+              {messages.map((m, idx) => {
                 const isUser = m.role === "user";
                 const isCopied = copiedId === m.id;
+                const isLatest = idx === messages.length - 1;
+                const msgStore = (m.storeCode || activeStore).toUpperCase();
+                const msgStoreSel = storeSelForCode(isAdmin ? msgStore : user?.storeCode || msgStore);
+                const appChips = (m.links || []).filter((l) => l.kind === "app" && isAppHref(l.href));
+                const sourceChips = (m.links || []).filter((l) => l.kind === "source" && isHttpUrl(l.href));
+                const scopeHref =
+                  msgStoreSel && isIsoDate(m.targetDate ?? null)
+                    ? appHref({ store: msgStoreSel, view: "history", date: m.targetDate })
+                    : null;
 
                 return (
+                  <div key={m.id}>
                   <motion.div
-                    key={m.id}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className={`flex items-start gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"}`}
@@ -1077,61 +1288,60 @@ export function AiChatbot({
                         </button>
                       )}
 
-                      {/* Render text with Markdown & Table formatting */}
-                      <div className="space-y-2">
-                        {m.content.split("\n\n").map((para, pIdx) => {
-                          if (para.startsWith("### ")) {
-                            return (
-                              <h4 key={pIdx} className="font-bold text-amber-300 text-[13px] mt-1 mb-0.5">
-                                {para.replace("### ", "")}
-                              </h4>
-                            );
-                          }
-                          // Check if paragraph is a markdown table
-                          if (para.includes("|") && para.includes("\n|")) {
-                            const lines = para.split("\n").filter((l) => l.trim().startsWith("|"));
-                            if (lines.length >= 2) {
-                              const headerCols = lines[0].split("|").map((c) => c.trim()).filter(Boolean);
-                              const dataLines = lines.slice(2); // Skip separator row
-                              return (
-                                <div key={pIdx} className="overflow-x-auto my-2 rounded-lg border border-slate-700/60 bg-slate-950/60 p-1">
-                                  <table className="w-full text-left text-[11px] border-collapse">
-                                    <thead>
-                                      <tr className="border-b border-slate-700 bg-slate-800/80 text-slate-300">
-                                        {headerCols.map((col, cIdx) => (
-                                          <th key={cIdx} className="p-1.5 font-semibold text-center first:text-left">
-                                            {col}
-                                          </th>
-                                        ))}
-                                      </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-800/60 font-mono">
-                                      {dataLines.map((rowStr, rIdx) => {
-                                        const cols = rowStr.split("|").map((c) => c.trim()).filter(Boolean);
-                                        return (
-                                          <tr key={rIdx} className="hover:bg-indigo-950/30 transition-colors">
-                                            {cols.map((cell, cIdx) => (
-                                              <td key={cIdx} className="p-1.5 text-center first:text-left text-slate-200">
-                                                {cell}
-                                              </td>
-                                            ))}
-                                          </tr>
-                                        );
-                                      })}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              );
-                            }
-                          }
+                      {/* Assistant replies are markdown; user text stays plain. */}
+                      {isUser ? (
+                        <p className="leading-relaxed whitespace-pre-wrap">{m.content}</p>
+                      ) : (
+                        <div className="space-y-2">
+                          <ReactMarkdown
+                            remarkPlugins={[
+                              remarkGfm,
+                              [remarkChatLinks, { storeCode: msgStore, isAdmin, userStoreCode: user?.storeCode }],
+                            ]}
+                            components={markdownComponentsFor(m)}
+                          >
+                            {m.content}
+                          </ReactMarkdown>
+                        </div>
+                      )}
 
-                          return (
-                            <p key={pIdx} className="leading-relaxed whitespace-pre-wrap">
-                              {para}
-                            </p>
-                          );
-                        })}
-                      </div>
+                      {/* Navigation chips (backend-built) */}
+                      {!isUser && appChips.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {appChips.map((l) => (
+                            <a
+                              key={l.href}
+                              href={l.href}
+                              onClick={(e) => onLinkClick(e, l.href)}
+                              className="inline-flex items-center gap-1 rounded-full border border-sky-500/40 bg-sky-500/10 px-2 py-0.5 text-[10.5px] font-medium text-sky-200 hover:bg-sky-500/25 hover:text-white transition"
+                            >
+                              <ArrowUpRight className="size-3" />
+                              {l.label}
+                            </a>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Web sources the answer drew on */}
+                      {!isUser && sourceChips.length > 0 && (
+                        <div className="mt-2 space-y-0.5">
+                          <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Sources</div>
+                          {sourceChips.map((l) => (
+                            <a
+                              key={l.href}
+                              href={l.href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 truncate text-[10.5px] text-indigo-300 hover:text-indigo-200 underline-offset-2 hover:underline"
+                              title={l.href}
+                            >
+                              <ExternalLink className="size-3 shrink-0" />
+                              <span className="truncate">{l.label}</span>
+                              <span className="shrink-0 text-slate-500">· {new URL(l.href).hostname}</span>
+                            </a>
+                          ))}
+                        </div>
+                      )}
 
                       {/* Footer Info */}
                       <div
@@ -1145,10 +1355,44 @@ export function AiChatbot({
                             {m.engine}
                           </span>
                         )}
+                        {!isUser && m.scope && (scopeHref ? (
+                          <a
+                            href={scopeHref}
+                            onClick={(e) => onLinkClick(e, scopeHref)}
+                            className="rounded bg-slate-800/80 px-1.5 py-0.5 font-mono text-[9px] text-sky-300 hover:bg-sky-500/20 hover:text-white transition"
+                            title="Open this store and date in History"
+                          >
+                            {m.scope} ↗
+                          </a>
+                        ) : (
+                          <span
+                            className="rounded bg-slate-800/80 px-1.5 py-0.5 font-mono text-[9px] text-slate-300"
+                            title="Store and date these figures are for"
+                          >
+                            {m.scope}
+                          </span>
+                        ))}
                         <span>{m.timestamp}</span>
                       </div>
                     </div>
                   </motion.div>
+                  {/* Follow-up suggestions under the latest reply */}
+                  {!isUser && isLatest && !chatMutation.isPending && (m.suggestions?.length ?? 0) > 0 && (
+                    <div className="ml-9 mt-1.5 flex flex-wrap gap-1.5">
+                      {m.suggestions!.map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => handleSendMessage(s)}
+                          className="inline-flex items-center gap-1 rounded-full border border-slate-700/70 bg-slate-900/80 px-2.5 py-1 text-[10.5px] text-slate-300 hover:border-indigo-500/60 hover:bg-indigo-600/25 hover:text-white transition cursor-pointer"
+                        >
+                          <CornerDownRight className="size-3 text-indigo-400" />
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  </div>
                 );
               })}
 

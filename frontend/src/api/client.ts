@@ -29,6 +29,7 @@ import type {
   DirectivesSummaryResponse,
   CreateDirectivePayload,
   UpdateDirectivePayload,
+  ChatLink,
 } from "@/lib/types";
 
 export interface DashboardMeta {
@@ -276,6 +277,8 @@ export const api = {
       engine?: string;
       store_code?: string;
       target_date?: string;
+      links?: ChatLink[];
+      suggestions?: string[];
     }>("/api/daily/chat", payload),
 
   // Product Requisitions

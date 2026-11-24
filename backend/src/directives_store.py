@@ -75,6 +75,7 @@ def create_directive(
     target_store: str = "ALL",
     author_name: str = "Operational Head",
     author_title: str = "Executive Director / Operations Head",
+    created_by_user: str | None = None,
 ) -> dict:
     now_iso = datetime.now(timezone.utc).isoformat()
     doc = {
@@ -86,6 +87,7 @@ def create_directive(
         "target_store": target_store,
         "author_name": author_name.strip() or "Operational Head",
         "author_title": author_title.strip() or "Executive Director",
+        "created_by_user": created_by_user,
         "active": True,
         "read_by": [],
         "created_at": now_iso,

@@ -31,7 +31,7 @@ def test_model_and_temperature_config():
     """Verify that model name, temperature, and API key are read cleanly from environment."""
     from config.env import env
 
-    assert env.gemini_model == "gemini-2.5-flash"
+    assert env.gemini_model == "gemini-3.8-flash"
     assert env.llm_temperature == 0.2
     assert env.llm_max_output_tokens == 1536
     assert env.llm_request_timeout_seconds == 15

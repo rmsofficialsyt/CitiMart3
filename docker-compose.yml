@@ -37,9 +37,9 @@ x-app-env: &app-env
   # cluster's connection cap (Atlas M0 = 500).
   MONGO_MIN_POOL_SIZE: ${MONGO_MIN_POOL_SIZE:-2}
   MONGO_MAX_POOL_SIZE: ${MONGO_MAX_POOL_SIZE:-25}
-  # Google GenAI Multi-Agent LLM (Gemini 2.5 Flash)
+  # Google GenAI Multi-Agent LLM (Gemini 3.8 Flash)
   GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-  GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+  GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.8-flash}
   LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.2}
 
 services:

@@ -80,3 +80,31 @@ def test_manager_submits_complaint_and_remarks_to_operational_head(client, nw_he
     # 3. Manager can delete their own submitted complaint
     del_own = client.delete(f"/api/daily/directives/{report_id}", headers=nw_headers)
     assert del_own.status_code == 200
+
+
+def test_manager_cannot_delete_admin_targeted_directive(client, admin_headers, nw_headers):
+    create_res = client.post(
+        "/api/daily/directives",
+        json={
+            "title": "NM Exclusive Instructions",
+            "message": "Direct instructions for New Market.",
+            "priority": "high",
+            "category": "operations",
+            "target_store": "NM",
+            "author_name": "Operational Head",
+        },
+        headers=admin_headers,
+    )
+    assert create_res.status_code == 200
+    directive_id = create_res.json()["directive"]["id"]
+
+    del_res = client.delete(f"/api/daily/directives/{directive_id}", headers=nw_headers)
+    assert del_res.status_code == 403
+
+    update_res = client.put(
+        f"/api/daily/directives/{directive_id}",
+        json={"title": "Manager Tampered Title"},
+        headers=nw_headers,
+    )
+    assert update_res.status_code == 403
+

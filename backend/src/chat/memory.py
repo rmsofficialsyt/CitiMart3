@@ -154,7 +154,7 @@ class SessionMemoryStore:
         session_id: str,
         sec_ctx: SecurityContext,
         max_turns: int | None = None,
-    ) -> list[dict[str, str]]:
+    ) -> list[dict[str, Any]]:
         """Recent turns for the LLM context window (capped), checking ownership."""
         if not SessionMemoryStore._owned_session(db, session_id, sec_ctx):
             return []
@@ -162,7 +162,15 @@ class SessionMemoryStore:
         limit = (max_turns or env.chat_max_history_turns) * 2
         raw_msgs = SessionMemoryStore._messages(db, session_id, limit=limit, newest_first=True)
         raw_msgs.reverse()
-        return [{"role": m.get("role", "user"), "content": m.get("content", "")} for m in raw_msgs]
+        out: list[dict[str, Any]] = []
+        for m in raw_msgs:
+            turn: dict[str, Any] = {"role": m.get("role", "user"), "content": m.get("content", "")}
+            meta = m.get("metadata") or {}
+            if turn["role"] == "assistant" and (meta.get("target_date") or meta.get("store_code")):
+                # Lets client.build_contents label which day/store an old answer was about.
+                turn["meta"] = {"store_code": meta.get("store_code"), "target_date": meta.get("target_date")}
+            out.append(turn)
+        return out
 
     @staticmethod
     def get_full_transcript(

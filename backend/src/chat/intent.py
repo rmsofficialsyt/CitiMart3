@@ -232,6 +232,10 @@ class IntentResult:
     history_days: int | None = None       # N in "past N days"
     explicit_today: bool = False
     normalized: str = ""
+    # False when no regex rule matched and `primary` is only the day_kpis default;
+    # src/chat/intent_router.py then asks the LLM to classify the question.
+    matched: bool = True
+    source: str = "regex"                  # "regex" | "llm" | "default"
 
     @property
     def all(self) -> list[str]:
@@ -339,4 +343,6 @@ def detect_intent(query: str) -> IntentResult:
         history_days=_history_days(q),
         explicit_today=bool(_TODAY.search(q)),
         normalized=q,
+        matched=bool(hits),
+        source="regex" if hits else "default",
     )

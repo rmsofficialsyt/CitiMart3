@@ -18,6 +18,22 @@ from config.settings import STORE_CODE_TO_NAME
 
 logger = logging.getLogger(__name__)
 
+# Bengali (০-৯) and Devanagari (०-९) digits -> ASCII, so a figure is checked
+# whatever script the reply wrote it in.
+_DIGITS = str.maketrans("০১২৩৪৫৬৭৮৯०१२३४५६७८९", "01234567890123456789")
+_ISO_DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
+_CLOCK = re.compile(r"\b\d{1,2}(?::\d{2})?\s*(?:[AaPp]\.?[Mm]\.?)(?![a-zA-Z])|\b\d{1,2}:\d{2}\b")
+_FIGURE = re.compile(
+    r"(?P<cur>₹|Rs\.?\s*|INR\s*)?"
+    r"(?P<num>\d{1,3}(?:,\d{2,3})+|\d+)(?P<dec>\.\d+)?"
+    r"\s*(?P<scale>lakhs?|lacs?|crores?|cr\b|L\b|k\b|K\b)?"
+    r"\s*(?P<pct>%)?"
+)
+_SCALES = {"lakh": 1e5, "lakhs": 1e5, "lac": 1e5, "lacs": 1e5, "l": 1e5,
+           "crore": 1e7, "crores": 1e7, "cr": 1e7, "k": 1e3}
+# Recovery windows, "100%", etc. are vocabulary, not data.
+_ALWAYS_ALLOWED = {7.0, 14.0, 30.0, 90.0, 100.0}
+
 
 class AntiHallucinationHook:
     """Enterprise Retail Anti-Hallucination Guardrail Hook."""
@@ -121,6 +137,39 @@ class AntiHallucinationHook:
                     changed = True
 
         return cleaned
+
+    @classmethod
+    def find_ungrounded_numbers(cls, text: str, allowed: set[float]) -> list[str]:
+        """Figures in `text` that match no number in `allowed` (within the
+        precision the text itself wrote them at).
+
+        Small bare integers (< 10: list numbering, "3 tips") are skipped, as
+        are ISO dates and clock times; ₹ amounts and percentages are always
+        checked whatever their size.
+        """
+        if not text:
+            return []
+        body = _CLOCK.sub(" ", _ISO_DATE.sub(" ", text.translate(_DIGITS)))
+        pool = allowed | _ALWAYS_ALLOWED
+        bad: list[str] = []
+        for m in _FIGURE.finditer(body):
+            raw = m.group("num").replace(",", "")
+            dec = m.group("dec") or ""
+            value = float(raw + dec)
+            scale_word = (m.group("scale") or "").lower()
+            scale = _SCALES.get(scale_word, 1.0)
+            is_money, is_pct = bool(m.group("cur")), bool(m.group("pct"))
+            if not (is_money or is_pct or scale_word) and value < 10:
+                continue
+            value *= scale
+            decimals = len(dec) - 1 if dec else 0
+            tol = 0.5 * (10 ** -decimals) * scale + 1e-6
+            if is_money:
+                tol = max(tol, 1.0)
+            if any(abs(a - value) <= tol for a in pool):
+                continue
+            bad.append(m.group(0).strip())
+        return bad
 
     @classmethod
     def audit_post_generation(

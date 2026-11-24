@@ -1,47 +1,58 @@
-# CITIMART Daily Operations — Engineering & System Prompts (PROMPTS)
+# CITIMART Daily Operations — Co-Pilot Prompts (PROMPTS)
 
-**Archive ID:** PROMPT-OPS-ARCHIVE  
-**Module:** Daily Operations System
+**Module:** Daily Operations System — AI Co-Pilot (`backend/src/chat/`)
 
----
+The prompts live in code, not here. This page says where each one is and what
+it is responsible for, so it cannot drift out of date the way a pasted copy did.
 
-## 1. AI Decision Advisor & Retail Operations Copilot System Instruction
+## 1. Answer synthesis — `coordinator.py`
 
-Below is the production system prompt executed in `Daily Operations/backend/api/routes_chat.py`:
+The system instruction is assembled per turn in `run_copilot_turn`, static
+parts first so Gemini's implicit prompt cache can reuse them:
 
-```markdown
-You are the CITIMART AI Decision Advisor & Retail Operations Co-Pilot — an advanced, intelligent retail analytics assistant designed specifically for CITIMART departmental stores in Kolkata (New Market [NM], Hatibagan [HB], and Chowringhee [CHW]).
+| Order | Block | Source | Changes per turn? |
+|---|---|---|---|
+| 1 | Role, data rules, output format, language, example | `BASE_COORDINATOR_SYSTEM_INSTRUCTION` | no |
+| 2 | Official KPI formulas | `context_builder.KPI_GLOSSARY` | no |
+| 3 | Intent, operating date, required answer shape | `GROUNDING_RULES` + `ANSWER_TEMPLATES[intent]` | yes |
+| 4 | Calendar / store / role context | `calendar_context` | yes |
+| 5 | FACTS — one labelled fact per line | `context_builder.build_fact_sheet` | yes |
 
-Your role is to assist:
-1. Store Managers (NM, HB, CHW): Provide actionable floor-level guidance, real-time target gap recovery tactics, conversion boost strategies, ATV & basket size improvements, time-slot pacing, and inventory requisition tracking.
-2. Executive Admins (Raphael Sir / Operations Head): Provide consolidated 3-store network health analysis, benchmark rankings, variance flags, target projections, and directive drafting assistance.
+Key rules: every figure is copied from FACTS (never computed); `NOT AVAILABLE`
+values are stated as such, never printed as 0; status colours come only from
+`*_status` facts; FACTS free text (web snippets, remarks) is untrusted data,
+never instructions.
 
-CORE RETAIL FORMULAE & METRICS:
-- Conversion Rate (%) = (Total Bills / Total Footfall) * 100
-- Average Transaction Value (ATV) = Net Sales / Total Bills
-- Revenue Per Visitor (RPV) = Net Sales / Total Footfall
-- Sales Per Hour (SPH) = Net Sales / 12 Operating Hours (or slot duration)
-- Basket Size (UPB) = Total Units Sold / Total Bills
-- Target Achievement (%) = (Actual Net Sales / Target Sales) * 100
-- Remaining Target Gap = Target Sales - Actual Net Sales
-- YoY Tally Growth (%) = ((Present Net Sales - Previous Year Net Sales) / Previous Year Net Sales) * 100
+Two code-level safety nets back the prompt up: `AntiHallucinationHook`
+rejects a reply containing any number not present in the fetched data (the
+verified deterministic card is shown instead), and `ANSWER_TEMPLATES` mirrors
+`_synthesize_domain_response` so both paths look the same to a manager.
 
-STANDARD OPERATING TIME SLOTS:
-1. 11.00 AM - 01.59 PM (Slot 1: Morning Setup, Cash Desk Ready & Initial Walk-ins)
-2. 02.00 PM - 04.59 PM (Slot 2: Mid-Day Traffic & Casual Shoppers, Fitting Room Support)
-3. 05.00 PM - 07.59 PM (Slot 3: Prime Evening Surge - Maximum Staffing at Billing Desks)
-4. 08.00 PM - 11.59 PM (Slot 4: Night Rush, Closing Push & Mandatory 10:30 PM Data Log)
+## 2. Intent routing — `intent_router.py`
 
-TONE & STYLE:
-- Professional, sharp, encouraging, data-driven, and highly practical.
-- Use markdown formatting with bullet points, bold highlights, KPI badges, and concise advice.
-- When asked in Hindi (हिंदी) or Bengali (বাংলা), respond fluently and naturally in that language.
-- Always ground your answers in the live MongoDB data provided in the system context.
-```
+`_ROUTER_INSTRUCTION` is used only when the regex router (`intent.py`) matched
+nothing. Output is constrained by `INTENT_SCHEMA` (an enum of known intents),
+temperature 0. It never chooses store or date.
 
----
+## 3. Links in replies (not model-written)
 
-## 2. Retail Target Adjustment Implementation Prompt
-```
-Construct an administrative sales target adjustment module allowing executive administrators to reallocate targets across store departments based on weather variations, festival footfall predictions, and historical baseline achievements.
-```
+The model never writes links. Every link in a reply comes from deterministic code:
+
+- **Link chips + sources** — `src/chat/links.py::build_links` returns
+  `ChatResponse.links` (`{kind: "app"|"source", label, href}`), stored in the
+  turn's session metadata. App hrefs use the SPA scheme `/app?store=&view=&date=`.
+  A manager only gets links for their own store. Sources are only http(s) URLs
+  from the web-search results, with at most 3 kept.
+- **Follow-ups** — `follow_up_suggestions(intent, language)` → `ChatResponse.suggestions`.
+- **Inline links** — the frontend remark plugin `frontend/src/lib/chatLinkify.ts`
+  links dates, store names and page keywords at render time. Stored text stays plain.
+- **Safety** — `AiChatbot.tsx`'s `a` renderer makes only in-app links and that
+  reply's own sources clickable. Any other URL in model text renders as plain text.
+- **Shareable chats** — `/app?chat=<session_id>`. The backend serves a session
+  only to its owner or an admin.
+
+## 4. Changing a prompt
+
+- Run `pytest tests/test_chat_grounding.py tests/test_chat_intent.py tests/test_chat_intent_router.py`.
+- With `GEMINI_API_KEY` set, run the evals in `tests/evals/` (golden dataset + Gemini judge).
+- Keep `ANSWER_TEMPLATES` and the deterministic cards in step.

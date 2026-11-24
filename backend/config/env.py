@@ -182,8 +182,19 @@ class EnvSettings(BaseSettings):
     # --- AI Chatbot & Google GenAI Multi-Agent Engine --------------------
     # Read strictly from environment / .env, never hardcoded.
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.8-flash"
     llm_temperature: float = 0.2
+    # Per-turn overrides used by the Co-Pilot coordinator: data answers copy
+    # figures and should be deterministic; advice answers may vary a little.
+    llm_temperature_data: float = 0.0
+    llm_temperature_advice: float = 0.4
+    # Gemini 2.5 "thinking" tokens count against max_output_tokens, so a long
+    # table could be cut off. 0 disables thinking on Flash (Pro's floor is 128,
+    # applied in src/chat/client.py); a negative value leaves the model default.
+    llm_thinking_budget: int = 0
+    # Ask the LLM to classify a chat question when no regex intent rule matched
+    # (src/chat/intent_router.py). One extra short model call on those turns only.
+    chat_llm_intent_fallback: bool = True
     llm_max_output_tokens: int = 1536
     llm_request_timeout_seconds: int = 15
     tavily_api_key: str | None = None
