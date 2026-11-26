@@ -20,9 +20,12 @@ for the post-generation verifier in `hooks/anti_hallucination_hook.py`.
 from __future__ import annotations
 
 import re
-from typing import Any, Iterator
+from typing import TYPE_CHECKING, Any, Iterator
 
 from config import kpi_thresholds
+
+if TYPE_CHECKING:
+    from src.chat.intent import IntentResult
 
 NA = "NOT AVAILABLE"
 
@@ -173,6 +176,41 @@ def _dedupe(subagent_data: dict[str, Any]) -> dict[str, Any]:
             db_ops["kpis"] = keep
         db_ops.pop("agent", None)
         data["db_ops_agent"] = db_ops
+    return data
+
+
+_NO_FACT_INTENTS = frozenset({"greeting", "help", "formula"})
+_SLOT_KEYS = ("timeslot_breakdown", "peak_slot")
+
+
+def prune_facts_for_intent(subagent_data: dict[str, Any], intent: "IntentResult") -> dict[str, Any]:
+    """Copy of `subagent_data` holding only the facts this intent's answer needs.
+
+    Used for the LLM's FACTS block only. Never mutates its input: the caller
+    keeps passing the full `subagent_data` to `allowed_numbers`, the
+    anti-hallucination audit and `build_links`, so pruning can only make the
+    prompt shorter, never make a grounded figure look ungrounded.
+    """
+    primary = intent.primary
+    if primary in _NO_FACT_INTENTS:
+        return {}
+
+    data = dict(subagent_data)
+    db_ops = data.get("db_ops_agent")
+    if not isinstance(db_ops, dict):
+        return data
+
+    if primary == "day_kpis" and intent.requested_metrics and "timeslots" not in intent.requested_metrics:
+        # A focused lookup ("net sales only") must not be able to leak the slot table.
+        edk = db_ops.get("exact_day_kpis")
+        if isinstance(edk, dict) and any(k in edk for k in _SLOT_KEYS):
+            db_ops = dict(db_ops)
+            db_ops["exact_day_kpis"] = {k: v for k, v in edk.items() if k not in _SLOT_KEYS}
+            data["db_ops_agent"] = db_ops
+    elif primary in ("coaching", "surge"):
+        # Advice needs the day's headline KPIs, not the per-slot / largest-bill detail;
+        # the coach tactics and surge facts live in their own agents' keys, kept whole.
+        data["db_ops_agent"] = {k: db_ops[k] for k in ("kpis",) if k in db_ops}
     return data
 
 

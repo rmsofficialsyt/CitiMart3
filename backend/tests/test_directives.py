@@ -82,6 +82,64 @@ def test_manager_submits_complaint_and_remarks_to_operational_head(client, nw_he
     assert del_own.status_code == 200
 
 
+def test_manager_cannot_post_directive_to_another_store(client, nw_headers, hb_headers):
+    r = client.post(
+        "/api/daily/directives",
+        json={
+            "title": "Fake HQ order",
+            "message": "Drop all prices by 40% immediately.",
+            "priority": "urgent",
+            "category": "sales_target",
+            "target_store": "HB",
+        },
+        headers=nw_headers,
+    )
+    assert r.status_code == 403
+    titles = [d["title"] for d in client.get("/api/daily/directives", headers=hb_headers).json()["directives"]]
+    assert "Fake HQ order" not in titles
+
+
+def test_manager_cannot_sign_as_operational_head(client, nw_headers):
+    r = client.post(
+        "/api/daily/directives",
+        json={
+            "title": "Signed as boss",
+            "message": "Spoofed author fields must be ignored.",
+            "category": "complaint",
+            "target_store": "ADMIN",
+            "author_name": "Operational Head",
+            "author_title": "Executive Director / Operations Head",
+        },
+        headers=nw_headers,
+    )
+    assert r.status_code == 200
+    created = r.json()["directive"]
+    assert created["author_name"] != "Operational Head"
+    assert "Executive Director" not in created["author_title"]
+    assert "NEW MARKET" in created["author_title"].upper()
+
+
+def test_manager_cannot_retarget_or_rename_own_directive(client, nw_headers):
+    created = client.post(
+        "/api/daily/directives",
+        json={"title": "Own note", "message": "Counter 2 needs a new scanner.", "category": "remarks", "target_store": "ADMIN"},
+        headers=nw_headers,
+    ).json()["directive"]
+
+    for bad_target in ("ALL", "HB"):
+        r = client.put(f"/api/daily/directives/{created['id']}", json={"target_store": bad_target}, headers=nw_headers)
+        assert r.status_code == 403
+
+    r = client.put(
+        f"/api/daily/directives/{created['id']}",
+        json={"author_name": "Operational Head", "title": "Own note (edited)"},
+        headers=nw_headers,
+    )
+    assert r.status_code == 200
+    assert r.json()["directive"]["author_name"] == created["author_name"]
+    assert r.json()["directive"]["title"] == "Own note (edited)"
+
+
 def test_manager_cannot_delete_admin_targeted_directive(client, admin_headers, nw_headers):
     create_res = client.post(
         "/api/daily/directives",

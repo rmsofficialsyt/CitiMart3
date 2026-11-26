@@ -338,3 +338,197 @@ def test_generate_content_receives_history(monkeypatch):
     )
     assert out == "ok"
     assert [c["role"] for c in captured["contents"]] == ["user", "model", "user"]
+
+
+# --- Focused single-KPI responses --------------------------------------------------------
+
+def test_detect_intent_extracts_requested_metrics():
+    assert detect_intent("Net sales only").requested_metrics == ["net_sales"]
+    assert detect_intent("What is our ATV today?").requested_metrics == ["atv"]
+    assert detect_intent("Footfall and conversion % yesterday").requested_metrics == [
+        "footfall",
+        "conversion_pct",
+    ]
+    full_report = (
+        "Show yesterday's complete sales report including net sales, target achievement %, "
+        "footfall, conversion %, ATV, and 4-time-slot breakdown."
+    )
+    assert detect_intent(full_report).requested_metrics == []
+
+
+def test_focused_day_kpis_synthesis_returns_only_requested_metric():
+    from datetime import date
+    from src.chat.coordinator import _synthesize_domain_response
+    from src.chat.state import SecurityContext
+
+    subagent_data = {
+        "db_ops_agent": {
+            "exact_day_kpis": {
+                "has_records": True,
+                "date": "2026-11-20",
+                "day_name": "Friday",
+                "kpis": {
+                    "net_sales": 124500.0,
+                    "sales_target": 150000.0,
+                    "achievement_pct": 83.0,
+                    "target_gap": -25500.0,
+                    "footfall": 410,
+                    "nob": 236,
+                    "conversion_pct": 57.6,
+                    "atv": 527.54,
+                    "rpv": 303.66,
+                    "basket_size": 2.15,
+                },
+                "largest_bill": 4200.0,
+                "peak_slot": {"slot": "6 PM - 10 PM", "share_pct": 45.0},
+                "timeslot_breakdown": {},
+            }
+        }
+    }
+    sec = SecurityContext(user_id="u1", username="mgr", role="store_manager", store_code="NM")
+
+    net_only = _synthesize_domain_response(
+        query="Net sales only",
+        active_store="NM",
+        target_date=date(2026, 11, 20),
+        subagent_data=subagent_data,
+        sec_ctx=sec,
+        language="en",
+        intent=detect_intent("Net sales only"),
+    )
+    assert "Net Sales:" in net_only and "₹124,500.00" in net_only
+    assert "Footfall" not in net_only
+    assert "ATV" not in net_only
+    assert "4-Time-Slot" not in net_only
+
+    atv_only = _synthesize_domain_response(
+        query="ATV only today",
+        active_store="NM",
+        target_date=date(2026, 11, 20),
+        subagent_data=subagent_data,
+        sec_ctx=sec,
+        language="en",
+        intent=detect_intent("ATV only today"),
+    )
+    assert "ATV:" in atv_only and "₹527.54" in atv_only
+    assert "Net Sales" not in atv_only
+    assert "4-Time-Slot" not in atv_only
+
+
+# --- response depth tiers & fact pruning ----------------------------------------------
+
+def _preset(preset_id: str) -> str:
+    return next(p[3] for p in PRESETS if p[0] == "en" and p[1] == preset_id)
+
+
+@pytest.mark.parametrize("query,expected_tier", [
+    ("Net sales only today", "short"),
+    (_preset("formula_all"), "short"),
+    (_preset("market_weather"), "short"),
+    (_preset("hist_yesterday"), "medium"),      # full day report incl. 4 slots
+    (_preset("bench_ranking"), "medium"),
+    (_preset("hist_7days"), "long"),
+    ("Morning brief across all 3 stores", "long"),
+    ("Why did we miss target yesterday?", "long"),
+])
+def test_resolve_response_tier(query, expected_tier):
+    from config.env import env
+    from src.chat.coordinator import _resolve_response_tier
+
+    intent = detect_intent(query)
+    tier, rule, max_tokens = _resolve_response_tier(intent)
+    assert tier == expected_tier, (intent.primary, intent.requested_metrics)
+    if tier == "short":
+        assert max_tokens == env.llm_max_output_tokens_short and rule.startswith("SHORT ANSWER")
+    elif tier == "medium":
+        assert max_tokens == env.llm_max_output_tokens_medium and rule.startswith("STRUCTURED ANSWER")
+    else:
+        assert max_tokens == env.llm_max_output_tokens
+        assert rule.startswith("DETAILED ANSWER")
+
+
+def _sample_subagent_data() -> dict:
+    return {"db_ops_agent": {
+        "exact_day_kpis": {
+            "date": "2026-11-18", "kpis": {"net_sales": 1000.0, "footfall": 20, "nob": 10},
+            "timeslot_breakdown": {"Morning": {"net_sales": 400.0}},
+            "peak_slot": {"slot": "Evening", "share_pct": 60.0},
+            "largest_bill": 250.0,
+        },
+        "kpis": {"net_sales": 1000.0, "bill_quantity": 25.0},
+    }}
+
+
+def test_prune_strips_slots_for_focused_lookup_without_mutating_input():
+    import copy
+    from src.chat.context_builder import prune_facts_for_intent
+
+    data = _sample_subagent_data()
+    before = copy.deepcopy(data)
+    pruned = prune_facts_for_intent(data, detect_intent("Net sales only today"))
+    edk = pruned["db_ops_agent"]["exact_day_kpis"]
+    assert "timeslot_breakdown" not in edk and "peak_slot" not in edk
+    assert edk["kpis"]["net_sales"] == 1000.0
+    assert data == before  # verifier / links still see the full data
+
+    # A focused query that asks for the slots keeps them.
+    with_slots = prune_facts_for_intent(data, detect_intent("Net sales and time slots only today"))
+    assert "timeslot_breakdown" in with_slots["db_ops_agent"]["exact_day_kpis"]
+
+
+def test_prune_drops_all_facts_for_formula_and_detail_for_coaching():
+    from src.chat.context_builder import prune_facts_for_intent
+
+    data = _sample_subagent_data()
+    assert prune_facts_for_intent(data, detect_intent(_preset("formula_all"))) == {}
+    data["retail_coach_agent"] = {"tactics": {"conversion_boost_70pct": ["Greet fast"]}}
+    coach = prune_facts_for_intent(data, detect_intent(_preset("conv_boost")))
+    assert coach["db_ops_agent"] == {"kpis": data["db_ops_agent"]["kpis"]}
+    assert coach["retail_coach_agent"] == data["retail_coach_agent"]
+
+
+@pytest.mark.parametrize("query,tokens,has_glossary,has_slots", [
+    ("Net sales only for 2026-11-18", "short", True, False),
+    ("Sales report for 2026-11-18", "medium", True, True),
+    (_preset("sop_directives"), "medium", False, True),
+    (_preset("market_weather"), "short", False, True),
+    (_preset("hist_7days"), "long", False, True),
+])
+def test_run_copilot_turn_passes_tier_tokens_and_prunes_prompt(mock_db, monkeypatch, query, tokens,
+                                                               has_glossary, has_slots):
+    from config.env import env
+
+    captured = {}
+
+    def fake_llm(**kwargs):
+        captured.update(kwargs)
+        return None  # fall back to the domain card; only the request is under test
+
+    monkeypatch.setattr("src.chat.coordinator.generate_llm_response", fake_llm)
+    run_copilot_turn(db=mock_db, query=query, sec_ctx=_ctx("NM"), target_date=TODAY, language="en")
+    expected = {
+        "short": env.llm_max_output_tokens_short,
+        "medium": env.llm_max_output_tokens_medium,
+        "long": env.llm_max_output_tokens,
+    }[tokens]
+    assert captured["max_output_tokens"] == expected
+    sys = captured["system_instruction"]
+    assert ("KPI DEFINITIONS" in sys) is has_glossary
+    assert "Keep it under ~180 words" not in sys
+    assert "Response depth: " in sys
+    facts = sys.split("## FACTS", 1)[1]
+    assert ("timeslot_breakdown" in facts) is has_slots
+
+
+@pytest.mark.parametrize("q", [
+    "give me the evening brief",
+    "evening briefing please",
+    "end of day brief",
+    "end of the day brief for all stores",
+    "morning brief",
+    "midday brief",
+    "evening debrief",
+])
+def test_every_brief_kind_routes_to_brief(q):
+    # "evening brief" used to fall through to day_kpis, so AdvisorAgent never ran.
+    assert detect_intent(q).primary == "brief"

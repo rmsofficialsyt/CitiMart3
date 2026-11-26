@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
 from pymongo.database import Database
 
 from api.auth import CurrentUser, get_current_user, require_admin, require_store_access
@@ -27,7 +27,9 @@ from config.kpi_thresholds import (
 import logging
 
 from src import charts, daily_context, daily_dashboard_store, report_jobs
+from src.audit import audit_event
 from src.daily_report import ReportRenderError, build_daily_report_payload, render_daily_report_file
+from src.rate_limiter import get_client_ip
 from src.reports.chart_image import ChartRenderError
 from src.reports.dispatch import RENDERERS
 
@@ -236,15 +238,20 @@ def _live_kpi_response(store: str, target_date: date, kpis: dict) -> dict:
 
 @router.put("/kpi-override")
 def put_kpi_override(
+    request: Request,
     payload: dict = Body(...),
     db: Database = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(require_admin),
 ):
-    """Store a manager's hand-entered value for one of the five overridable
+    """Store an admin's hand-entered value for one of the five overridable
     ratio KPIs (ATV / RPV / Basket Size / Conversion % / Achievement %),
     per store+date. Persisted in targets.overrides and overlaid on the
     computed figure everywhere compute_live_kpis is read (cards, gauges,
-    reports, the midnight finalize snapshot)."""
+    reports, the midnight finalize snapshot).
+
+    Admin-only (AC-01): the override replaces the figure the admin judges a
+    store by, so the store's own manager must never be able to set it.
+    Every set/clear is audited (LOG-01)."""
     store = _guard(payload, user)
     date_str = str(payload.get("date", "")).strip()
     field = str(payload.get("field", "")).strip()
@@ -256,16 +263,21 @@ def put_kpi_override(
         kpis = daily_dashboard_store.set_kpi_override(db, store, target_date, field, value)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
+    audit_event(
+        "kpi_override_set", db=db, username=user.username, ip=get_client_ip(request),
+        target=store, details={"date": target_date.isoformat(), "field": field, "value": value},
+    )
     return _live_kpi_response(store, target_date, kpis)
 
 
 @router.delete("/kpi-override")
 def delete_kpi_override(
+    request: Request,
     store: str = Query(...),
     date: str = Query(..., description="YYYY-MM-DD"),
     field: str = Query(..., description="One of atv/rpv/basket_size/conversion_pct/achievement_pct"),
     db: Database = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(require_admin),
 ):
     _guard(store, user)
     target_date = _parse_iso_date(date)
@@ -273,6 +285,10 @@ def delete_kpi_override(
         kpis = daily_dashboard_store.clear_kpi_override(db, store, target_date, field)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
+    audit_event(
+        "kpi_override_cleared", db=db, username=user.username, ip=get_client_ip(request),
+        target=store, details={"date": target_date.isoformat(), "field": field},
+    )
     return _live_kpi_response(store, target_date, kpis)
 
 

@@ -183,6 +183,11 @@ class EnvSettings(BaseSettings):
     # Read strictly from environment / .env, never hardcoded.
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-3.8-flash"
+    # Comma-separated models tried, in order, when the primary answers 503/504/429,
+    # times out or is not found. Google's "high demand" 503s are per model, so a
+    # sibling model usually still serves; each model has its own cooldown
+    # (src/chat/client.py). Empty = primary only, the old behaviour.
+    gemini_fallback_models: str = "gemini-3.6-flash,gemini-3.5-flash"
     llm_temperature: float = 0.2
     # Per-turn overrides used by the Co-Pilot coordinator: data answers copy
     # figures and should be deterministic; advice answers may vary a little.
@@ -195,11 +200,39 @@ class EnvSettings(BaseSettings):
     # Ask the LLM to classify a chat question when no regex intent rule matched
     # (src/chat/intent_router.py). One extra short model call on those turns only.
     chat_llm_intent_fallback: bool = True
-    llm_max_output_tokens: int = 1536
+    # Output caps. The long tier (and generic callers such as the WhatsApp agent)
+    # uses llm_max_output_tokens; the Co-Pilot's short / medium answer tiers use
+    # their own caps (src/chat/coordinator.py::_resolve_response_tier). A cap is a
+    # backstop, not the length control: a MAX_TOKENS cut-off falls back to the
+    # deterministic card, so each leaves headroom above what the prompt asks for.
+    llm_max_output_tokens: int = 4096
+    llm_max_output_tokens_short: int = 512
+    llm_max_output_tokens_medium: int = 1536
+    # Display only (Co-Pilot usage window): the model's input context capacity.
+    # Nothing is enforced against it -- Gemini exposes no remaining-quota API.
+    llm_context_window_tokens: int = 1_048_576
     llm_request_timeout_seconds: int = 15
     tavily_api_key: str | None = None
     chat_session_ttl_days: int = 30
     chat_max_history_turns: int = 10
+    # Longest chat message accepted (api/routes_chat.py::ChatRequest).
+    chat_max_input_chars: int = 8000
+    # Most recent history messages sent to the model per turn (user + assistant
+    # messages, so 10 = 5 turns). get_history fetches chat_max_history_turns * 2.
+    chat_history_messages_sent: int = 10
+
+    # --- WhatsApp Sales Alerts & Reporting Agent (SPEC-05) ------------------
+    # Defaults to "dry_run" until Meta Cloud API or Twilio credentials are set.
+    whatsapp_provider: str = "dry_run"  # "dry_run" | "meta" | "twilio"
+    whatsapp_alerts_enabled: bool = False
+    whatsapp_access_token: str | None = None
+    whatsapp_phone_number_id: str | None = None
+    whatsapp_api_version: str = "v21.0"
+    whatsapp_template_name: str | None = None
+    twilio_account_sid: str | None = None
+    twilio_auth_token: str | None = None
+    twilio_whatsapp_from: str | None = None
+    whatsapp_admin_recipients: str = ""  # comma-separated Indian mobile numbers
 
     def is_production(self) -> bool:
         return self.environment.lower() == "production"

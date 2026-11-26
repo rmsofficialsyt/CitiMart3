@@ -28,6 +28,7 @@ from reportlab.platypus import (
 )
 
 from config.settings import PROJECT_ROOT
+from src.reports.fonts import FONT, FONT_BOLD, FONT_ITALIC
 from src.reports.chart_image import fig_dict_to_png, gauge_spec_to_png
 from src.reports.models import (
     ChartBlock,
@@ -50,16 +51,16 @@ PAGE_WIDTH, PAGE_HEIGHT = landscape(A4)
 USABLE_WIDTH = PAGE_WIDTH - 2.4 * cm  # ~27.3 cm / 774 pt
 
 _STYLES = getSampleStyleSheet()
-_H1 = ParagraphStyle("H1", parent=_STYLES["Heading1"], fontName="Helvetica-Bold", fontSize=15, leading=18, textColor=colors.HexColor("#1e3a8a"))
-_H2 = ParagraphStyle("H2", parent=_STYLES["Heading2"], fontName="Helvetica-Bold", fontSize=11, leading=14, textColor=colors.HexColor("#1e3a8a"), spaceBefore=8, spaceAfter=4)
-_BODY = ParagraphStyle("Body", parent=_STYLES["BodyText"], fontName="Helvetica", fontSize=8, leading=10, textColor=colors.HexColor("#1e293b"))
-_ITALIC = ParagraphStyle("Italic", parent=_BODY, fontName="Helvetica-Oblique", fontSize=7.5, leading=9.5, textColor=colors.HexColor("#64748b"))
-_TH_STYLE = ParagraphStyle("TH", fontName="Helvetica-Bold", fontSize=7, leading=8.5, textColor=colors.white, alignment=1)
-_TD_NUM_STYLE = ParagraphStyle("TD_Num", fontName="Helvetica", fontSize=7, leading=8.5, textColor=colors.HexColor("#0f172a"), alignment=2)
-_TD_CENTER_STYLE = ParagraphStyle("TD_Center", fontName="Helvetica", fontSize=7, leading=8.5, textColor=colors.HexColor("#1e293b"), alignment=1)
-_TD_LEFT_STYLE = ParagraphStyle("TD_Left", fontName="Helvetica", fontSize=7, leading=8.5, textColor=colors.HexColor("#1e293b"), alignment=0)
-_KPI_LABEL = ParagraphStyle("KpiLabel", fontName="Helvetica-Bold", fontSize=7, leading=8.5, textColor=colors.HexColor("#1e3a8a"), alignment=1)
-_KPI_VAL = ParagraphStyle("KpiVal", fontName="Helvetica-Bold", fontSize=9.5, leading=11.5, textColor=colors.HexColor("#0f172a"), alignment=1)
+_H1 = ParagraphStyle("H1", parent=_STYLES["Heading1"], fontName=FONT_BOLD, fontSize=15, leading=18, textColor=colors.HexColor("#1e3a8a"))
+_H2 = ParagraphStyle("H2", parent=_STYLES["Heading2"], fontName=FONT_BOLD, fontSize=11, leading=14, textColor=colors.HexColor("#1e3a8a"), spaceBefore=8, spaceAfter=4)
+_BODY = ParagraphStyle("Body", parent=_STYLES["BodyText"], fontName=FONT, fontSize=8, leading=10, textColor=colors.HexColor("#1e293b"))
+_ITALIC = ParagraphStyle("Italic", parent=_BODY, fontName=FONT_ITALIC, fontSize=7.5, leading=9.5, textColor=colors.HexColor("#64748b"))
+_TH_STYLE = ParagraphStyle("TH", fontName=FONT_BOLD, fontSize=7, leading=8.5, textColor=colors.white, alignment=1)
+_TD_NUM_STYLE = ParagraphStyle("TD_Num", fontName=FONT, fontSize=7, leading=8.5, textColor=colors.HexColor("#0f172a"), alignment=2)
+_TD_CENTER_STYLE = ParagraphStyle("TD_Center", fontName=FONT, fontSize=7, leading=8.5, textColor=colors.HexColor("#1e293b"), alignment=1)
+_TD_LEFT_STYLE = ParagraphStyle("TD_Left", fontName=FONT, fontSize=7, leading=8.5, textColor=colors.HexColor("#1e293b"), alignment=0)
+_KPI_LABEL = ParagraphStyle("KpiLabel", fontName=FONT_BOLD, fontSize=7, leading=8.5, textColor=colors.HexColor("#1e3a8a"), alignment=1)
+_KPI_VAL = ParagraphStyle("KpiVal", fontName=FONT_BOLD, fontSize=9.5, leading=11.5, textColor=colors.HexColor("#0f172a"), alignment=1)
 
 _COLUMN_BASE_WIDTHS: dict[str, float] = {
     "Date": 1.8 * cm,
@@ -114,6 +115,8 @@ def _kpi_grid_table(block: KpiGridBlock) -> Table:
     col_w = USABLE_WIDTH / cols
     table = Table(rows_data, colWidths=[col_w] * cols)
     t_style = [
+        # Table cells default to Helvetica (no ₹) even when they hold Paragraphs.
+        ("FONTNAME", (0, 0), (-1, -1), FONT),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
         ("ALIGN", (0, 0), (-1, -1), "CENTER"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -160,6 +163,7 @@ def _data_table(columns: list[str], rows: list[dict]) -> Table:
     table.setStyle(
         TableStyle(
             [
+                ("FONTNAME", (0, 0), (-1, -1), FONT),
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e3a8a")),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
@@ -176,7 +180,7 @@ def _data_table(columns: list[str], rows: list[dict]) -> Table:
 def _page_decoration(payload: ReportPayload):
     def _draw(canvas, doc):
         canvas.saveState()
-        canvas.setFont("Helvetica", 7.5)
+        canvas.setFont(FONT, 7.5)
         canvas.setFillColor(colors.HexColor("#64748b"))
         note = f"{payload.meta.workbook_note} | CITIMART © All Rights Reserved."
         canvas.drawString(1.2 * cm, 0.7 * cm, note)
@@ -208,6 +212,8 @@ def render(payload: ReportPayload) -> bytes:
         leftMargin=1.2 * cm,
         rightMargin=1.2 * cm,
         title=payload.meta.title,
+        # The canvas's default font is Helvetica (no ₹ glyph); start every page in ours.
+        initialFontName=FONT,
     )
 
     # Pre-render visuals concurrently
@@ -240,6 +246,7 @@ def render(payload: ReportPayload) -> bytes:
     header_table.setStyle(
         TableStyle(
             [
+                ("FONTNAME", (0, 0), (-1, -1), FONT),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("LINEBELOW", (0, 0), (-1, -1), 1.5, colors.HexColor("#1e3a8a")),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
@@ -299,6 +306,7 @@ def render(payload: ReportPayload) -> bytes:
         gauge_table.setStyle(
             TableStyle(
                 [
+                    ("FONTNAME", (0, 0), (-1, -1), FONT),
                     ("ALIGN", (0, 0), (-1, -1), "CENTER"),
                     ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                     ("TOPPADDING", (0, 0), (-1, -1), 0),
@@ -355,7 +363,7 @@ def render(payload: ReportPayload) -> bytes:
         elif isinstance(b, DataQualityBlock):
             story.append(Paragraph(b.heading, _H2))
             if b.items:
-                story.append(ListFlowable([ListItem(Paragraph(item, _BODY)) for item in b.items], bulletType="bullet"))
+                story.append(ListFlowable([ListItem(Paragraph(item, _BODY)) for item in b.items], bulletType="bullet", bulletFontName=FONT))
         elif isinstance(b, ForecastSummaryBlock):
             story.append(Paragraph(b.heading, _H2))
             story.append(_data_table(["Metric", "Value"], [{"Metric": i.label, "Value": i.value} for i in b.items]))

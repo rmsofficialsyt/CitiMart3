@@ -103,7 +103,7 @@ export interface Translations {
   insightConversionAction: string;
 
   insightAtvTitle: string;
-  insightAtvDesc: (atv: string, nob: string, extra: string) => string;
+  insightAtvDesc: (atv: string, greenAt: string, extra: string) => string;
   insightAtvAction: string;
 
   insightBasketTitle: string;
@@ -113,6 +113,20 @@ export interface Translations {
   insightBalancedTitle: string;
   insightBalancedDesc: (sales: string, footfall: string, conv: string) => string;
   insightBalancedAction: string;
+
+  insightNoTargetTitle: string;
+  insightNoTargetDesc: string;
+  insightNoTargetAction: string;
+  insightDataGapTitle: string;
+  insightDataGapDesc: (slots: string) => string;
+  insightDataGapAction: string;
+  advisorProjectedClose: string;
+  advisorToTarget: string;
+  advisorBillsNeeded: string;
+  advisorPacingLearned: (days: number, sameWeekday: boolean) => string;
+  advisorPacingInsufficient: (days: number) => string;
+  advisorDayClosed: string;
+  advisorLoadError: string;
 
   // Checklist Tasks
   task1: string;
@@ -349,7 +363,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     insightConversionAction: "Instruct staff to greet every customer, assist with size searches, and open additional fitting rooms.",
 
     insightAtvTitle: "ATV Upselling Opportunity",
-    insightAtvDesc: (atv, nob, extra) => `Average Transaction Value is ${atv}. Lifting ATV by just ₹150 across ${nob} buyers will yield +${extra} additional sales.`,
+    insightAtvDesc: (atv, greenAt, extra) => `Average Transaction Value is ${atv}, below the ${greenAt} green band. Reaching it on today's bills would add about ${extra}.`,
     insightAtvAction: "Introduce multi-buy pairings: 'Buy 2 get 10% off' or billing counter accessory combos.",
 
     insightBasketTitle: "Basket Size Enhancement",
@@ -359,6 +373,19 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     insightBalancedTitle: "Operations Balanced & Optimal",
     insightBalancedDesc: (sales, footfall, conv) => `Metrics across Net Sales (${sales}), Footfall (${footfall}), and Conversion (${conv}) are within optimal operating bands.`,
     insightBalancedAction: "Continue standard operational cadence and maintain prompt data entry.",
+    insightNoTargetTitle: "No Sales Target Set",
+    insightNoTargetDesc: "Pace and gap-to-target advice needs today's Sales Target. Ask the admin to set it.",
+    insightNoTargetAction: "Admin: set today's target under Daily Operations → Sales Target.",
+    insightDataGapTitle: "Possible Missed Bill Entries",
+    insightDataGapDesc: (slots) => `Footfall was logged in ${slots} but no bills were. That is usually a missed entry, not a zero-sales slot.`,
+    insightDataGapAction: "Check the billing counter totals for that slot and log any missing bills.",
+    advisorProjectedClose: "Projected close",
+    advisorToTarget: "Still to target",
+    advisorBillsNeeded: "Bills needed at today's ATV",
+    advisorPacingLearned: (days, same) => `Pace curve learned from this store's last ${days} ${same ? "same-weekday" : "trading"} days`,
+    advisorPacingInsufficient: (days) => `Not enough history to learn a pace curve yet (${days} days). Pace and projection will appear once more days are logged.`,
+    advisorDayClosed: "Day closed — showing final figures.",
+    advisorLoadError: "Advisor is unavailable right now.",
 
     task1: "Promote combo bundles & add-on accessories at billing counters",
     task2: "Deploy active floor attendants near high-traffic entrance displays",
@@ -592,7 +619,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     insightConversionAction: "कर्मचारियों को हर ग्राहक का स्वागत करने, साइज खोजने में मदद करने और अतिरिक्त ट्रायल रूम खोलने का निर्देश दें।",
 
     insightAtvTitle: "ATV अप-सेलिंग का अवसर",
-    insightAtvDesc: (atv, nob, extra) => `औसत बिल मूल्य (ATV) ${atv} है। यदि ${nob} खरीदारों में केवल ₹150 की वृद्धि होती है, तो +${extra} की अतिरिक्त बिक्री होगी।`,
+    insightAtvDesc: (atv, greenAt, extra) => `औसत बिल मूल्य (ATV) ${atv} है, जो ${greenAt} के हरे बैंड से कम है। आज के बिलों पर इसे प्राप्त करने से लगभग ${extra} अतिरिक्त बिक्री होगी।`,
     insightAtvAction: "मल्टी-बाय पेयरिंग लागू करें: '2 खरीदें 10% छूट पाएं' या कैश काउंटर एक्सेसरी कॉम्बो।",
 
     insightBasketTitle: "बास्केट साइज (Basket Size) में सुधार",
@@ -602,6 +629,19 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     insightBalancedTitle: "परिचालन संतुलित और उत्तम",
     insightBalancedDesc: (sales, footfall, conv) => `नेट बिक्री (${sales}), फुटफॉल (${footfall}), और कन्वर्जन (${conv}) के सभी आंकड़े इष्टतम स्तर पर हैं।`,
     insightBalancedAction: "नियमित परिचालन गति जारी रखें और समय पर डेटा प्रविष्टि सुनिश्चित करें।",
+    insightNoTargetTitle: "बिक्री लक्ष्य निर्धारित नहीं",
+    insightNoTargetDesc: "गति और लक्ष्य-अंतर की सलाह के लिए आज का बिक्री लक्ष्य आवश्यक है। एडमिन से इसे सेट करने को कहें।",
+    insightNoTargetAction: "एडमिन: Daily Operations → Sales Target में आज का लक्ष्य सेट करें।",
+    insightDataGapTitle: "संभवतः छूटी हुई बिल प्रविष्टियाँ",
+    insightDataGapDesc: (slots) => `${slots} में फुटफॉल दर्ज है लेकिन कोई बिल नहीं। यह आमतौर पर छूटी हुई प्रविष्टि होती है, शून्य बिक्री नहीं।`,
+    insightDataGapAction: "उस स्लॉट के बिलिंग काउंटर का योग जाँचें और छूटे बिल दर्ज करें।",
+    advisorProjectedClose: "अनुमानित दिन-समापन",
+    advisorToTarget: "लक्ष्य तक शेष",
+    advisorBillsNeeded: "आज के ATV पर आवश्यक बिल",
+    advisorPacingLearned: (days, same) => `इस स्टोर के पिछले ${days} ${same ? "समान सप्ताह-दिवसों" : "कारोबारी दिनों"} से सीखा गया गति वक्र`,
+    advisorPacingInsufficient: (days) => `गति वक्र सीखने के लिए अभी पर्याप्त इतिहास नहीं है (${days} दिन)। अधिक दिन दर्ज होने पर गति और अनुमान दिखेंगे।`,
+    advisorDayClosed: "दिन समाप्त — अंतिम आँकड़े दिखाए जा रहे हैं।",
+    advisorLoadError: "सलाहकार अभी उपलब्ध नहीं है।",
 
     task1: "बिलिंग काउंटर पर कॉम्बो बंडल और ऐड-ऑन एक्सेसरीज को बढ़ावा दें",
     task2: "मुख्य प्रवेश द्वार के डिस्प्ले के पास सक्रिय फ्लोर अटेंडेंट तैनात करें",
@@ -836,7 +876,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     insightConversionAction: "কর্মীদের প্রতিটি ক্রেতাকে স্বাগত জানাতে, সঠিক মাপ খুঁজে দিতে এবং অতিরিক্ত ট্রায়াল রুম খুলে দেওয়ার নির্দেশ দিন।",
 
     insightAtvTitle: "ATV আপ-সেলিংয়ের সুযোগ",
-    insightAtvDesc: (atv, nob, extra) => `গড় বিলের পরিমাণ (ATV) ${atv}। ${nob} জন ক্রেতার থেকে মাত্র ₹১৫০ করে বৃদ্ধি করলে +${extra} অতিরিক্ত বিক্রয় অর্জিত হবে।`,
+    insightAtvDesc: (atv, greenAt, extra) => `গড় বিলের পরিমাণ (ATV) ${atv}, যা ${greenAt}-এর সবুজ ব্যান্ডের নিচে। আজকের বিলে সেখানে পৌঁছালে প্রায় ${extra} অতিরিক্ত বিক্রয় হবে।`,
     insightAtvAction: "মাল্টি-বাই পেয়ারিং অফার দিন: '২টি কিনলে ১০% ছাড়' বা ক্যাশ কাউন্টার এক্সেসরি কম্বো।",
 
     insightBasketTitle: "বাস্কেট সাইজ (Basket Size) বৃদ্ধি",
@@ -846,6 +886,19 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     insightBalancedTitle: "পরিচালনা সুষম এবং সন্তোষজনক",
     insightBalancedDesc: (sales, footfall, conv) => `নেট সেলস (${sales}), ফুটফল (${footfall}), এবং কনভার্সন (${conv})-এর প্রতিটি সূচক সন্তোষজনক রয়েছে।`,
     insightBalancedAction: "নিয়মিত গতিবিধি বজায় রাখুন এবং সঠিক সময়ে ডেটা এন্ট্রি নিশ্চিত করুন।",
+    insightNoTargetTitle: "বিক্রয় লক্ষ্য নির্ধারিত নেই",
+    insightNoTargetDesc: "গতি ও লক্ষ্য-ঘাটতির পরামর্শের জন্য আজকের বিক্রয় লক্ষ্য প্রয়োজন। অ্যাডমিনকে এটি সেট করতে বলুন।",
+    insightNoTargetAction: "অ্যাডমিন: Daily Operations → Sales Target-এ আজকের লক্ষ্য সেট করুন।",
+    insightDataGapTitle: "সম্ভাব্য বাদ পড়া বিল এন্ট্রি",
+    insightDataGapDesc: (slots) => `${slots}-এ ফুটফল লগ করা হয়েছে কিন্তু কোনো বিল নেই। এটি সাধারণত বাদ পড়া এন্ট্রি, শূন্য বিক্রয় নয়।`,
+    insightDataGapAction: "ওই স্লটের বিলিং কাউন্টারের মোট মিলিয়ে দেখুন এবং বাদ পড়া বিল লগ করুন।",
+    advisorProjectedClose: "আনুমানিক দিন-শেষ",
+    advisorToTarget: "লক্ষ্য পর্যন্ত বাকি",
+    advisorBillsNeeded: "আজকের ATV-তে প্রয়োজনীয় বিল",
+    advisorPacingLearned: (days, same) => `এই স্টোরের গত ${days}টি ${same ? "একই সপ্তাহ-দিবস" : "ব্যবসায়িক দিন"} থেকে শেখা গতি-রেখা`,
+    advisorPacingInsufficient: (days) => `গতি-রেখা শেখার মতো যথেষ্ট ইতিহাস এখনও নেই (${days} দিন)। আরও দিন লগ হলে গতি ও অনুমান দেখা যাবে।`,
+    advisorDayClosed: "দিন শেষ — চূড়ান্ত পরিসংখ্যান দেখানো হচ্ছে।",
+    advisorLoadError: "পরামর্শদাতা এই মুহূর্তে উপলব্ধ নয়।",
 
     task1: "বিলিং কাউন্টারে কম্বো বান্ডিল এবং ছোট এক্সেসরিজ অফার করুন",
     task2: "প্রধান প্রবেশদ্বারের ডিসপ্লের কাছে সক্রিয় ফ্লোর অ্যাটেন্ডেন্ট রাখুন",

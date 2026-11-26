@@ -42,7 +42,7 @@ user_store._ARGON2_MEMORY_COST = 1024
 
 
 @pytest.fixture(autouse=True)
-def _isolate_shared_state():
+def _isolate_shared_state(monkeypatch):
     """Session registry, rate-limit fallbacks and the Redis override are
     process-global; reset them so no test sees another's sessions or 429s.
     Tests run Redis-less unless they opt in via the `fake_redis` fixture."""
@@ -61,8 +61,12 @@ def _isolate_shared_state():
         rate_limiter.login_failure_limiter,
         rate_limiter.login_account_limiter,
         rate_limiter.chat_limiter,
+        rate_limiter.advisor_limiter,
     ):
         limiter.reset()
+    # The Advisor's rain tag is a live Open-Meteo call; tests never hit the
+    # network (tests that need rain patch this themselves).
+    monkeypatch.setattr("src.advisor.context.weather_lookup", lambda _d: None)
     yield
     set_redis_for_tests(None)
     daily_dashboard_store.invalidate_dashboard_cache()

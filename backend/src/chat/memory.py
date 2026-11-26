@@ -257,3 +257,20 @@ class SessionMemoryStore:
             db[MESSAGES_COLLECTION].delete_many({"session_id": session_id})
             return True
         return False
+
+    @staticmethod
+    def delete_user_sessions(db: Database, sec_ctx: SecurityContext, store_code: str | None = None) -> int:
+        """Delete every session the caller OWNS (optionally one store's) and their turns.
+
+        Always scoped to the caller's own user_id -- even for an admin. The admin's
+        drawer lists other users' sessions too, but a one-click "clear all" must
+        never wipe a store manager's shift history; single deletes still allow that.
+        """
+        query: dict[str, Any] = {"user_id": sec_ctx.user_id}
+        if store_code:
+            query["store_code"] = store_code.strip().upper()
+        sids = [s["session_id"] for s in db[SESSIONS_COLLECTION].find(query, {"session_id": 1})]
+        if not sids:
+            return 0
+        db[MESSAGES_COLLECTION].delete_many({"session_id": {"$in": sids}})
+        return db[SESSIONS_COLLECTION].delete_many({"user_id": sec_ctx.user_id, "session_id": {"$in": sids}}).deleted_count

@@ -51,7 +51,7 @@ streamlit==1.61.1
 google-genai>=1.0.0
 langchain>=0.3.0
 langgraph>=0.2.0
-duckduckgo-search>=7.0.0
+ddgs>=9.0.0
 
 # --- test ---
 pytest==9.1.1

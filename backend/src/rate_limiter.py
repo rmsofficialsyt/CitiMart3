@@ -240,6 +240,10 @@ login_account_limiter = RedisSlidingWindowRateLimiter(
     prefix="rl:login:user",
 )
 chat_limiter = RedisSlidingWindowRateLimiter(env.chat_rate_limit, 60, name="chat", prefix="rl:chat")
+# Advisor analytics (brief / explain / re-plan / what-if) each run several
+# multi-week aggregations; per-user cap so a stuck slider or script cannot
+# hammer MongoDB. Generous for a human dragging sliders.
+advisor_limiter = RedisSlidingWindowRateLimiter(90, 60, name="advisor", prefix="rl:advisor")
 # Back-compat alias: the per-IP login limiter.
 login_limiter = login_ip_limiter
 

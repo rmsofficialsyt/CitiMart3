@@ -92,20 +92,45 @@ def test_manager_cannot_override_other_store_kpi(client, nw_headers, db_session)
     assert daily_dashboard_store.compute_live_kpis(db_session, "HB", date(2026, 8, 20))["overridden"] == []
 
 
-def test_kpi_override_rejects_non_overridable_field(client, nw_headers):
+def test_manager_cannot_override_own_store_kpi(client, nw_headers, db_session):
+    """The override replaces the figure the admin judges a store by, so even
+    the store's own manager is refused (admin-only)."""
+    from datetime import date
+    r = client.put(
+        "/api/daily/kpi-override",
+        json={"store": "NM", "date": "2026-08-20", "field": "achievement_pct", "value": 150},
+        headers=nw_headers,
+    )
+    assert r.status_code == 403
+    assert daily_dashboard_store.compute_live_kpis(db_session, "NM", date(2026, 8, 20))["overridden"] == []
+
+
+def test_manager_cannot_clear_kpi_override(client, admin_headers, nw_headers, db_session):
+    from datetime import date
+    daily_dashboard_store.set_kpi_override(db_session, "NM", date(2026, 8, 20), "atv", 555.0)
+    r = client.delete(
+        "/api/daily/kpi-override",
+        params={"store": "NM", "date": "2026-08-20", "field": "atv"},
+        headers=nw_headers,
+    )
+    assert r.status_code == 403
+    assert daily_dashboard_store.compute_live_kpis(db_session, "NM", date(2026, 8, 20))["overridden"] == ["atv"]
+
+
+def test_kpi_override_rejects_non_overridable_field(client, admin_headers):
     r = client.put(
         "/api/daily/kpi-override",
         json={"store": "NM", "date": "2026-08-20", "field": "net_sales", "value": 1},
-        headers=nw_headers,
+        headers=admin_headers,
     )
     assert r.status_code == 400
 
 
-def test_kpi_override_round_trip(client, nw_headers):
+def test_kpi_override_round_trip(client, admin_headers, db_session):
     put = client.put(
         "/api/daily/kpi-override",
         json={"store": "NM", "date": "2026-08-20", "field": "atv", "value": 777},
-        headers=nw_headers,
+        headers=admin_headers,
     )
     assert put.status_code == 200
     assert put.json()["kpis"]["atv"] == 777
@@ -114,10 +139,13 @@ def test_kpi_override_round_trip(client, nw_headers):
     cleared = client.delete(
         "/api/daily/kpi-override",
         params={"store": "NM", "date": "2026-08-20", "field": "atv"},
-        headers=nw_headers,
+        headers=admin_headers,
     )
     assert cleared.status_code == 200
     assert cleared.json()["overridden"] == []
+
+    actions = [e.get("action") for e in db_session["audit_logs"].find({})]
+    assert "kpi_override_set" in actions and "kpi_override_cleared" in actions
 
 
 def test_manager_cannot_export_other_store_report(client, nw_headers):

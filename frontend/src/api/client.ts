@@ -2,6 +2,13 @@ import { authFetch, handleUnauthorized } from "@/auth/tokenStore";
 import { apiUrl } from "@/lib/apiBase";
 import { toSearchParams } from "@/lib/filterParams";
 import type {
+  AdvisorBrief,
+  AdvisorBriefKind,
+  AdvisorChecklistItem,
+  AdvisorExplain,
+  AdvisorReplan,
+  AdvisorResponse,
+  AdvisorWhatIf,
   BillEntry,
   BillLogResponse,
   ChartFigure,
@@ -30,6 +37,9 @@ import type {
   CreateDirectivePayload,
   UpdateDirectivePayload,
   ChatLink,
+  ChatUsageSummary,
+  TurnLimits,
+  TurnUsage,
 } from "@/lib/types";
 
 export interface DashboardMeta {
@@ -108,6 +118,32 @@ async function deleteJSON<T>(url: string): Promise<T> {
 }
 
 export const api = {
+  advisor: (store: string, date: string) =>
+    getJSON<AdvisorResponse>(`/api/advisor?${new URLSearchParams({ store, date })}`),
+
+  setAdvisorAction: (body: { store: string; date: string; action_key: string; done: boolean }) =>
+    putJSON<AdvisorChecklistItem>("/api/advisor/actions", body),
+
+  advisorExplain: (store: string, date: string) =>
+    getJSON<AdvisorExplain>(`/api/advisor/explain?${new URLSearchParams({ store, date })}`),
+
+  advisorWhatIf: (store: string, date: string, levers: { conversion_pp: number; atv_delta: number; footfall_pct: number }) =>
+    getJSON<AdvisorWhatIf>(
+      `/api/advisor/whatif?${new URLSearchParams({
+        store,
+        date,
+        conversion_pp: String(levers.conversion_pp),
+        atv_delta: String(levers.atv_delta),
+        footfall_pct: String(levers.footfall_pct),
+      })}`,
+    ),
+
+  advisorBrief: (kind: AdvisorBriefKind) =>
+    getJSON<AdvisorBrief>(`/api/advisor/brief?${new URLSearchParams({ kind })}`),
+
+  advisorReplan: (store: string, month: string) =>
+    getJSON<AdvisorReplan>(`/api/advisor/replan?${new URLSearchParams({ store, month })}`),
+
   kpiThresholds: () => getJSON<KpiThresholdsResponse>("/api/kpi-thresholds"),
 
   putKpiThresholds: (patch: Record<string, Record<string, number>>) =>
@@ -279,7 +315,16 @@ export const api = {
       target_date?: string;
       links?: ChatLink[];
       suggestions?: string[];
+      response_tier?: string;
+      usage?: TurnUsage | null;
+      limits?: TurnLimits | null;
     }>("/api/daily/chat", payload),
+
+  // Caller's own Gemini token usage (display only, nothing enforced).
+  getChatUsage: (sessionId?: string | null) => {
+    const qs = sessionId ? `?${new URLSearchParams({ session_id: sessionId })}` : "";
+    return getJSON<ChatUsageSummary>(`/api/daily/chat/usage${qs}`);
+  },
 
   // Product Requisitions
   requisitionCategories: () =>
@@ -435,4 +480,87 @@ export const api = {
 
   deleteChatSession: (sessionId: string) =>
     authFetch(apiUrl(`/api/daily/chat/sessions/${sessionId}`), { method: "DELETE" }),
+
+  // Deletes only the caller's OWN conversations (for one store when given),
+  // never another user's -- even for an admin.
+  clearChatSessions: (storeCode?: string) => {
+    const qs = storeCode ? `?store_code=${encodeURIComponent(storeCode)}` : "";
+    return deleteJSON<{ status: string; deleted: number }>(`/api/daily/chat/sessions${qs}`);
+  },
+
+  // WhatsApp AI Sales Alerts (Admin-only, SPEC-05)
+  getWhatsAppAlertConfig: () =>
+    getJSON<{
+      settings: {
+        enabled: boolean;
+        language: "en" | "hi" | "bn";
+        trading_start_hour: number;
+        trading_end_hour: number;
+        admin_recipients: string[];
+        manager_recipients: Record<string, string[]>;
+        schedules: {
+          admin: Record<string, boolean>;
+          manager: Record<string, boolean>;
+        };
+        updated_at: string | null;
+        updated_by: string | null;
+      };
+      provider: {
+        configured_provider: string;
+        active_provider: string;
+        meta_ready: boolean;
+        twilio_ready: boolean;
+        alerts_enabled_env: boolean;
+      };
+    }>("/api/alerts/whatsapp/config"),
+
+  updateWhatsAppAlertConfig: (payload: {
+    enabled: boolean;
+    language: "en" | "hi" | "bn";
+    trading_start_hour: number;
+    trading_end_hour: number;
+    admin_recipients: string[];
+    manager_recipients: Record<string, string[]>;
+    schedules: {
+      admin: Record<string, boolean>;
+      manager: Record<string, boolean>;
+    };
+  }) => putJSON<any>("/api/alerts/whatsapp/config", payload),
+
+  triggerWhatsAppAlert: (payload: {
+    audience: "admin" | "manager";
+    store_code: string;
+    alert_type: string;
+    date?: string;
+    language?: "en" | "hi" | "bn";
+    use_ai?: boolean;
+    preview_only?: boolean;
+  }) => postJSON<any>("/api/alerts/whatsapp/send", payload),
+
+  getWhatsAppAlertLogs: (params?: { audience?: "admin" | "manager"; store_code?: string; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.audience) q.set("audience", params.audience);
+    if (params?.store_code) q.set("store_code", params.store_code);
+    if (params?.limit) q.set("limit", String(params.limit));
+    const qs = q.toString();
+    return getJSON<{ logs: any[] }>(qs ? `/api/alerts/whatsapp/logs?${qs}` : "/api/alerts/whatsapp/logs");
+  },
+
+  // Notification & Log Handling Agents (SPEC-06)
+  listNotifications: (params?: { unread_only?: boolean; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.unread_only) q.set("unread_only", "true");
+    if (params?.limit) q.set("limit", String(params.limit));
+    const qs = q.toString();
+    return getJSON<{ unread_count: number; items: any[] }>(qs ? `/api/notifications?${qs}` : "/api/notifications");
+  },
+
+  markNotificationRead: (notifId: string) =>
+    postJSON<{ ok: boolean; notif_id: string }>(`/api/notifications/${notifId}/read`, {}),
+
+  markAllNotificationsRead: () =>
+    postJSON<{ ok: boolean; marked_read: number }>("/api/notifications/read-all", {}),
+
+  scanNotifications: () =>
+    postJSON<{ created_count: number; created: any[]; errors: string[] }>("/api/notifications/scan", {}),
 };

@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthProvider";
+import { PageUserGuide } from "@/components/PageUserGuide";
 import { Button } from "@/components/ui/button";
 
 interface StockManagementPageProps {
@@ -176,6 +177,64 @@ export function StockManagementPage({ initialStoreCode }: StockManagementPagePro
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+      {!isAdmin && (
+        <PageUserGuide
+          className="mb-0"
+          title="Manager Manual Guide — Stock Management"
+          subtitle="How to record inward GRNs, inter-store transfers, and damage/audit adjustments"
+          steps={[
+            {
+              icon: Plus,
+              colorClass: "text-blue-400",
+              title: "Step 1 · Inward GRN",
+              header: "Record Received Stock",
+              bullets: [
+                "Click Record Inward GRN in the top bar.",
+                "Enter Barcode, Item Name, Category, Brand, MRP, Cost Price, Quantity, and Reorder Level.",
+                "Add Invoice / Reference ID for traceability.",
+              ],
+            },
+            {
+              icon: ArrowLeftRight,
+              colorClass: "text-indigo-400",
+              title: "Step 2 · Transfers",
+              header: "Send or Receive Branch Stock",
+              description:
+                "Use Inter-Store Transfer to dispatch units to another store, or open the Transfers tab to accept incoming stock.",
+            },
+            {
+              icon: AlertTriangle,
+              colorClass: "text-amber-400",
+              title: "Step 3 · Adjustments",
+              header: "Log Damage or Audit Delta",
+              description:
+                "Click Adjust on any catalog SKU to record DAMAGE_WRITE_OFF or AUDIT_ADJUSTMENT with quantity change and mandatory reason.",
+            },
+            {
+              icon: CheckCircle,
+              colorClass: "text-emerald-400",
+              title: "Step 4 · Low Stock & Audit",
+              header: "Monitor Reorder Alerts",
+              description:
+                "Filter by Low Stock Only to spot items at or below reorder level, and inspect the Movements tab for the immutable ledger.",
+              safetyNote: "All stock writes immediately update live counts and audit logs.",
+            },
+          ]}
+          faqs={[
+            {
+              title: "When do low-stock alerts trigger?",
+              description:
+                "Whenever a SKU's current stock drops to or below its configured Reorder Level.",
+            },
+            {
+              title: "Damage write-offs:",
+              description:
+                "3 or more damage write-offs in a single day automatically notify Central Admin.",
+            },
+          ]}
+        />
+      )}
+
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-border/40">
         <div>

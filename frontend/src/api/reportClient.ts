@@ -41,6 +41,17 @@ async function triggerDownload(res: Response, fallbackName: string): Promise<voi
   URL.revokeObjectURL(url);
 }
 
+/** Admin network morning brief / evening debrief as a PDF
+ * (GET /api/advisor/brief/pdf, backend src/advisor/brief_report.py). */
+export async function downloadAdvisorBrief(kind: "morning" | "midday" | "evening"): Promise<void> {
+  const res = await authFetch(apiUrl(`/api/advisor/brief/pdf?${new URLSearchParams({ kind })}`));
+  if (!res.ok) {
+    if (res.status === 401) handleUnauthorized();
+    throw new Error(await errorMessage(res));
+  }
+  await triggerDownload(res, `citimart-${kind}-brief.pdf`);
+}
+
 /** Per-store Daily Operations export (GET /api/daily/report). `start`/`end`
  * are the optional inclusive date window (both equal = a single day);
  * omitting them keeps the default "every recorded date" export. */

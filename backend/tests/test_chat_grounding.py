@@ -207,6 +207,7 @@ def test_overload_skips_rest_retry_and_cools_down(monkeypatch):
     monkeypatch.setattr(chat_client, "get_genai_client", lambda: _client_raising(_ApiError(503), calls))
     monkeypatch.setattr(chat_client, "_call_gemini_rest", lambda **k: rest_calls.append(k) or "rest")
     monkeypatch.setattr(chat_client.env, "gemini_api_key", "test-key")
+    monkeypatch.setattr(chat_client.env, "gemini_fallback_models", "")
 
     assert chat_client.generate_llm_response("q", system_instruction="s") is None
     assert rest_calls == []  # the same API would just answer 503 again
@@ -214,6 +215,30 @@ def test_overload_skips_rest_retry_and_cools_down(monkeypatch):
     # While cooling down, no network call is made at all.
     assert chat_client.generate_llm_response("q2", system_instruction="s") is None
     assert len(calls) == 1
+
+
+def test_overloaded_primary_falls_back_to_next_model(monkeypatch):
+    """A 503 on the primary must not switch the LLM off while a sibling serves."""
+    seen = []
+
+    class FakeModels:
+        def generate_content(self, model, contents, config):
+            seen.append(model)
+            if model == "primary-m":
+                raise _ApiError(503)
+            return type("R", (), {"text": f"answer from {model}", "candidates": []})()
+
+    monkeypatch.setattr(chat_client, "get_genai_client", lambda: type("C", (), {"models": FakeModels()})())
+    monkeypatch.setattr(chat_client, "_call_gemini_rest", lambda **k: "should not be called")
+    monkeypatch.setattr(chat_client.env, "gemini_api_key", "test-key")
+    monkeypatch.setattr(chat_client.env, "gemini_model", "primary-m")
+    monkeypatch.setattr(chat_client.env, "gemini_fallback_models", "backup-m, primary-m")
+
+    assert chat_client.generate_llm_response("q") == "answer from backup-m"
+    assert chat_client.llm_in_cooldown("primary-m") and not chat_client.llm_in_cooldown()
+    # Next call skips the cooling primary entirely.
+    assert chat_client.generate_llm_response("q2") == "answer from backup-m"
+    assert seen == ["primary-m", "backup-m", "backup-m"]
 
 
 def test_quota_and_timeout_trip_cooldown(monkeypatch):

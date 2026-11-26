@@ -19,6 +19,7 @@ import {
 import { toast } from "sonner";
 import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthProvider";
+import { PageUserGuide } from "@/components/PageUserGuide";
 import { Button } from "@/components/ui/button";
 
 interface StaffManagementPageProps {
@@ -186,6 +187,63 @@ export function StaffManagementPage({ initialStoreCode }: StaffManagementPagePro
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+      {!isAdmin && (
+        <PageUserGuide
+          className="mb-0"
+          title="Manager Manual Guide — Staff Management"
+          subtitle="How to mark daily floor attendance, save shifts, and maintain the staff directory"
+          steps={[
+            {
+              icon: Calendar,
+              colorClass: "text-blue-400",
+              title: "Step 1 · Select Date",
+              header: "Pick Operating Date",
+              description:
+                "Choose the attendance date in the top bar (defaults to today) on the Daily Attendance tab to load your active store roster.",
+            },
+            {
+              icon: UserCheck,
+              colorClass: "text-indigo-400",
+              title: "Step 2 · Mark Attendance",
+              header: "Set Status, Shift & Times",
+              bullets: [
+                "Mark each employee Present, Absent, Half-Day, or Leave.",
+                "Verify Morning / Evening shift, check-in/out times, and remarks.",
+              ],
+            },
+            {
+              icon: Save,
+              colorClass: "text-amber-400",
+              title: "Step 3 · Batch Save",
+              header: "Commit Daily Roster",
+              description:
+                "Click Save Attendance to save all edited rows in one batch and update your store's live active-staff KPIs.",
+            },
+            {
+              icon: Users,
+              colorClass: "text-emerald-400",
+              title: "Step 4 · Staff Directory",
+              header: "Add or Edit Profiles",
+              description:
+                "Use Add Staff Member or switch to Staff Directory to register new hires (Role, Department, Phone, Shift) or update profiles.",
+              safetyNote: "Log daily attendance early so floor coverage alerts stay clear.",
+            },
+          ]}
+          faqs={[
+            {
+              title: "Forgot to save?",
+              description:
+                "Unsaved row edits are highlighted locally until you click Save Attendance.",
+            },
+            {
+              title: "New joiners:",
+              description:
+                "Add new employees in Staff Directory first so they appear in the Daily Attendance grid.",
+            },
+          ]}
+        />
+      )}
+
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-border/40">
         <div className="flex items-center gap-2">

@@ -587,3 +587,272 @@ export interface ChatLink {
   label: string;
   href: string;
 }
+
+// ---- Co-Pilot token usage window (backend src/chat/usage.py + usage_store.py) ----
+// Display only: "available" = configured caps, not Google quota.
+export interface TokenCounts {
+  input_tokens: number;
+  output_tokens: number;
+  thinking_tokens: number;
+  cached_tokens: number;
+  total_tokens: number;
+  llm_calls: number;
+}
+
+/** One turn's usage, as returned on POST /api/daily/chat. */
+export interface TurnUsage extends TokenCounts {
+  models: string[];
+}
+
+/** Caps the turn ran under. */
+export interface TurnLimits {
+  context_window: number;
+  tier: "short" | "medium" | "long" | null;
+  max_output_tokens: number | null;
+}
+
+export interface ChatUsageSummary {
+  model: string;
+  fallback_models: string[];
+  limits: {
+    context_window: number;
+    max_output: { short: number; medium: number; long: number };
+    max_input_chars: number;
+    history_messages: number;
+  };
+  today: TokenCounts & { turns: number };
+  session: (TokenCounts & { turns: number }) | null;
+  last_turn: (TurnUsage & { tier: TurnLimits["tier"]; created_at: string | null }) | null;
+}
+
+// ---- AI Decision Advisor (GET /api/advisor, backend src/advisor/engine.py) ----
+export type AdvisorInsightId =
+  | "no_target" | "closing_gap" | "pace_behind" | "pace_ahead"
+  | "conversion_low" | "atv_low" | "basket_low" | "data_gap" | "balanced"
+  // Tier 2 (src/advisor/anomalies.py, staffing.py, stock_signals.py)
+  | "conversion_leak" | "atv_drop" | "dead_hours" | "mix_small_heavy" | "mix_large_heavy" | "big_bill"
+  | "understaffed_peak" | "break_window" | "attendance_missing"
+  | "stock_out" | "stock_low" | "slow_movers" | "transfer_suggested";
+
+export interface AdvisorOutcome {
+  kpi: string;
+  trials: number;
+  wins: number;
+  win_rate_pct: number;
+  avg_lift_pct: number;
+  /** Enough scored trials for the Advisor to rank this action by win rate. */
+  ranked: boolean;
+}
+
+export interface AdvisorStockItem {
+  barcode: string;
+  item_name: string | null;
+  department: string | null;
+  current_stock: number;
+  reorder_level: number;
+}
+
+export interface AdvisorTransferSuggestion {
+  direction: "inbound" | "outbound";
+  from_store: string;
+  to_store: string;
+  barcode: string;
+  item_name: string | null;
+  quantity: number;
+}
+
+export interface AdvisorStaffSlot {
+  slot: string;
+  staff: number;
+  footfall: number | null;
+  footfall_source: "actual" | "expected";
+  footfall_per_staff: number | null;
+  upcoming: boolean;
+}
+
+export interface AdvisorInsight {
+  id: AdvisorInsightId;
+  severity: "urgent" | "opportunity" | "info" | "success";
+  kpi: string | null;
+  /** The exact numbers the rule used; keys depend on `id`. */
+  evidence: Record<string, number | string | string[] | null>;
+}
+
+export interface AdvisorChecklistItem {
+  action_key: string;
+  done: boolean;
+  done_by: string | null;
+  done_at: string | null;
+  /** Measured track record of this action at this store (absent from PUT responses). */
+  outcome?: AdvisorOutcome | null;
+}
+
+export interface AdvisorResponse {
+  store: string;
+  date: string;
+  as_of: string;
+  day_status: "open" | "closed" | "not_started";
+  current_slot: string | null;
+  pacing: {
+    available: boolean;
+    source: "similar_days" | "same_weekday" | "all_days" | null;
+    days_used: number;
+    slots: string[];
+    cumulative_share: number[] | null;
+    expected_share_now: number | null;
+    expected_achievement_pct: number | null;
+    context: { holiday: boolean; rainy: boolean | null; matched_on: string[] } | null;
+  };
+  bill_mix: {
+    available: boolean;
+    norm_available: boolean;
+    today_bills: number;
+    norm_bills: number;
+    bands: { band: "under_500" | "500_1500" | "over_1500"; today_count: number; today_share_pct: number; norm_share_pct: number | null }[];
+    largest_bill: number | null;
+  };
+  staffing: {
+    available: boolean;
+    active_staff: number;
+    logged: number;
+    present: number;
+    times_known: boolean | null;
+    slots: AdvisorStaffSlot[];
+  };
+  stock: {
+    available: boolean;
+    total_skus?: number;
+    out_of_stock_count?: number;
+    low_stock_count?: number;
+    out_of_stock?: AdvisorStockItem[];
+    low_stock?: AdvisorStockItem[];
+    slow_movers?: AdvisorStockItem[];
+    slow_mover_days?: number;
+    transfers?: AdvisorTransferSuggestion[];
+  };
+  outcomes: Record<string, AdvisorOutcome>;
+  projection: {
+    projected_close: number | null;
+    projected_achievement_pct: number | null;
+    remaining_to_target: number | null;
+    bills_needed_at_current_atv: number | null;
+  };
+  kpis: Record<"net_sales" | "sales_target" | "achievement_pct" | "footfall" | "nob" | "conversion_pct" | "atv" | "basket_size", number | null>;
+  insights: AdvisorInsight[];
+  checklist: AdvisorChecklistItem[];
+}
+
+// ---- Advisor Tier 3 (src/advisor/{drivers,brief,explain,replan,whatif}.py) ----
+export interface AdvisorDriver {
+  driver: "traffic" | "conversion" | "atv";
+  /** ₹ share of the gap vs baseline; the three always sum to the gap. */
+  amount: number;
+  change_pct: number;
+  current: number;
+  baseline: number;
+}
+
+export interface AdvisorStoreReview {
+  store: string;
+  store_name: string;
+  date: string;
+  /** "in_progress" only in the midday brief, where nothing has been missed yet. */
+  verdict: "hit" | "missed" | "in_progress" | "no_target" | "no_data";
+  net_sales: number;
+  sales_target: number | null;
+  achievement_pct: number | null;
+  achievement_status: "red" | "yellow" | "green" | null;
+  gap_to_target: number | null;
+  footfall: number | null;
+  nob: number | null;
+  conversion_pct: number | null;
+  atv: number | null;
+  baseline: { net_sales: number; footfall: number; nob: number; days_used: number } | null;
+  vs_baseline_pct: number | null;
+  delta_vs_baseline: number | null;
+  drivers: AdvisorDriver[];
+}
+
+export interface AdvisorWatchOut {
+  id: "no_target" | "holiday" | "election" | "rain" | "weekend" | "stock_out" | "attendance_missing";
+  evidence: Record<string, number | string>;
+}
+
+export type AdvisorBriefKind = "morning" | "midday" | "evening";
+
+/** Midday only: today so far against the store's learned pace curve. */
+export interface AdvisorBriefPace {
+  status: "behind" | "on_pace" | "ahead" | "target_hit" | "no_pace_curve" | "no_target" | "no_data";
+  expected_achievement_pct: number | null;
+  pace_gap_pp: number | null;
+  projected_close: number | null;
+  projected_achievement_pct: number | null;
+  curve_days: number;
+}
+
+export interface AdvisorBrief {
+  kind: AdvisorBriefKind;
+  review_date: string;
+  watch_date: string;
+  /** Midday only: the moment the pace was judged at. */
+  as_of: string | null;
+  network: {
+    net_sales: number;
+    sales_target: number | null;
+    achievement_pct: number | null;
+    projected_close?: number | null;
+    projected_achievement_pct?: number | null;
+  };
+  stores: (AdvisorStoreReview & {
+    watch_outs: AdvisorWatchOut[];
+    /** Midday: the completed slots the drivers compare; null for full-day briefs. */
+    slots_compared: string[] | null;
+    pace?: AdvisorBriefPace;
+  })[];
+}
+
+export interface AdvisorReason {
+  id: string;
+  /** ₹ impact for driver reasons; null for non-monetary signals. */
+  impact: number | null;
+  evidence: Record<string, number | string | null>;
+}
+
+export interface AdvisorExplain {
+  store: string;
+  date: string;
+  review: AdvisorStoreReview;
+  context: { holiday: string | null; election: string | null; day_type: string; rainy: boolean | null };
+  staffing: { present: number | null; usual_present: number | null };
+  reasons: AdvisorReason[];
+}
+
+export interface AdvisorReplan {
+  store: string;
+  month: string;
+  available: boolean;
+  reason?: "no_targets" | "month_over";
+  weighting?: "weekday" | "equal";
+  month_target?: number;
+  actual_closed_days?: number;
+  still_needed?: number;
+  rows: { date: string; weekday: number; current_target: number | null; recommended_target: number; delta: number | null }[];
+}
+
+export interface AdvisorWhatIfClose {
+  base_close: number | null;
+  scenario_close: number | null;
+  base_achievement_pct?: number | null;
+  scenario_achievement_pct?: number | null;
+  reason: string | null;
+}
+
+export interface AdvisorWhatIf {
+  store: string;
+  date: string;
+  available: boolean;
+  reason?: string;
+  multiplier: number | null;
+  day: (AdvisorWhatIfClose & { net_sales: number; sales_target: number | null }) | null;
+  month: (AdvisorWhatIfClose & { month_target: number | null }) | null;
+}

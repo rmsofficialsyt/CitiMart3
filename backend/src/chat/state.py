@@ -43,6 +43,11 @@ class ChatResponse(BaseModel):
     # {kind: "app"|"source", label, href}, built by src.chat.links (never by the model).
     links: list[dict[str, str]] = Field(default_factory=list)
     suggestions: list[str] = Field(default_factory=list)
+    # Co-Pilot usage window (src/chat/usage.py): this turn's Gemini token counts,
+    # the answer tier, and the configured caps it ran under. Display only.
+    response_tier: str = ""
+    usage: dict[str, Any] | None = None
+    limits: dict[str, Any] | None = None
 
     def model_post_init(self, __context: Any) -> None:
         if not self.store and self.store_code:

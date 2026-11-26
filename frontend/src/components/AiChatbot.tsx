@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowUpDown,
@@ -13,6 +13,7 @@ import {
   CornerDownRight,
   ExternalLink,
   Flame,
+  HelpCircle,
   History,
   IndianRupee,
   Layers,
@@ -39,12 +40,14 @@ import { toast } from "sonner";
 
 import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthProvider";
+import { ChatQueryTipPopover, ChatUsageGuide } from "@/components/ChatUsageGuide";
+import { CHAT_USAGE_QUERY_KEY, ChatUsageMeter } from "@/components/ChatUsageMeter";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/context/LanguageContext";
 import { appHref, isAppHref, isHttpUrl, isIsoDate, storeSelForCode } from "@/lib/appLinks";
 import { remarkChatLinks } from "@/lib/chatLinkify";
 import type { Language } from "@/lib/translations";
-import type { ChatLink } from "@/lib/types";
+import type { ChatLink, TurnLimits, TurnUsage } from "@/lib/types";
 
 interface ChatMessage {
   id: string;
@@ -612,9 +615,15 @@ export function AiChatbot({
   const [selectedCategory, setSelectedCategory] = useState<PresetItem["category"]>("all");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  // Most recent turn's usage, shown in the usage meter before its refetch lands.
+  const [lastTurnUsage, setLastTurnUsage] = useState<{ usage: TurnUsage | null; limits: TurnLimits | null } | null>(null);
   const [showSessionDrawer, setShowSessionDrawer] = useState(false);
+  const [showGuideDrawer, setShowGuideDrawer] = useState(false);
   const [sessionsList, setSessionsList] = useState<any[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
+  const [confirmClearAll, setConfirmClearAll] = useState(false);
+  const [isClearingAll, setIsClearingAll] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -811,6 +820,8 @@ export function AiChatbot({
       });
     },
     onSuccess: (data) => {
+      setLastTurnUsage({ usage: data.usage ?? null, limits: data.limits ?? null });
+      void queryClient.invalidateQueries({ queryKey: [CHAT_USAGE_QUERY_KEY] });
       if (data.session_id) {
         setActiveSessionId(data.session_id);
         localStorage.setItem(`citimart_ai_active_session_${activeStore}`, data.session_id);
@@ -871,6 +882,7 @@ export function AiChatbot({
   const handleClearHistory = () => {
     const storageKey = `citimart_ai_active_session_${activeStore}`;
     localStorage.removeItem(storageKey);
+    setLastTurnUsage(null);
     setActiveSessionId(null);
     setMessages([getWelcomeMessage(chatLanguage)]);
     setShowSessionDrawer(false);
@@ -890,8 +902,38 @@ export function AiChatbot({
   };
 
   const handleOpenDrawer = () => {
+    setConfirmClearAll(false);
     setShowSessionDrawer(true);
     fetchSessions();
+  };
+
+  const handleClearAllSessions = async () => {
+    setIsClearingAll(true);
+    try {
+      const res = await api.clearChatSessions(activeStore);
+      setConfirmClearAll(false);
+      // Re-fetch: an admin's list also shows other users' chats, which are kept.
+      const remaining = (await api.listChatSessions(activeStore)).sessions || [];
+      setSessionsList(remaining);
+      if (activeSessionId && !remaining.some((s) => s.session_id === activeSessionId)) {
+        localStorage.removeItem(`citimart_ai_active_session_${activeStore}`);
+        setLastTurnUsage(null);
+        setActiveSessionId(null);
+        setMessages([getWelcomeMessage(chatLanguage)]);
+      }
+      toast.success(
+        res.deleted > 0
+          ? `Cleared ${res.deleted} shift conversation${res.deleted === 1 ? "" : "s"}.`
+          : "You have no conversations of your own to clear here.",
+      );
+    } catch (err) {
+      // Surface the server's reason (e.g. "405 Method Not Allowed" from a backend
+      // that predates this route, or "Store not accessible.") instead of a bare failure.
+      const reason = err instanceof Error && err.message ? `: ${err.message}` : "";
+      toast.error(`Failed to clear shift conversations${reason}`);
+    } finally {
+      setIsClearingAll(false);
+    }
   };
 
   const handleSelectSession = async (sess: any) => {
@@ -899,6 +941,7 @@ export function AiChatbot({
       const res = await api.getChatSessionHistory(sess.session_id);
       if (res.messages && res.messages.length > 0) {
         setMessages(toChatMessages(res.messages));
+        setLastTurnUsage(null);
         setActiveSessionId(sess.session_id);
         localStorage.setItem(`citimart_ai_active_session_${activeStore}`, sess.session_id);
         setShowSessionDrawer(false);
@@ -997,6 +1040,11 @@ export function AiChatbot({
 
               {/* Actions & Language Selector */}
               <div className="flex items-center gap-1">
+                <ChatUsageMeter
+                  sessionId={activeSessionId}
+                  lastTurn={lastTurnUsage?.usage}
+                  lastLimits={lastTurnUsage?.limits}
+                />
                 {/* Language Switcher */}
                 <div className="flex items-center bg-slate-800/60 rounded-lg p-0.5 border border-slate-700/60 mr-1">
                   {(["en", "bn", "hi"] as Language[]).map((l) => (
@@ -1019,11 +1067,29 @@ export function AiChatbot({
                   variant="ghost"
                   size="icon"
                   className={`size-7 ${
+                    showGuideDrawer
+                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                      : "text-slate-400 hover:text-amber-300 hover:bg-slate-800/60"
+                  }`}
+                  onClick={() => {
+                    setShowSessionDrawer(false);
+                    setShowGuideDrawer((prev) => !prev);
+                  }}
+                  title="How to ask for accurate data"
+                >
+                  <HelpCircle className="size-3.5" />
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`size-7 ${
                     showSessionDrawer
                       ? "bg-indigo-600 text-white"
                       : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
                   }`}
                   onClick={() => {
+                    setShowGuideDrawer(false);
                     if (showSessionDrawer) {
                       setShowSessionDrawer(false);
                     } else {
@@ -1078,6 +1144,19 @@ export function AiChatbot({
               </div>
             </div>
 
+            {/* Usage Guide Drawer Overlay */}
+            <AnimatePresence>
+              {showGuideDrawer && (
+                <ChatUsageGuide
+                  language={chatLanguage}
+                  activeStore={activeStore}
+                  isAdmin={isAdmin}
+                  onClose={() => setShowGuideDrawer(false)}
+                  onSelectPrompt={(prompt) => handleSendMessage(prompt)}
+                />
+              )}
+            </AnimatePresence>
+
             {/* Past Shift Conversations Drawer Overlay */}
             <AnimatePresence>
               {showSessionDrawer && (
@@ -1093,6 +1172,17 @@ export function AiChatbot({
                       <span className="text-xs font-bold text-slate-200">Past Shift Conversations</span>
                     </div>
                     <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setConfirmClearAll(true)}
+                        disabled={isLoadingSessions || isClearingAll || sessionsList.length === 0}
+                        className="h-7 text-[11px] border-slate-700 bg-slate-800/80 text-slate-300 hover:bg-rose-600 hover:text-white hover:border-rose-500 flex items-center gap-1.5 disabled:opacity-40"
+                        title="Delete all your conversations for this store"
+                      >
+                        <Trash2 className="size-3" />
+                        <span>Clear All</span>
+                      </Button>
                       <Button
                         size="sm"
                         variant="outline"
@@ -1112,6 +1202,43 @@ export function AiChatbot({
                       </Button>
                     </div>
                   </div>
+
+                  {/* Clear-all confirmation (inline, so it can't be a stray single click) */}
+                  {confirmClearAll && (
+                    <div
+                      role="alertdialog"
+                      aria-label="Confirm clearing all conversations"
+                      className="mx-3 mt-3 rounded-xl border border-rose-500/40 bg-rose-950/40 p-3"
+                    >
+                      <p className="text-xs font-semibold text-rose-200">
+                        Delete all your {activeStore} shift conversations?
+                      </p>
+                      <p className="mt-1 text-[11px] text-rose-200/70">
+                        This permanently removes every message in them and can't be undone.
+                        {isAdmin && " Store managers' conversations are not affected."}
+                      </p>
+                      <div className="mt-2.5 flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setConfirmClearAll(false)}
+                          disabled={isClearingAll}
+                          className="h-7 text-[11px] text-slate-300 hover:text-white"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={handleClearAllSessions}
+                          disabled={isClearingAll}
+                          className="h-7 text-[11px] bg-rose-600 hover:bg-rose-500 text-white flex items-center gap-1.5"
+                        >
+                          {isClearingAll ? <RefreshCw className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
+                          <span>{isClearingAll ? "Clearing..." : "Delete All"}</span>
+                        </Button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* List of Sessions */}
                   <div className="flex-1 overflow-y-auto p-3 space-y-2">
@@ -1443,7 +1570,12 @@ export function AiChatbot({
                         : "Ask about yesterday's sales, 7-day table, rolling target recovery..."
                     }
                     disabled={chatMutation.isPending}
-                    className="w-full rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+                    className="w-full rounded-xl bg-slate-950 border border-slate-800 pl-3.5 pr-9 py-2.5 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+                  />
+                  <ChatQueryTipPopover
+                    language={chatLanguage}
+                    isAdmin={isAdmin}
+                    onSelectPrompt={(prompt) => handleSendMessage(prompt)}
                   />
                 </div>
 

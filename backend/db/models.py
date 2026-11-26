@@ -74,6 +74,12 @@ STOCK_SETTINGS = "stock_settings"
 AUDIT_LOGS = "audit_logs"
 CHAT_SESSIONS = "chat_sessions"
 CHAT_MESSAGES = "chat_messages"
+# One doc per Co-Pilot turn that called Gemini (src/chat/usage_store.py). Display only.
+LLM_USAGE = "llm_usage"
+ADVISOR_ACTIONS = "advisor_actions"
+ALERT_SETTINGS = "alert_settings"
+ALERT_LOGS = "alert_logs"
+NOTIFICATIONS = "notifications"
 
 
 def ensure_indexes(db: Database) -> None:
@@ -125,6 +131,8 @@ def ensure_indexes(db: Database) -> None:
 
     db[CHAT_MESSAGES].create_index([("session_id", 1), ("timestamp", -1)])
     db[CHAT_MESSAGES].create_index([("session_id", 1), ("timestamp", 1)])
+    db[LLM_USAGE].create_index([("username", 1), ("ist_date", 1)])
+    db[LLM_USAGE].create_index([("session_id", 1), ("created_at", -1)])
 
     # Stocks Management indexes
     db[STOCK_INVENTORY].create_index([("store_code", 1), ("barcode", 1)], unique=True)
@@ -148,6 +156,21 @@ def ensure_indexes(db: Database) -> None:
     # Security audit trail (LOG-01): newest-first reads, per-account lookups
     db[AUDIT_LOGS].create_index([("ts", -1)])
     db[AUDIT_LOGS].create_index([("username", 1), ("ts", -1)])
+
+    # AI Advisor checklist: one tick state per store+day+action
+    db[ADVISOR_ACTIONS].create_index(
+        [("store_code", 1), ("entry_date", 1), ("action_key", 1)], unique=True
+    )
+
+    # WhatsApp AI Sales Alerts (SPEC-05): ESR indexes & idempotent trigger key
+    db[ALERT_LOGS].create_index([("audience", 1), ("store_code", 1), ("created_at", -1)])
+    db[ALERT_LOGS].create_index([("alert_type", 1), ("created_at", -1)])
+    db[ALERT_LOGS].create_index([("trigger_key", 1)], unique=True)
+
+    # Notification & Log Handling Agents (SPEC-06): role/store-scoped ESR + dedupe
+    db[NOTIFICATIONS].create_index([("audience", 1), ("store_code", 1), ("created_at", -1)])
+    db[NOTIFICATIONS].create_index([("audience", 1), ("store_code", 1), ("read", 1), ("created_at", -1)])
+    db[NOTIFICATIONS].create_index([("dedupe_key", 1)], unique=True)
 
 
 def next_id(db: Database, collection_name: str) -> int:

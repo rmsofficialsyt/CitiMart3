@@ -15,6 +15,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { useAuth } from "@/auth/AuthProvider";
 import { AccountPicker } from "@/components/AccountPicker";
+import { LegalNoticeModal, type LegalDocType } from "@/components/LegalNoticeModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +33,13 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [isLegalModalOpen, setIsLegalModalOpen] = useState(false);
+  const [activeLegalDoc, setActiveLegalDoc] = useState<LegalDocType>("about");
+
+  function openLegalDoc(doc: LegalDocType) {
+    setActiveLegalDoc(doc);
+    setIsLegalModalOpen(true);
+  }
 
   useEffect(() => {
     if (!loading && user) navigate("/app", { replace: true });
@@ -103,7 +111,9 @@ export function LoginPage() {
         initial={{ opacity: 0, y: 20, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-        className="relative w-full max-w-lg rounded-2xl border border-white/15 bg-gradient-to-b from-slate-900/90 via-slate-900/80 to-blue-950/40 p-6 backdrop-blur-2xl shadow-2xl sm:p-8"
+        className={`relative w-full rounded-2xl border border-white/15 bg-gradient-to-b from-slate-900/90 via-slate-900/80 to-blue-950/40 p-6 backdrop-blur-2xl shadow-2xl transition-[max-width] duration-300 sm:p-8 ${
+          !account ? "max-w-2xl" : "max-w-lg"
+        }`}
       >
         {/* Top bar inside card */}
         <div className="flex items-center justify-between gap-3 mb-6">
@@ -163,7 +173,7 @@ export function LoginPage() {
                 <span className="text-[11px] text-blue-400">Fixed Store Accounts</span>
               </div>
 
-              <AccountPicker dense />
+              <AccountPicker />
 
               <div className="mt-4 flex items-center justify-center gap-1.5 text-[11px] text-slate-400 pt-2">
                 <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
@@ -281,10 +291,44 @@ export function LoginPage() {
         </AnimatePresence>
 
         {/* Footer info inside card */}
-        <div className="mt-8 border-t border-white/10 pt-4 text-center text-xs text-slate-500 space-y-1">
-          <p>&copy; {new Date().getFullYear()} CITIMART Operations &middot; Kolkata</p>
+        <div className="mt-8 border-t border-white/10 pt-4 text-center text-xs text-slate-500 space-y-2">
+          <p>
+            &copy; {new Date().getFullYear()} CITIMART Operations. All rights reserved. &middot; Kolkata, West Bengal, India.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3 text-xs">
+            <button
+              type="button"
+              onClick={() => openLegalDoc("about")}
+              className="hover:text-slate-300 transition-colors cursor-pointer"
+            >
+              About Us
+            </button>
+            <span>&middot;</span>
+            <button
+              type="button"
+              onClick={() => openLegalDoc("terms")}
+              className="hover:text-slate-300 transition-colors cursor-pointer"
+            >
+              Terms of Use
+            </button>
+            <span>&middot;</span>
+            <button
+              type="button"
+              onClick={() => openLegalDoc("privacy")}
+              className="hover:text-slate-300 transition-colors cursor-pointer"
+            >
+              Privacy Policy
+            </button>
+          </div>
         </div>
       </motion.div>
+
+      <LegalNoticeModal
+        open={isLegalModalOpen}
+        onOpenChange={setIsLegalModalOpen}
+        activeDoc={activeLegalDoc}
+        onDocChange={setActiveLegalDoc}
+      />
     </div>
   );
 }

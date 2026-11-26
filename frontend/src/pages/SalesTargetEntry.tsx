@@ -167,6 +167,34 @@ function SalesTargetEntry({ store }: { store: string }) {
     onError: (error) => toast.error(`Upload failed: ${(error as Error).message}`),
   });
 
+  // AI Decision Advisor re-plan: fills the *draft* cells only. Nothing is
+  // written until the admin reviews the grid and clicks Save Month Targets.
+  const replanMutation = useMutation({
+    mutationFn: () => api.advisorReplan(store, month),
+    onSuccess: (plan) => {
+      if (!plan.available) {
+        toast.info(
+          plan.reason === "month_over"
+            ? "This month is over — nothing left to re-plan."
+            : "Set this month's daily targets first; the re-plan keeps the month total and redistributes it.",
+        );
+        return;
+      }
+      setTargetValues((prev) => {
+        const next = { ...prev };
+        for (const row of plan.rows) next[row.date] = String(row.recommended_target);
+        return next;
+      });
+      toast.success(
+        `Re-plan filled ${plan.rows.length} remaining day${plan.rows.length === 1 ? "" : "s"}: ` +
+          `${fmtCurrency(plan.still_needed ?? 0)} still needed, split by ` +
+          `${plan.weighting === "weekday" ? "this store's weekday sales pattern" : "equal days (not enough history)"}. ` +
+          "Review, then click Save Month Targets.",
+      );
+    },
+    onError: (error) => toast.error(`Re-plan failed: ${(error as Error).message}`),
+  });
+
   function fillDownTargets() {
     const first = days.map((d) => (targetValues[d] ?? "").trim()).find((v) => v !== "");
     if (!first) {
@@ -246,6 +274,17 @@ function SalesTargetEntry({ store }: { store: string }) {
           >
             <ArrowDown className="mr-1.5 h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400" />
             Fill Prev. Sales Down
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => replanMutation.mutate()}
+            disabled={saveMutation.isPending || clearMutation.isPending || replanMutation.isPending}
+            title="Recommend targets for the rest of the month so it still lands on the month total (fills the grid; nothing is saved until you click Save)"
+            className="rounded-xl border-border text-xs font-semibold cursor-pointer hover:bg-muted"
+          >
+            <Sparkles className="mr-1.5 h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400" />
+            {replanMutation.isPending ? "Re-planning..." : "Suggest Re-plan"}
           </Button>
           <Button
             size="sm"

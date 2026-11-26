@@ -38,6 +38,8 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from api.auth import get_current_user, require_admin
+from api.routes_advisor import router as advisor_router
+from api.routes_alerts import router as alerts_router
 from api.routes_auth import router as auth_router
 from api.routes_charts import router as charts_router
 from api.routes_chat import router as chat_router
@@ -45,6 +47,7 @@ from api.routes_daily import router as daily_router
 from api.routes_directives import router as directives_router
 from api.routes_kpi_thresholds import router as kpi_thresholds_router
 from api.routes_meta import router as meta_router
+from api.routes_notifications import router as notifications_router
 from api.routes_requisitions import router as requisitions_router
 from api.routes_staff import router as staff_router
 from api.routes_stocks import router as stocks_router
@@ -204,6 +207,12 @@ async def lifespan(app: FastAPI):
         await asyncio.to_thread(_seed_accounts_best_effort)
         if env.run_in_process_midnight_job:
             app.state.background_tasks.append(asyncio.create_task(run_midnight_finalizer()))
+        if env.whatsapp_alerts_enabled and not env.bullmq_active():
+            from src.alerts.scheduler import run_in_process_alert_scheduler
+            app.state.background_tasks.append(asyncio.create_task(run_in_process_alert_scheduler()))
+        if not env.bullmq_active():
+            from src.notifications.runner import run_in_process_notification_loop
+            app.state.background_tasks.append(asyncio.create_task(run_in_process_notification_loop()))
         if env.self_ping_enabled:
             app.state.background_tasks.append(asyncio.create_task(_keep_alive()))
 
@@ -333,11 +342,14 @@ app.include_router(requisitions_router, dependencies=_authed)
 app.include_router(stocks_router, dependencies=_authed)
 app.include_router(staff_router, dependencies=_authed)
 app.include_router(chat_router, dependencies=_authed)
+app.include_router(advisor_router, dependencies=_authed)
 app.include_router(directives_router, dependencies=_authed)
 app.include_router(charts_router, dependencies=_authed)
 app.include_router(meta_router, dependencies=_authed)
+app.include_router(notifications_router, dependencies=_authed)
 app.include_router(targets_router, dependencies=_admin_only)
 app.include_router(kpi_thresholds_router, dependencies=_admin_only)
+app.include_router(alerts_router, dependencies=_admin_only)
 
 # The React SPA lives *outside* the backend package: PROJECT_ROOT is
 # backend/, and frontend/ is its sibling in this sub-project.

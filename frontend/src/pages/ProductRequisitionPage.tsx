@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
   Building2,
+  CheckCircle2,
   Clock,
   Download,
   Eye,
@@ -24,6 +25,7 @@ import { toast } from "sonner";
 
 import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthProvider";
+import { PageUserGuide } from "@/components/PageUserGuide";
 import { SearchableCategoryDropdown } from "@/components/SearchableCategoryDropdown";
 import { SearchableRequisitionLineDropdown } from "@/components/SearchableRequisitionLineDropdown";
 import { Button } from "@/components/ui/button";
@@ -387,6 +389,64 @@ export function ProductRequisitionPage({ initialStoreCode }: { initialStoreCode?
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
+      {!isAdmin && (
+        <PageUserGuide
+          className="mb-0"
+          title="Manager Manual Guide — Product Requisitions"
+          subtitle="Step-by-step instructions for creating and submitting store requisition slips"
+          steps={[
+            {
+              icon: Store,
+              colorClass: "text-blue-400",
+              title: "Step 1 · Store & Date",
+              header: "Confirm Branch & Slip Date",
+              description:
+                "Open the New Slip tab. Your store branch (NM, HB, or CHW) is auto-locked; verify the requisition date before adding items.",
+            },
+            {
+              icon: Search,
+              colorClass: "text-indigo-400",
+              title: "Step 2 · Line Items",
+              header: "Search Catalog or Enter Custom",
+              bullets: [
+                "Pick from the 713 predefined CITIMART lines or switch to Custom Line.",
+                "Fill Barcode, Brand, MRP, Time Required, and Remarks.",
+                "Use + Add Row for multiple items in one slip.",
+              ],
+            },
+            {
+              icon: Send,
+              colorClass: "text-amber-400",
+              title: "Step 3 · Submit Slip",
+              header: "Send to Admin Desk",
+              description:
+                "Review every row and click Submit Requisition Slip. The slip enters Pending Review for central approval.",
+            },
+            {
+              icon: CheckCircle2,
+              colorClass: "text-emerald-400",
+              title: "Step 4 · Track & Print",
+              header: "Monitor Fulfillment Status",
+              description:
+                "Follow progress in List View (Pending Review → Approved → In Transit → Fulfilled) and print or export slips anytime.",
+              safetyNote: "Tip: Use Urgent - Same Day only for critical floor stock-outs.",
+            },
+          ]}
+          faqs={[
+            {
+              title: "Can I edit after submitting?",
+              description:
+                "Submitted slips are audited by Admin. Contact Central Admin if an urgent quantity change is needed before approval.",
+            },
+            {
+              title: "Store isolation:",
+              description:
+                "You can only create and view requisition slips belonging to your assigned store branch.",
+            },
+          ]}
+        />
+      )}
+
       {/* Top Banner & Header */}
       <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-5 sm:p-7 text-white shadow-2xl">
         <div className="absolute -right-10 -top-10 h-64 w-64 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />

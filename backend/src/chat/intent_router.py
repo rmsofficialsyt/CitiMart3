@@ -31,6 +31,8 @@ INTENT_DESCRIPTIONS: dict[str, str] = {
     "greeting": "hello / thanks / small talk, no data question",
     "help": "asks what the assistant can do",
     "formula": "asks how a KPI is calculated (ATV, conversion, basket size, RPV, achievement)",
+    "brief": "morning / midday brief or evening debrief: each store's result or pace so far, top drivers, watch-outs",
+    "explain_day": "why a day missed or beat target: traffic vs conversion vs ATV drivers, staffing, stock, context",
     "target_simulate": "compare target-recovery options over several windows (7 vs 14 vs 30 days)",
     "target_adjust": "rolling target adjustment / carry-forward of a sales deficit",
     "wow": "this day vs the same weekday in previous weeks",
@@ -127,5 +129,10 @@ def route_intent(query: str, regex_intent: IntentResult) -> IntentResult:
     llm = classify_intent_llm(query)
     if llm is None:
         return regex_intent
-    # Keep the regex layer's own parse of today / normalized text.
-    return replace(llm, explicit_today=regex_intent.explicit_today, normalized=regex_intent.normalized)
+    # Keep the regex layer's own parse of today / normalized text / requested metrics.
+    return replace(
+        llm,
+        explicit_today=regex_intent.explicit_today,
+        normalized=regex_intent.normalized,
+        requested_metrics=regex_intent.requested_metrics if llm.primary == "day_kpis" else [],
+    )

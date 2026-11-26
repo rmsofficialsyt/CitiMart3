@@ -7,11 +7,13 @@ import {
   Building2,
   CheckCircle2,
   Clock,
+  ExternalLink,
   Flame,
   Layers,
   LineChart,
   LogIn,
   MapPin,
+  Navigation,
   PackageCheck,
   Percent,
   Receipt,
@@ -178,6 +180,7 @@ const STORES = [
     name: "New Market",
     badge: "Flagship Retail",
     location: "Lindsay Street, Central Kolkata",
+    mapQuery: "New Market, Lindsay Street, Kolkata, West Bengal",
     counters: "12 POS Counters",
     sqft: "18,500 sq.ft Floor",
     username: STORE_NAME_BY_CODE.NM,
@@ -187,6 +190,7 @@ const STORES = [
     name: "Hatibagan",
     badge: "North Hub",
     location: "Bidhan Sarani, North Kolkata",
+    mapQuery: "Hatibagan, Bidhan Sarani, Kolkata, West Bengal",
     counters: "8 POS Counters",
     sqft: "14,200 sq.ft Floor",
     username: STORE_NAME_BY_CODE.HB,
@@ -196,6 +200,7 @@ const STORES = [
     name: "Chowringhee",
     badge: "Prime Central",
     location: "JL Nehru Road, Central Kolkata",
+    mapQuery: "Chowringhee, Jawaharlal Nehru Road, Kolkata, West Bengal",
     counters: "10 POS Counters",
     sqft: "16,000 sq.ft Floor",
     username: STORE_NAME_BY_CODE.CHW,
@@ -261,6 +266,7 @@ export function Landing() {
   const { user } = useAuth();
   const isManager = user?.role === "manager";
   const [activeTab, setActiveTab] = useState<StoreKey>("all");
+  const [selectedMapStore, setSelectedMapStore] = useState<"NM" | "HB" | "CHW">("NM");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [hoveredPoint, setHoveredPoint] = useState<HourlyPoint | null>(null);
 
@@ -938,45 +944,175 @@ export function Landing() {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
-            {STORES.map((s) => (
-              <motion.button
-                key={s.name}
-                type="button"
-                whileHover={{ y: -5, scale: 1.015 }}
-                whileTap={{ scale: 0.985 }}
-                transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                onClick={() => navigate(`/login?account=${encodeURIComponent(s.username)}`)}
-                className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 p-5 text-left transition-all duration-200 hover:border-blue-400/50 hover:bg-white/[0.08] hover:shadow-xl hover:shadow-blue-500/10"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="rounded-lg bg-blue-500/10 p-2 text-blue-400 group-hover:bg-blue-500/20 group-hover:scale-110 transition-all">
-                    <Store className="h-5 w-5" />
+            {STORES.map((s) => {
+              const isSelectedOnMap = selectedMapStore === s.code;
+              const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(s.mapQuery)}`;
+              return (
+                <motion.div
+                  key={s.name}
+                  whileHover={{ y: -5, scale: 1.015 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                  onClick={() => navigate(`/login?account=${encodeURIComponent(s.username)}`)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      navigate(`/login?account=${encodeURIComponent(s.username)}`);
+                    }
+                  }}
+                  className={`group relative cursor-pointer overflow-hidden rounded-xl border p-5 text-left transition-all duration-200 hover:border-blue-400/50 hover:bg-white/[0.08] hover:shadow-xl hover:shadow-blue-500/10 ${
+                    isSelectedOnMap
+                      ? "border-blue-400/40 bg-white/[0.07]"
+                      : "border-white/10 bg-white/5"
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="rounded-lg bg-blue-500/10 p-2 text-blue-400 group-hover:bg-blue-500/20 group-hover:scale-110 transition-all">
+                      <Store className="h-5 w-5" />
+                    </div>
+                    <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[10px] font-semibold text-blue-300">
+                      {s.badge}
+                    </span>
                   </div>
-                  <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[10px] font-semibold text-blue-300">
-                    {s.badge}
-                  </span>
-                </div>
 
-                <h3 className="mt-4 font-bold text-slate-100 text-base group-hover:text-blue-300 transition-colors">
-                  CITIMART — {s.name}
-                </h3>
-                <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-400">
-                  <MapPin className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-                  {s.location}
-                </p>
+                  <h3 className="mt-4 font-bold text-slate-100 text-base group-hover:text-blue-300 transition-colors">
+                    CITIMART — {s.name}
+                  </h3>
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-400">
+                    <MapPin className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                    {s.location}
+                  </p>
 
-                <div className="mt-4 border-t border-white/10 pt-3 flex items-center justify-between text-[11px] text-slate-300">
-                  <span>{s.counters}</span>
-                  <span className="text-slate-400">{s.sqft}</span>
-                </div>
+                  <div className="mt-4 border-t border-white/10 pt-3 flex items-center justify-between text-[11px] text-slate-300">
+                    <span>{s.counters}</span>
+                    <span className="text-slate-400">{s.sqft}</span>
+                  </div>
 
-                <div className="mt-3 flex items-center justify-between text-xs font-semibold text-blue-400 opacity-80 group-hover:opacity-100 transition-opacity">
-                  <span>Open Store Manager Login</span>
-                  <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
-                </div>
-              </motion.button>
-            ))}
+                  <div className="mt-3 flex items-center justify-between gap-2 text-xs font-semibold">
+                    <span className="inline-flex items-center gap-1 text-blue-400 opacity-80 group-hover:opacity-100 transition-opacity">
+                      <span>Store Login</span>
+                      <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+                    </span>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedMapStore(s.code);
+                        }}
+                        className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
+                          isSelectedOnMap
+                            ? "border-blue-400/50 bg-blue-500/20 text-blue-200"
+                            : "border-white/10 bg-white/5 text-slate-300 hover:border-blue-400/40 hover:text-white"
+                        }`}
+                      >
+                        <MapPin className="h-3 w-3" />
+                        <span>Map</span>
+                      </button>
+                      <a
+                        href={directionsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-medium text-emerald-300 transition-colors hover:border-emerald-400/40 hover:bg-emerald-500/10"
+                        title={`Directions to CITIMART ${s.name}`}
+                      >
+                        <Navigation className="h-3 w-3" />
+                        <span>Directions</span>
+                      </a>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
+
+          {/* Interactive Google Maps Store Locator */}
+          {(() => {
+            const activeStore = STORES.find((s) => s.code === selectedMapStore) ?? STORES[0];
+            const embedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(
+              activeStore.mapQuery,
+            )}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
+            const searchUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+              activeStore.mapQuery,
+            )}`;
+            const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+              activeStore.mapQuery,
+            )}`;
+
+            return (
+              <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4 sm:p-5 backdrop-blur-xl shadow-xl">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 pb-4 border-b border-white/10">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-300">
+                        <MapPin className="h-3 w-3" />
+                        Google Maps Store Locator
+                      </span>
+                      <span className="text-xs text-slate-400">{activeStore.badge}</span>
+                    </div>
+                    <h3 className="text-base font-bold text-white">
+                      CITIMART — {activeStore.name}
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      {activeStore.location} &middot; {activeStore.counters} &middot; {activeStore.sqft}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {STORES.map((s) => (
+                      <button
+                        key={s.code}
+                        type="button"
+                        onClick={() => setSelectedMapStore(s.code)}
+                        className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                          selectedMapStore === s.code
+                            ? "border-blue-400/60 bg-blue-600/25 text-white shadow-sm shadow-blue-500/20"
+                            : "border-white/10 bg-white/5 text-slate-300 hover:border-white/25 hover:bg-white/10 hover:text-white"
+                        }`}
+                      >
+                        {s.name}
+                      </button>
+                    ))}
+
+                    <a
+                      href={directionsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/25"
+                    >
+                      <Navigation className="h-3.5 w-3.5" />
+                      <span>Directions</span>
+                    </a>
+
+                    <a
+                      href={searchUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 transition-colors hover:border-white/25 hover:bg-white/10"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      <span>Open in Google Maps</span>
+                    </a>
+                  </div>
+                </div>
+
+                <div className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-slate-950/80">
+                  <iframe
+                    key={activeStore.code}
+                    title={`CITIMART ${activeStore.name} Google Map`}
+                    src={embedUrl}
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    className="h-64 w-full sm:h-80 border-0"
+                    allowFullScreen
+                  />
+                </div>
+              </div>
+            );
+          })()}
         </motion.section>
 
         {/* Retail Capabilities Grid */}

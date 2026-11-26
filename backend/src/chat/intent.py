@@ -143,6 +143,7 @@ _YOY = _any(r"\byoy\b", r"\byear over year\b", r"\btally growth\b", r"\b(previou
             _hi("पिछले साल"), _hi("पिछले वर्ष"), _hi("टैली ग्रोथ"))
 
 _SURGE = _any(r"\bevening (peak|surge|rush)\b", r"\bpeak (hours?|surge|rush)\b", r"\b5 ?pm\b",
+              r"\bon (track|pace)\b", r"\bprojected? (close|closing|sales)\b", r"\bhow will we close\b",
               _bn("সন্ধ্যা"), _bn("পিক আওয়ার"), _hi("शाम", whole=True), _hi("पीक ऑवर"))
 
 _WEATHER = _any(r"\bweather\b", r"\brain", r"\btemperature\b", _bn("আবহাওয়া"), _bn("বৃষ্টি"),
@@ -189,6 +190,27 @@ _COACHING = _any(
     _hi("कन्वर्शन कम क्यों"), _hi("कन्वर्शन कैसे बढ़ाएं"), _hi("ग्राहक क्यों लौट रहे"),
 )
 
+# Driver attribution: "why did we miss?" (src/advisor/explain.py).
+_EXPLAIN_DAY = _any(
+    r"\bwhy (did|do|have|are|were|was|is) (we|sales|the store|it|today|yesterday|our sales)\b.{0,40}"
+    r"\b(miss|missed|low|lower|down|drop|dropped|fall|fell|short|bad|poor|weak|beat|exceed|exceeded|over)\b",
+    r"\bwhat went (wrong|right)\b", r"\bexplain (the |this |that |to|yester)?day\b",
+    r"\breasons? (for|behind) (the |our )?(miss|shortfall|low sales|drop|result)\b",
+    r"\bwhy (did|have) we (miss|not hit|fall short|beat)\b",
+    _bn("কেন টার্গেট মিস"), _bn("বিক্রি কেন কম"), _bn("কী ভুল হয়েছে"),
+    _hi("टारगेट क्यों चूके"), _hi("बिक्री कम क्यों"), _hi("क्या गलत हुआ"),
+)
+# Network morning brief / evening debrief (src/advisor/brief.py).
+_BRIEF = _any(
+    # "evening" / "end of (the) day" brief: advisor_agent maps both to kind="evening",
+    # but this rule used to miss them, so the question fell through to day_kpis.
+    r"\b(morning|mid-?day|noon|afternoon|evening|tonight'?s|daily|network|store|end of (the )?day) brief(ing)?\b",
+    r"\b(evening |end of day )?debrief\b",
+    r"\bbrief me\b", r"\bday summary for (all|the network)\b",
+    _bn("সকালের ব্রিফ"), _bn("দুপুরের ব্রিফ"), _bn("সন্ধ্যার ব্রিফ"),
+    _hi("सुबह की ब्रीफ"), _hi("दोपहर की ब्रीफ"), _hi("शाम की ब्रीफ"),
+)
+
 _TIMESLOT = _any(r"\btime ?slots?\b", r"\bslots?\b", r"\bhourly\b", _bn("স্লট"), _hi("स्लॉट"))
 
 _TODAY = _any(r"\btoday('?s)?\b", r"\bright now\b", r"\bso far\b", _bn("আজ"), _hi("आज", whole=True))
@@ -201,6 +223,8 @@ INTENT_ORDER: tuple[str, ...] = (
     "greeting",
     "help",
     "formula",
+    "brief",
+    "explain_day",
     "target_simulate",
     "target_adjust",
     "wow",
@@ -236,6 +260,7 @@ class IntentResult:
     # src/chat/intent_router.py then asks the LLM to classify the question.
     matched: bool = True
     source: str = "regex"                  # "regex" | "llm" | "default"
+    requested_metrics: list[str] = field(default_factory=list)
 
     @property
     def all(self) -> list[str]:
@@ -252,6 +277,10 @@ def _matches(intent: str, q: str) -> bool:
         return bool(_HELP.search(q))
     if intent == "formula":
         return bool(_FORMULA.search(q))
+    if intent == "brief":
+        return bool(_BRIEF.search(q))
+    if intent == "explain_day":
+        return bool(_EXPLAIN_DAY.search(q))
     if intent == "target_adjust":
         return bool(_TARGET_ADJUST.search(q))
     if intent == "target_simulate":
@@ -314,6 +343,47 @@ def _window_days(q: str) -> int | None:
     return None
 
 
+_FULL_REPORT = _any(
+    r"\b(complete|full|entire|overall|detailed|everything|all kpis?|summary|overview|report)\b",
+    _bn("সম্পূর্ণ"), _bn("বিস্তারিত"), _bn("রিপোর্ট"), _bn("সব"),
+    _hi("पूरी"), _hi("संपूर्ण"), _hi("विस्तृत"), _hi("रिपोर्ट"), _hi("सभी"),
+)
+_NARROW_ONLY = _any(
+    r"\b(only|just|specifically|exact|single)\b",
+    _bn("শুধু"), _bn("কেবল"), _bn("মাত্র"),
+    _hi("सिर्फ"), _hi("केवल"), _hi("बस"),
+)
+
+_METRIC_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("net_sales", _any(r"\b(net sales?|total sales?|revenue)\b", _bn("নেট সেলস"), _bn("মোট বিক্রি"), _hi("नेट सेल्स"), _hi("कुल बिक्री"), _hi("शुद्ध बिक्री"))),
+    ("sales_target", _any(r"\b(sales targets?|targets?)\b", _bn("টার্গেট"), _bn("লক্ষ্য"), _hi("टारगेट"), _hi("लक्ष्य"))),
+    ("achievement_pct", _any(r"\b(achievement|ach ?%|achieve)\b", _bn("অর্জন"), _bn("অ্যাচিভমেন্ট"), _hi("अचीवमेंट"), _hi("उपलब्धि"))),
+    ("target_gap", _any(r"\b(target gap|gap|remaining|shortfall)\b", _bn("ঘাটতি"), _bn("বাকি"), _hi("अंतर"), _hi("गैप"))),
+    ("footfall", _any(r"\b(footfall|visitors?|walk ?ins?|traffic)\b", _bn("ফুটফল"), _bn("ভিজিটর"), _hi("फुटफॉल"), _hi("ग्राहक"))),
+    ("nob", _any(r"\b(nob|number of bills?|bills? counts?|total bills?|invoices?)\b", _bn("বিল সংখ্যা"), _bn("মোট বিল"), _bn("এনওবি"), _hi("बिल संख्या"), _hi("कुल बिल"), _hi("एनओबी"))),
+    ("conversion_pct", _any(r"\b(conversion|conv ?%)\b", _bn("কনভার্সন"), _hi("कन्वर्शन"), _hi("कन्वर्जन"))),
+    ("atv", _any(r"\b(atv|average transaction( value)?|avg transaction|average ticket|ticket size)\b", _bn("এটিভি"), _hi("एटीवी"), _hi("टिकट साइज"))),
+    ("rpv", _any(r"\b(rpv|revenue per visitor)\b", _bn("আরপিভি"), _hi("आरपीवी"))),
+    ("basket_size", _any(r"\b(basket size|upt|units per bill)\b", _bn("বাস্কেট"), _hi("बास्केट"))),
+    ("largest_bill", _any(r"\b(largest bill|highest (single )?bill|biggest bill)\b", _bn("সর্বোচ্চ বিল"), _hi("सबसे बड़ा बिल"))),
+    ("timeslots", _any(r"\b(time ?slots?|4 ?slots?|peak slot|rush hour|hourly)\b", _bn("টাইম স্লট"), _bn("স্লট"), _hi("टाइम स्लॉट"), _hi("स्लॉट"), _hi("पीक स्लॉट"))),
+)
+
+
+def extract_requested_metrics(normalized_query: str) -> list[str]:
+    """Return specific KPI keys when the user asks for 1-3 focused metrics, else []."""
+    if not normalized_query:
+        return []
+    hits = [key for key, pat in _METRIC_PATTERNS if pat.search(normalized_query)]
+    if not hits:
+        return []
+    if _FULL_REPORT.search(normalized_query) and not _NARROW_ONLY.search(normalized_query):
+        return []
+    if len(hits) > 3:
+        return []
+    return hits
+
+
 def detect_intent(query: str) -> IntentResult:
     q = normalize(query)
     hits = [name for name in INTENT_ORDER if _matches(name, q)]
@@ -345,4 +415,5 @@ def detect_intent(query: str) -> IntentResult:
         normalized=q,
         matched=bool(hits),
         source="regex" if hits else "default",
+        requested_metrics=extract_requested_metrics(q) if primary == "day_kpis" else [],
     )

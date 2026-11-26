@@ -104,7 +104,7 @@ function StoreDailyDashboard({ store }: { store: StoreCode }) {
 
       {/* AI Store Intelligence & Decision Advisor */}
       {data && (
-        <AiStoreAdvisor kpis={data.kpis} storeCode={store} storeName={storeName} />
+        <AiStoreAdvisor storeCode={store} storeName={storeName} date={today} />
       )}
 
       {/* Target Adjustment Alert */}

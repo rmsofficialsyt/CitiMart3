@@ -10,6 +10,7 @@ Orchestrates 5 dedicated sub-agents:
 from __future__ import annotations
 
 import concurrent.futures
+import contextvars
 from datetime import date
 import logging
 import re
@@ -18,19 +19,22 @@ from pymongo.database import Database
 
 from config.env import env
 from config.settings import STORE_CODE_TO_NAME, TIME_SLOT_ORDER
+from src.chat.agents.advisor_agent import AdvisorAgent
 from src.chat.agents.db_ops_agent import DbOpsAgent
 from src.chat.agents.forecasting_agent import ForecastingAgent
 from src.chat.agents.market_intel_agent import MarketIntelAgent
 from src.chat.agents.retail_coach_agent import RetailCoachAgent
 from src.chat.agents.target_adjust_agent import TargetAdjustmentAgent
 from src.chat.client import generate_llm_response
-from src.chat.context_builder import KPI_GLOSSARY, allowed_numbers, build_fact_sheet
+from src.chat.context_builder import KPI_GLOSSARY, allowed_numbers, build_fact_sheet, prune_facts_for_intent
 from src.chat.hooks.anti_hallucination_hook import AntiHallucinationHook
 from src.chat.intent import ADVICE_INTENTS, IntentResult, detect_intent
 from src.chat.intent_router import route_intent
 from src.chat.links import build_links, follow_up_suggestions
 from src.chat.memory import SessionMemoryStore
 from src.chat.state import ChatResponse, SecurityContext
+from src.chat import usage as llm_usage
+from src.chat import usage_store
 from src.chat.tools.db_tools import store_label
 from src.chat.tools.history_tools import (
     get_database_date_range,
@@ -72,7 +76,7 @@ with numbers from the store's own MongoDB records.
 - Use a markdown table when listing 3 or more days, slots or stores (header row + separator row).
 - Advice only when asked, as concrete floor actions in bullets; the bullet limit in "Required answer
   shape" below wins. Label advice as guidance, not as a recorded figure.
-- Keep it under ~180 words unless a table needs more rows.
+- Length follows "Response depth" below.
 
 ## LANGUAGE
 - Reply in the user's requested language (en / bn / hi), but keep all digits, ₹ amounts and dates in
@@ -102,6 +106,64 @@ def _inr(v: Any) -> str:
         return f"₹{float(v or 0):,.2f}"
     except (TypeError, ValueError):
         return "₹0.00"
+
+
+_METRIC_LABELS: dict[str, tuple[str, str, str]] = {
+    "net_sales": ("Net Sales", "মোট নেট সেলস", "नेट सेल्स"),
+    "sales_target": ("Sales Target", "টার্গেট সেলস", "सेल्स टारगेट"),
+    "achievement_pct": ("Achievement %", "টার্গেট অর্জন %", "अचीवमेंट %"),
+    "target_gap": ("Target Gap", "টার্গেট ঘাটতি", "लक्ष्य अंतर"),
+    "footfall": ("Footfall", "মোট ফুটফল", "फुटफॉल"),
+    "nob": ("Bills (NOB)", "মোট বিল (NOB)", "कुल बिल (NOB)"),
+    "conversion_pct": ("Conversion %", "কনভার্সন রেট", "कन्वर्शन रेट"),
+    "atv": ("ATV", "ATV", "ATV"),
+    "rpv": ("RPV", "RPV", "RPV"),
+    "basket_size": ("Basket Size", "বাস্কেট সাইজ", "बास्केट साइज"),
+    "largest_bill": ("Highest Single Bill", "সর্বোচ্চ একক বিল", "सबसे बड़ा एकल बिल"),
+    "timeslots": ("4-Time-Slot Breakdown", "৪-স্লট বিস্তারিত", "4-टाइम स्लॉट विवरण"),
+}
+
+
+def _focused_day_kpis_card(
+    store_name: str,
+    edk: dict[str, Any],
+    requested_metrics: list[str],
+    slots_table: str,
+    peak: dict[str, Any],
+    language: str,
+) -> str:
+    k = edk.get("kpis", {})
+    lang_idx = 1 if language == "bn" else 2 if language == "hi" else 0
+    header = f"### 📊 **{store_name} ({edk.get('date')}, {edk.get('day_name')})**"
+    lines: list[str] = [header, ""]
+
+    for key in requested_metrics:
+        if key == "timeslots":
+            slot_title = _METRIC_LABELS["timeslots"][lang_idx]
+            lines.append(f"**🕒 {slot_title}:**\n\n{slots_table}")
+            if peak.get("slot"):
+                lines.append(_t(
+                    language,
+                    f"\n- **Peak Slot:** {peak.get('slot')} ({float(peak.get('share_pct') or 0):.1f}% of day sales)",
+                    f"\n- **পিক স্লট:** {peak.get('slot')} (মোট সেলসের {float(peak.get('share_pct') or 0):.1f}%)",
+                    f"\n- **पीक स्लॉट:** {peak.get('slot')} (कुल बिक्री का {float(peak.get('share_pct') or 0):.1f}%)",
+                ))
+            continue
+
+        label = _METRIC_LABELS.get(key, (key, key, key))[lang_idx]
+        if key in ("net_sales", "sales_target", "target_gap", "atv", "rpv"):
+            val_str = _inr(k.get(key, 0.0))
+        elif key == "largest_bill":
+            val_str = _inr(edk.get("largest_bill", 0.0))
+        elif key in ("achievement_pct", "conversion_pct"):
+            val_str = f"{float(k.get(key, 0.0) or 0.0):.1f}%"
+        elif key == "basket_size":
+            val_str = f"{float(k.get(key, 0.0) or 0.0):.2f}"
+        else:
+            val_str = str(int(k.get(key, 0) or 0))
+        lines.append(f"- **{label}:** **{val_str}**")
+
+    return "\n".join(lines)
 
 
 def _no_records_card(store_name: str, day_iso: str, db_calendar: dict[str, Any] | None, language: str) -> str:
@@ -239,6 +301,116 @@ def _directives_card(d: dict[str, Any], language: str) -> str:
     lines = [_t(language, "### 📋 **Active Directives**", "### 📋 **সক্রিয় নির্দেশনা**", "### 📋 **सक्रिय निर्देश**"), ""]
     for x in items:
         lines.append(f"- **[{(x.get('priority') or 'normal').upper()}] {x.get('title')}** — {x.get('message')}")
+    return "\n".join(lines)
+
+
+# Labels for src/advisor reason / watch-out ids (en, bn, hi).
+_ADVISOR_LABELS: dict[str, tuple[str, str, str]] = {
+    "traffic_down": ("Fewer shoppers came in", "কম ক্রেতা এসেছেন", "कम ग्राहक आए"),
+    "traffic_up": ("More shoppers came in", "বেশি ক্রেতা এসেছেন", "ज़्यादा ग्राहक आए"),
+    "conversion_down": ("Fewer visitors bought", "কম ভিজিটর কিনেছেন", "कम विज़िटर ने खरीदा"),
+    "conversion_up": ("More visitors bought", "বেশি ভিজিটর কিনেছেন", "ज़्यादा विज़िटर ने खरीदा"),
+    "atv_down": ("Smaller bills (ATV down)", "ছোট বিল (ATV কম)", "छोटे बिल (ATV कम)"),
+    "atv_up": ("Bigger bills (ATV up)", "বড় বিল (ATV বেশি)", "बड़े बिल (ATV ज़्यादा)"),
+    "conversion_leak": ("Footfall spike without bills in a slot", "একটি স্লটে ভিড় বাড়লেও বিল বাড়েনি", "एक स्लॉट में भीड़ बढ़ी पर बिल नहीं"),
+    "atv_drop": ("ATV dropped in a slot", "একটি স্লটে ATV কমেছে", "एक स्लॉट में ATV घटा"),
+    "short_staffed": ("Fewer staff than usual", "স্বাভাবিকের চেয়ে কম স্টাফ", "सामान्य से कम स्टाफ"),
+    "stock_out": ("Items out of stock", "পণ্য স্টকে নেই", "सामान स्टॉक में नहीं"),
+    "holiday": ("Holiday", "ছুটির দিন", "छुट्टी"),
+    "election": ("Election day", "নির্বাচনের দিন", "चुनाव का दिन"),
+    "rain": ("Rainy day", "বৃষ্টির দিন", "बारिश का दिन"),
+    "weekend": ("Weekend", "সপ্তাহান্ত", "सप्ताहांत"),
+    "no_target": ("No sales target set", "সেলস টার্গেট সেট হয়নি", "सेल्स टारगेट तय नहीं"),
+    "attendance_missing": ("Attendance not marked yet", "হাজিরা এখনও দেওয়া হয়নি", "हाज़िरी अभी नहीं लगी"),
+}
+
+
+def _adv_label(key: str, language: str) -> str:
+    en, bn, hi = _ADVISOR_LABELS.get(key, (key, key, key))
+    return _t(language, en, bn, hi)
+
+
+def _reason_line(r: dict[str, Any], language: str) -> str:
+    line = f"- **{_adv_label(r['id'], language)}**"
+    if r.get("impact") is not None:
+        line += f": {'+' if r['impact'] >= 0 else '−'}{_inr(abs(r['impact']))}"
+    if r.get("change_pct") is not None:
+        line += f" ({r['change_pct']:+.1f}%)"
+    if r.get("slot"):
+        line += f" — {r['slot']}"
+    if r.get("count") is not None:
+        line += f" ({r['count']})"
+    if r.get("label"):
+        line += f" — {r['label']}"
+    return line
+
+
+def _explain_card(store_name: str, ex: dict[str, Any], language: str) -> str:
+    if ex.get("error"):
+        return f"⚠️ **{ex.get('message') or ex.get('error')}**"
+    head = _t(language, f"### 🔍 **Why {store_name} landed where it did ({ex.get('date')})**",
+              f"### 🔍 **{store_name} — ফলাফলের কারণ ({ex.get('date')})**",
+              f"### 🔍 **{store_name} — नतीजे की वजह ({ex.get('date')})**")
+    ach = ex.get("achievement_pct")
+    lines = [head, "", f"- **Net Sales:** {_inr(ex.get('net_sales'))}"
+             + (f" | **Target:** {_inr(ex.get('sales_target'))} (**{ach:.1f}%**)" if ach is not None else "")]
+    if ex.get("vs_baseline_pct") is not None:
+        lines.append(_t(language,
+                        f"- vs usual {ex.get('baseline_days')} same weekdays: **{ex['vs_baseline_pct']:+.1f}%**",
+                        f"- গত {ex.get('baseline_days')}টি একই বারের তুলনায়: **{ex['vs_baseline_pct']:+.1f}%**",
+                        f"- पिछले {ex.get('baseline_days')} समान वारों की तुलना में: **{ex['vs_baseline_pct']:+.1f}%**"))
+    reasons = ex.get("reasons") or []
+    if reasons:
+        lines += ["", *(_reason_line(r, language) for r in reasons[:6])]
+    else:
+        lines += ["", _t(language, "Not enough same-weekday history yet to attribute this day.",
+                         "এই দিনের কারণ বিশ্লেষণের মতো যথেষ্ট ইতিহাস এখনও নেই।",
+                         "इस दिन की वजह बताने के लिए अभी पर्याप्त इतिहास नहीं है।")]
+    return "\n".join(lines)
+
+
+def _brief_card(b: dict[str, Any], language: str) -> str:
+    if b.get("error"):
+        return f"⚠️ **{b.get('message') or b.get('error')}**"
+    kind = b.get("kind")
+    head = {
+        "morning": _t(language, "### ☀️ **Morning Brief**", "### ☀️ **সকালের ব্রিফ**", "### ☀️ **सुबह की ब्रीफ**"),
+        "midday": _t(language, "### 🕐 **Midday Brief (today so far)**", "### 🕐 **দুপুরের ব্রিফ (আজ এখন পর্যন্ত)**",
+                     "### 🕐 **दोपहर की ब्रीफ (आज अब तक)**"),
+    }.get(kind, _t(language, "### 🌙 **Evening Debrief**", "### 🌙 **সন্ধ্যার ডিব্রিফ**", "### 🌙 **शाम की डीब्रीफ**"))
+    net = b.get("network") or {}
+    lines = [f"{head} — {b.get('review_date')}", ""]
+    if net.get("achievement_pct") is not None:
+        lines.append(f"**Network:** {_inr(net.get('net_sales'))} / {_inr(net.get('sales_target'))} (**{net['achievement_pct']:.1f}%**)"
+                     + (f" → projected **{net['projected_achievement_pct']:.1f}%**" if net.get("projected_achievement_pct") is not None else ""))
+        lines.append("")
+    pace_label = {
+        "behind": _t(language, "behind pace", "গতির পিছনে", "गति से पीछे"),
+        "ahead": _t(language, "ahead of pace", "গতির আগে", "गति से आगे"),
+        "on_pace": _t(language, "on pace", "গতি অনুযায়ী", "गति के अनुसार"),
+        "target_hit": _t(language, "target already hit", "টার্গেট পূরণ", "टारगेट पूरा"),
+        "no_pace_curve": _t(language, "no pace curve yet", "এখনও গতি-রেখা নেই", "अभी गति वक्र नहीं"),
+        "no_target": _t(language, "no target", "টার্গেট নেই", "टारगेट नहीं"),
+        "no_data": _t(language, "nothing logged", "কিছু লগ হয়নি", "कुछ दर्ज नहीं"),
+    }
+    for s in b.get("stores") or []:
+        ach = s.get("achievement_pct")
+        line = f"**{s.get('store_name')}:** {_inr(s.get('net_sales'))}" + (f" — **{ach:.1f}%**" if ach is not None else "")
+        pace = s.get("pace")
+        if pace:
+            line += f" ({pace_label.get(pace['status'], pace['status'])}"
+            if pace.get("expected_achievement_pct") is not None:
+                line += f"; expected {pace['expected_achievement_pct']:.1f}% by now"
+            if pace.get("projected_close") is not None:
+                line += f"; projected close {_inr(pace['projected_close'])}"
+            line += ")"
+        lines.append(line)
+        for d in (s.get("drivers") or [])[:3]:
+            key = f"{d['driver']}_{'down' if d['amount'] < 0 else 'up'}"
+            lines.append(f"  - {_adv_label(key, language)}: {'+' if d['amount'] >= 0 else '−'}{_inr(abs(d['amount']))}")
+        watch = [_adv_label(w["id"], language) for w in s.get("watch_outs") or []]
+        if watch:
+            lines.append("  - 👀 " + ", ".join(watch))
     return "\n".join(lines)
 
 
@@ -730,6 +902,16 @@ def _synthesize_domain_response(
             "| :--- | :---: | :---: | :---: | :---: | :---: |\n" + "\n".join(slot_lines)
         )
 
+        if intent.requested_metrics:
+            return _focused_day_kpis_card(
+                store_name=store_name,
+                edk=edk,
+                requested_metrics=intent.requested_metrics,
+                slots_table=slots_table,
+                peak=peak,
+                language=language,
+            )
+
         sales_val = k.get("net_sales", 0.0)
         target_val = k.get("sales_target", 0.0)
         ach_val = k.get("achievement_pct", 0.0)
@@ -873,6 +1055,11 @@ def _synthesize_domain_response(
             f"💡 **Executive Directive:** Maintain floor supervisor presence across fitting rooms in stores trailing the network average."
         )
 
+    advisor = subagent_data.get("advisor_agent", {})
+    if primary == "explain_day" and "explain" in advisor:
+        return _explain_card(store_name, advisor["explain"], language)
+    if primary == "brief" and "brief" in advisor:
+        return _brief_card(advisor["brief"], language)
     if primary in ("coaching", "surge"):
         return _coaching_card(store_name, primary, subagent_data, db_ops, language, intent.normalized)
     if primary in ("weather", "market"):
@@ -943,6 +1130,8 @@ _AGENTS_FOR_INTENT: dict[str, tuple[str, ...]] = {
     "weather": ("market_intel_agent",),
     "market": ("market_intel_agent",),
     "coaching": ("retail_coach_agent",),
+    "explain_day": ("advisor_agent",),
+    "brief": ("advisor_agent",),
 }
 
 GROUNDING_RULES = """
@@ -951,7 +1140,43 @@ GROUNDING_RULES = """
 - Operating date: {date}. State it in the headline. If FACTS show has_records = False, say nothing has
   been logged for that date yet and stop.
 - Required answer shape: {template}
+- Response depth: {depth_rule}
 """
+
+# Response depth tiers: (tier, prompt rule, max_output_tokens). The token cap is a
+# backstop, not the length control -- client.py treats a MAX_TOKENS cut-off as a
+# failure and falls back to the deterministic card, so each cap leaves headroom
+# above the length the rule asks for. Caps come from env (config/env.py).
+_SHORT_RULE = ("SHORT ANSWER (1-4 lines, <=70 words). Give only the direct answer/figures requested. "
+               "No extra tables, no filler, no unrequested KPIs.")
+_MEDIUM_RULE = ("STRUCTURED ANSWER (concise headline + 1 compact table or <=4 bullets, ~80-180 words). "
+                "Include only the facts for this intent.")
+_LONG_RULE = ("DETAILED ANSWER (complete multi-row table or per-store/per-driver breakdown + totals/takeaways). "
+              "Do not omit rows or drivers to save words.")
+_SHORT_INTENTS = frozenset({"greeting", "help", "formula", "weather", "peak_dip", "coaching", "surge"})
+_LONG_INTENTS = frozenset({"history_n_days", "year_summary", "mtd", "explain_day", "brief"})
+
+# Intents whose answer reasons over KPI definitions; the rest skip KPI_GLOSSARY.
+# target_adjust / target_simulate are included because their answer is labelled
+# with the glossary's A(t) = T(t) + C(t) definition.
+_GLOSSARY_INTENTS = frozenset({
+    "formula", "day_kpis", "explain_day", "brief", "coaching", "surge", "mtd",
+    "target_adjust", "target_simulate",
+})
+
+
+def _resolve_response_tier(intent: IntentResult) -> tuple[str, str, int]:
+    """(tier, depth rule for the prompt, max_output_tokens) for this question."""
+    primary = intent.primary
+    if primary in _LONG_INTENTS:
+        return "long", _LONG_RULE, env.llm_max_output_tokens
+    focused_day = (primary == "day_kpis" and bool(intent.requested_metrics)
+                   and "timeslots" not in intent.requested_metrics)
+    if primary in _SHORT_INTENTS or focused_day:
+        return "short", _SHORT_RULE, env.llm_max_output_tokens_short
+    # day_kpis full report / with slots, targets, yoy, wow, ranking, bills,
+    # requisitions, directives, market -- and any intent added later.
+    return "medium", _MEDIUM_RULE, env.llm_max_output_tokens_medium
 
 # Required shape per intent. Mirrors the deterministic `_synthesize_domain_response`
 # cards, so the LLM answer and the no-LLM fallback look the same to a manager.
@@ -974,6 +1199,8 @@ ANSWER_TEMPLATES: dict[str, str] = {
     "formula": "list each requested KPI as 'Name = formula' exactly as in KPI DEFINITIONS; no example numbers.",
     "coaching": "max 3 short bullets of concrete floor actions; quote store figures only if they are in FACTS.",
     "surge": "max 3 short bullets for the peak period; quote store figures only if they are in FACTS.",
+    "explain_day": "headline with the verdict (missed / beat / no target) and achievement %; then the reasons from FACTS in the order given, each with its ₹ impact or numbers; never add a reason FACTS do not contain.",
+    "brief": "headline (morning / midday brief or evening debrief + review date); then one block per store in FACTS order: result vs target (midday: sales so far, pace status, expected % by now and projected close from FACTS), top drivers with ₹ impact, watch-outs; network total last. Never call a midday store's day missed.",
 }
 _DEFAULT_TEMPLATE = "headline sentence; then the requested figures as a short table or bullets."
 
@@ -1013,7 +1240,34 @@ def run_copilot_turn(
     session_id: str | None = None,
     language: str = "en",
 ) -> ChatResponse:
-    """Execute one full multi-agent conversational turn orchestrated by Coordinator."""
+    """Execute one full multi-agent conversational turn orchestrated by Coordinator.
+
+    Every Gemini call made during the turn (intent-router fallback, sub-agents,
+    synthesis) is metered and attached as `usage` for the Co-Pilot usage window.
+    """
+    with llm_usage.metering() as meter:
+        response = _run_copilot_turn(
+            db, query, sec_ctx, target_date=target_date, requested_store=requested_store,
+            session_id=session_id, language=language,
+        )
+    response.usage = meter.as_dict()
+    response.limits = usage_store.turn_limits(response.response_tier)
+    usage_store.record_turn(
+        db, meter=meter, sec_ctx=sec_ctx, session_id=response.session_id,
+        store_code=response.store_code, tier=response.response_tier, ist_date=ist_today(),
+    )
+    return response
+
+
+def _run_copilot_turn(
+    db: Database,
+    query: str,
+    sec_ctx: SecurityContext,
+    target_date: date | None = None,
+    requested_store: str | None = None,
+    session_id: str | None = None,
+    language: str = "en",
+) -> ChatResponse:
     # 1. Multi-tenant isolation: a manager is always clamped to their own store.
     active_store = (requested_store or sec_ctx.store_code or "NM").strip().upper()
     if not sec_ctx.is_admin:
@@ -1104,13 +1358,19 @@ def run_copilot_turn(
             return agent_name, MarketIntelAgent().run(query, target_date=active_date, intent=intent), ["web_tools"]
         if agent_name == "retail_coach_agent":
             return agent_name, RetailCoachAgent().run(query, language), ["coach_tools"]
+        if agent_name == "advisor_agent":
+            return agent_name, AdvisorAgent().run(db, active_store, active_date, sec_ctx, query, intent=intent), ["advisor_tools"]
         return agent_name, {}, []
 
     subagent_data: dict[str, Any] = {}
     tools_executed: list[str] = []
     if subagents_to_run:
         with concurrent.futures.ThreadPoolExecutor(max_workers=min(4, len(subagents_to_run))) as executor:
-            future_map = {executor.submit(_run_subagent, a): a for a in subagents_to_run}
+            # copy_context(): carries the usage meter into the pool threads.
+            future_map = {
+                executor.submit(contextvars.copy_context().run, _run_subagent, a): a
+                for a in subagents_to_run
+            }
             for future in concurrent.futures.as_completed(future_map):
                 try:
                     a_name, res, tools = future.result()
@@ -1130,18 +1390,31 @@ def run_copilot_turn(
         f"- Active store: {active_store} ({store_label(active_store)})\n"
         f"- User role: {sec_ctx.role} (admin={sec_ctx.is_admin}); preferred language: {language}\n"
     )
+    template = ANSWER_TEMPLATES.get(intent.primary, _DEFAULT_TEMPLATE)
+    if intent.primary == "day_kpis" and intent.requested_metrics:
+        metric_names = ", ".join(_METRIC_LABELS.get(m, (m, m, m))[0] for m in intent.requested_metrics)
+        template = (
+            f"one-line headline with store, date, and ONLY the requested metric(s): {metric_names} from FACTS "
+            "(or a small table with only those rows if 2-3 metrics were asked). "
+            "Do NOT include unrequested KPIs, full summary tables, or time-slot breakdowns unless 4-Time-Slot Breakdown was requested."
+        )
+    tier, depth_rule, tier_max_tokens = _resolve_response_tier(intent)
+    turn_meta["response_tier"] = tier
     # Static blocks first (persona, glossary) so Gemini's implicit prompt cache can
-    # reuse them across turns; the per-turn facts go last.
+    # reuse them across turns; the per-turn facts go last. The FACTS block is
+    # pruned to this intent; verification below still uses the full subagent_data.
     system_instruction = (
         BASE_COORDINATOR_SYSTEM_INSTRUCTION
-        + "\n" + KPI_GLOSSARY
+        + ("\n" + KPI_GLOSSARY if intent.primary in _GLOSSARY_INTENTS else "")
         + "\n" + GROUNDING_RULES.format(
             intent=intent.primary,
             date=active_date.isoformat(),
-            template=ANSWER_TEMPLATES.get(intent.primary, _DEFAULT_TEMPLATE),
+            template=template,
+            depth_rule=depth_rule,
         )
         + "\n" + calendar_context
-        + "\n## FACTS (the only source of figures for this turn)\n" + build_fact_sheet(subagent_data)
+        + "\n## FACTS (the only source of figures for this turn)\n"
+        + build_fact_sheet(prune_facts_for_intent(subagent_data, intent))
     )
     is_advice = intent.primary in ADVICE_INTENTS
     llm_reply = generate_llm_response(
@@ -1150,6 +1423,7 @@ def run_copilot_turn(
         conversation_history=history,
         temperature=env.llm_temperature_advice if is_advice else env.llm_temperature_data,
         model_name=env.gemini_model,
+        max_output_tokens=tier_max_tokens,
     )
 
     # Numeric grounding check: every ₹ / % / count the model wrote must exist in
@@ -1224,4 +1498,5 @@ def run_copilot_turn(
         target_date=active_date.isoformat(),
         links=links,
         suggestions=suggestions,
+        response_tier=tier,
     )

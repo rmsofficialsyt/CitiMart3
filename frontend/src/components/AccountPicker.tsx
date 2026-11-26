@@ -34,7 +34,7 @@ export function AccountPicker({ dense = false }: AccountPickerProps) {
             whileHover={{ y: -3, scale: 1.015 }}
             whileTap={{ scale: 0.985 }}
             onClick={() => navigate(`/login?account=${encodeURIComponent(o.username)}`)}
-            className={`group relative flex items-center justify-between gap-3 rounded-xl border p-4 text-left transition-all duration-200 ${
+            className={`group relative flex h-full items-center justify-between gap-3 rounded-xl border p-4 text-left transition-all duration-200 ${
               isAdmin
                 ? "border-blue-500/20 bg-gradient-to-r from-blue-950/40 to-slate-900/40 hover:border-blue-400/60 hover:bg-blue-900/20 hover:shadow-lg hover:shadow-blue-500/10"
                 : "border-white/10 bg-white/5 hover:border-blue-400/50 hover:bg-white/[0.08] hover:shadow-lg hover:shadow-blue-500/10"

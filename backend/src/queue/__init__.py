@@ -10,5 +10,6 @@ Queue names are the constants below; producer and worker must agree on them.
 REPORTS_QUEUE = "reports"
 AUDIT_QUEUE = "audit-events"
 MIDNIGHT_QUEUE = "midnight-finalizer"
+WHATSAPP_ALERTS_QUEUE = "whatsapp-alerts"
 
-ALL_QUEUES = (REPORTS_QUEUE, AUDIT_QUEUE, MIDNIGHT_QUEUE)
+ALL_QUEUES = (REPORTS_QUEUE, AUDIT_QUEUE, MIDNIGHT_QUEUE, WHATSAPP_ALERTS_QUEUE)

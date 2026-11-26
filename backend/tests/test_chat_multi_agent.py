@@ -33,7 +33,13 @@ def test_model_and_temperature_config():
 
     assert env.gemini_model == "gemini-3.8-flash"
     assert env.llm_temperature == 0.2
-    assert env.llm_max_output_tokens == 1536
+    # Code defaults (a local .env may override the live values).
+    fields = type(env).model_fields
+    assert fields["llm_max_output_tokens"].default == 4096
+    assert fields["llm_max_output_tokens_short"].default == 512
+    assert fields["llm_max_output_tokens_medium"].default == 1536
+    assert fields["chat_max_input_chars"].default == 8000
+    assert fields["chat_history_messages_sent"].default == 10
     assert env.llm_request_timeout_seconds == 15
     assert env.chat_session_ttl_days == 30
     assert env.chat_max_history_turns == 10
@@ -220,3 +226,41 @@ def test_trilingual_support(client, nw_headers):
     )
     assert resp_hi.status_code == 200
     assert "टारगेट एडजस्टमेंट" in resp_hi.json()["reply"] or "लक्ष्य" in resp_hi.json()["reply"] or "बिक्री" in resp_hi.json()["reply"]
+
+
+def _new_chat(client, headers, store):
+    r = client.post("/api/daily/chat", json={"message": "today's sales", "store_code": store}, headers=headers)
+    assert r.status_code == 200
+    return r.json()["session_id"]
+
+
+def test_clear_all_sessions_is_own_and_store_scoped(client, nw_headers, admin_headers, db_session):
+    from src.chat.memory import MESSAGES_COLLECTION
+
+    mine = [_new_chat(client, nw_headers, "NM"), _new_chat(client, nw_headers, "NM")]
+    admin_nm = _new_chat(client, admin_headers, "NM")
+    admin_hb = _new_chat(client, admin_headers, "HB")
+
+    # A manager can't clear another store's list.
+    assert client.delete("/api/daily/chat/sessions?store_code=HB", headers=nw_headers).status_code == 403
+
+    r = client.delete("/api/daily/chat/sessions?store_code=NM", headers=nw_headers)
+    assert r.status_code == 200 and r.json()["deleted"] == 2
+    for sid in mine:
+        assert client.get(f"/api/daily/chat/sessions/{sid}", headers=nw_headers).status_code == 404
+        assert db_session[MESSAGES_COLLECTION].count_documents({"session_id": sid}) == 0
+    # The admin's sessions in the same store survive a manager's clear.
+    assert client.get(f"/api/daily/chat/sessions/{admin_nm}", headers=admin_headers).status_code == 200
+
+    # Admin "clear all" for NM removes only the admin's own NM chats, not HB.
+    r = client.delete("/api/daily/chat/sessions?store_code=NM", headers=admin_headers)
+    assert r.json()["deleted"] == 1
+    assert client.get(f"/api/daily/chat/sessions/{admin_hb}", headers=admin_headers).status_code == 200
+    assert db_session["audit_logs"].count_documents({"action": "chat_sessions_clear_all"}) == 2
+
+
+def test_admin_clear_all_never_deletes_a_managers_sessions(client, nw_headers, admin_headers):
+    mgr_sid = _new_chat(client, nw_headers, "NM")
+    r = client.delete("/api/daily/chat/sessions?store_code=ALL", headers=admin_headers)
+    assert r.status_code == 200 and r.json()["deleted"] == 0
+    assert client.get(f"/api/daily/chat/sessions/{mgr_sid}", headers=nw_headers).status_code == 200

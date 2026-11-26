@@ -11,8 +11,11 @@ import {
 import { useState } from "react";
 
 import citimartLogo from "@/assets/citimart-logo.png";
+import { useAuth } from "@/auth/AuthProvider";
 import { BossAvatarButton } from "@/components/BossAvatarButton";
 import { BusinessCalculatorModal } from "@/components/BusinessCalculatorModal";
+import { NotificationBell } from "@/components/NotificationBell";
+import { WhatsAppAlertsModal } from "@/components/WhatsAppAlertsModal";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/context/LanguageContext";
 import { useIsMobile } from "@/hooks/useMediaQuery";
@@ -48,6 +51,8 @@ export function TopBar({
   onToggleChat,
 }: TopBarProps) {
   const isMobile = useIsMobile();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [metaOpen, setMetaOpen] = useState(false);
   const [calculatorOpen, setCalculatorOpen] = useState(false);
   const { t } = useLanguage();
@@ -157,6 +162,12 @@ export function TopBar({
           >
             <Calculator className="h-4 w-4" />
           </Button>
+
+          {/* Role-scoped Operational & Log Agent Notifications */}
+          <NotificationBell />
+
+          {/* Admin-only WhatsApp AI Sales Alerts */}
+          {isAdmin && <WhatsAppAlertsModal />}
 
           {/* AI Retail Co-Pilot Circular Button */}
           {onToggleChat && (

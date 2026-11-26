@@ -57,7 +57,12 @@ def _search_uncached(query: str, max_results: int) -> list[dict[str, str]]:
 
     # 2. Use DuckDuckGo Search (zero API key required)
     try:
-        from duckduckgo_search import DDGS
+        try:
+            # `duckduckgo_search` was renamed to `ddgs` upstream; the old name
+            # warns on every call and no longer receives fixes.
+            from ddgs import DDGS
+        except ImportError:
+            from duckduckgo_search import DDGS
         results = []
         with DDGS(timeout=5) as ddgs:
             for r in ddgs.text(query, max_results=max_results):
