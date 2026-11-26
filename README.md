@@ -110,16 +110,16 @@ All KPIs are recomputed dynamically from atomic MongoDB logs on read—no manual
 
 | KPI | Formula / Definition | Operational Meaning |
 |:---|:---|:---|
-| **Net Sales** | $\sum \text{bill\_net\_amount}$ | Total realized revenue logged across bills for the day. |
-| **Bill Quantity** | $\sum \text{bill\_qty}$ | Total item units sold across all logged bills. |
-| **Footfall** | $\sum \text{footfall\_entries}$ | Total visitor walk-ins recorded on the floor. |
-| **NOB (Number of Buyers)** | $\sum \text{nob\_entries}$ | Total distinct buyers (tracked independently of footfall and bills). |
-| **ATV (Average Transaction Value)** | $\text{Net Sales} \div \text{NOB}$ | Average spend per buyer. |
-| **RPV (Revenue Per Visitor)** | $\text{Net Sales} \div \text{Footfall}$ | Revenue yield per store walk-in. |
-| **Basket Size** | $\text{Bill Quantity} \div \text{NOB}$ | Average units purchased per buyer. |
-| **Conversion %** | $(\text{NOB} \div \text{Footfall}) \times 100$ | Percentage of walk-ins who completed a purchase. |
-| **Achievement %** | $(\text{Net Sales} \div \text{Sales Target}) \times 100$ | Progress toward the admin-allocated daily target. |
-| **Remaining / Remaining %** | $\text{Target} - \text{Net Sales}$ / $100 - \text{Achievement \%}$ | Monetary and percentage shortfall remaining to hit target. |
+| **Net Sales** | `Σ bill_net_amount` | Total realized revenue logged across bills for the day. |
+| **Bill Quantity** | `Σ bill_qty` | Total item units sold across all logged bills. |
+| **Footfall** | `Σ footfall_entries` | Total visitor walk-ins recorded on the floor. |
+| **NOB (Number of Buyers)** | `Σ nob_entries` | Total distinct buyers (tracked independently of footfall and bills). |
+| **ATV (Average Transaction Value)** | `Net Sales ÷ NOB` | Average spend per buyer. |
+| **RPV (Revenue Per Visitor)** | `Net Sales ÷ Footfall` | Revenue yield per store walk-in. |
+| **Basket Size** | `Bill Quantity ÷ NOB` | Average units purchased per buyer. |
+| **Conversion %** | `(NOB ÷ Footfall) × 100` | Percentage of walk-ins who completed a purchase. |
+| **Achievement %** | `(Net Sales ÷ Sales Target) × 100` | Progress toward the admin-allocated daily target. |
+| **Remaining / Remaining %** | `Target − Net Sales` / `100 − Achievement %` | Monetary and percentage shortfall remaining to hit target. |
 
 - **Null/Zero Denominator Safety:** Ratios without a denominator yet (e.g., no target set or zero footfall) are treated as unknown in the engine and displayed as `0` on the live dashboard.
 - **Admin-Editable KPI Threshold Bands:** Status badges color-code health across all cards and six live gauges:
@@ -181,7 +181,7 @@ Trading activity is bucketed into 4 standardized intraday windows (`10:30 AM –
    - MongoDB queries inject `{"store_id": store_id}` at the database layer, including requisitions and directives.
 2. **Dual-Tier Token Authentication (AUTH-05):**
    - **Password Hashing:** Argon2id with concurrency capping (`PASSWORD_HASH_CONCURRENCY`) to protect process memory during login bursts.
-   - **Access Token:** Short-lived `HS256` JWT ($\le 15$ minutes) via `Authorization: Bearer <token>`.
+   - **Access Token:** Short-lived `HS256` JWT (≤ 15 minutes) via `Authorization: Bearer <token>`.
    - **Refresh Token:** Rotating, server-revocable token stored in an `HttpOnly`, `SameSite=Strict` cookie and tracked in the Redis session registry. Users can list and revoke active sessions; `POST /api/auth/logout` revokes immediately across all replicas.
 3. **Defense-in-Depth Rate Limiting & Audit Logging:**
    - **Nginx Edge Shield:** 200 req/s general ceiling, 100 req/s login ceiling.
