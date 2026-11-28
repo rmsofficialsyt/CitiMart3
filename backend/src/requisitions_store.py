@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+from pymongo import ReturnDocument
 from pymongo.database import Database
 
 from config.settings import STORE_CODE_TO_NAME
@@ -19,6 +20,27 @@ from db.models import REQUISITIONS, next_id
 from src.product_hierarchy import register_custom_category
 
 logger = logging.getLogger(__name__)
+
+# Allowed status moves (docs/specs/ops-modules-hardening/spec.md US-R1).
+# Mirrored for the UI in frontend/src/lib/requisitionStatus.ts -- change both.
+# Fulfilled and Rejected are terminal.
+STATUS_TRANSITIONS: Dict[str, tuple[str, ...]] = {
+    "Pending": ("In Review", "Approved", "Rejected"),
+    "In Review": ("Approved", "Rejected", "Pending"),
+    "Approved": ("In Transit", "Fulfilled", "Rejected"),
+    "In Transit": ("Fulfilled",),
+    "Fulfilled": (),
+    "Rejected": (),
+}
+
+
+class RequisitionNotFound(LookupError):
+    pass
+
+
+class RequisitionConflict(ValueError):
+    """The requested change isn't valid from the slip's *current* state --
+    a disallowed transition, or another writer moved it first. -> HTTP 409."""
 
 STORE_FULL_NAMES = {
     "NM": "LOURDES TEXTILES PVT. LTD. UNIT - CITIMART NEW MARKET",
@@ -49,8 +71,14 @@ def create_requisition(
     created_by_role: str,
     priority: str = "Normal",
     remarks_general: str = "",
+    register_categories: bool = False,
 ) -> Dict[str, Any]:
-    """Create a new product requisition slip with one or more items."""
+    """Create a new product requisition slip with one or more items.
+
+    `register_categories` adds a slip's free-text Division/Section/Department
+    to the shared product hierarchy. Only the admin's slips do (spec US-R3):
+    a manager's one-off spelling stays on the item and doesn't become a
+    dropdown option for every store."""
     req_id = next_id(db, REQUISITIONS)
     now_iso = datetime.now().isoformat()
     store_code = store_code.upper()
@@ -79,8 +107,7 @@ def create_requisition(
         time_req = str(raw_item.get("time_required") or "").strip() or "1 day"
         item_remarks = str(raw_item.get("remarks") or "").strip()
 
-        # Register custom categories to persistent custom category collection
-        if div:
+        if div and register_categories:
             register_custom_category(db, div, sec, dep)
 
         formatted_items.append({
@@ -110,7 +137,7 @@ def create_requisition(
         "created_by_role": created_by_role,
         "target_recipient": "Operational Head / Admin",
         "priority": priority,
-        "status": "Pending",  # Pending | In Review | Approved | Fulfilled | Rejected
+        "status": "Pending",  # Pending | In Review | Approved | In Transit | Fulfilled | Rejected (STATUS_TRANSITIONS)
         "remarks_general": remarks_general,
         "items": formatted_items,
         "item_count": len(formatted_items),
@@ -179,8 +206,22 @@ def update_requisition_status(
     status: str,
     admin_remarks: str = "",
     actioned_by: str = "",
-) -> Optional[Dict[str, Any]]:
-    """Update requisition status and admin comments."""
+) -> Dict[str, Any]:
+    """Move a slip to `status`, if STATUS_TRANSITIONS allows it from where it is.
+
+    The write is conditional on the status we validated against
+    (`{"_id", "status": current}`), so two admins acting at once can't both
+    win: the second gets RequisitionConflict instead of blindly overwriting.
+    Raises RequisitionNotFound / RequisitionConflict.
+    """
+    existing = db[REQUISITIONS].find_one({"_id": req_id}, {"status": 1})
+    if not existing:
+        raise RequisitionNotFound(f"Requisition {req_id} not found.")
+    current = existing.get("status", "Pending")
+    if status not in STATUS_TRANSITIONS.get(current, ()):
+        allowed = ", ".join(STATUS_TRANSITIONS.get(current, ())) or "none (final state)"
+        raise RequisitionConflict(f"Cannot move a {current} slip to {status}. Allowed: {allowed}.")
+
     now_iso = datetime.now().isoformat()
     update_data: Dict[str, Any] = {
         "status": status,
@@ -192,18 +233,23 @@ def update_requisition_status(
     if actioned_by:
         update_data["actioned_by"] = actioned_by
 
-    res = db[REQUISITIONS].find_one_and_update(
-        {"_id": req_id},
+    updated = db[REQUISITIONS].find_one_and_update(
+        {"_id": req_id, "status": current},
         {"$set": update_data},
-        return_document=openpyxl.load_workbook if False else True,  # placeholder
+        return_document=ReturnDocument.AFTER,
     )
-    # Re-fetch updated doc
-    return db[REQUISITIONS].find_one({"_id": req_id})
+    if updated is None:
+        raise RequisitionConflict("This slip was updated by someone else just now. Refresh and try again.")
+    return updated
 
 
-def delete_requisition(db: Database, req_id: int) -> bool:
-    """Delete a requisition slip."""
-    res = db[REQUISITIONS].delete_one({"_id": req_id})
+def delete_requisition(db: Database, req_id: int, *, only_if_status: Optional[str] = None) -> bool:
+    """Delete a slip. With `only_if_status`, the status check and the delete are
+    one atomic filter, so a slip approved a moment ago is never deleted."""
+    query: Dict[str, Any] = {"_id": req_id}
+    if only_if_status is not None:
+        query["status"] = only_if_status
+    res = db[REQUISITIONS].delete_one(query)
     return res.deleted_count > 0
 
 

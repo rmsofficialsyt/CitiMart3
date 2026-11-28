@@ -224,10 +224,9 @@ _VAGUE_SALES_RE = re.compile(
 )
 
 
-def ist_today() -> date:
-    """Business 'today' in Kolkata. The server may run in UTC (Render), where
-    date.today() is still yesterday between 00:00 and 05:30 IST."""
-    return datetime.now(_IST).date()
+# Moved to src/time_utils.py so non-chat modules (staff/stocks) share one
+# definition; re-exported here for the existing chat imports.
+from src.time_utils import ist_today  # noqa: E402,F401
 
 
 def _explicit_dates(query: str, today: date) -> list[date]:

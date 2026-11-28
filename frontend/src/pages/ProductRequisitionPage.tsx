@@ -20,11 +20,14 @@ import {
   Tag,
   Trash2,
 } from "lucide-react";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useId, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { api } from "@/api/client";
+import { downloadRequisitionsXlsx } from "@/api/reportClient";
 import { useAuth } from "@/auth/AuthProvider";
+import { ChoiceChips } from "@/components/ChoiceChips";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { PageUserGuide } from "@/components/PageUserGuide";
 import { SearchableCategoryDropdown } from "@/components/SearchableCategoryDropdown";
 import { SearchableRequisitionLineDropdown } from "@/components/SearchableRequisitionLineDropdown";
@@ -40,8 +43,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { todayLocalDate } from "@/lib/format";
 import { CITIMART_PREDEFINED_713_LINES } from "@/lib/requisitionCatalog";
+import { isTerminalStatus, nextStatuses } from "@/lib/requisitionStatus";
 import type {
   CreateRequisitionPayload,
   RequisitionItem,
@@ -137,8 +142,13 @@ export function ProductRequisitionPage({ initialStoreCode }: { initialStoreCode?
   const [filterStore, setFilterStore] = useState<string>(isAdmin ? "ALL" : defaultStore);
   const [filterStatus, setFilterStatus] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const debouncedSearch = useDebouncedValue(searchQuery.trim());
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+  const [exporting, setExporting] = useState(false);
+  const [deletingSlip, setDeletingSlip] = useState<RequisitionSlip | null>(null);
+  const today = todayLocalDate();
+  const fid = useId();
 
   // Sync manager store
   useEffect(() => {
@@ -162,12 +172,12 @@ export function ProductRequisitionPage({ initialStoreCode }: { initialStoreCode?
   });
 
   const { data: reqListData, isLoading: reqListLoading, refetch: refetchList } = useQuery({
-    queryKey: ["requisitions-list", filterStore, filterStatus, searchQuery, startDate, endDate],
+    queryKey: ["requisitions-list", filterStore, filterStatus, debouncedSearch, startDate, endDate],
     queryFn: () =>
       api.requisitionsList({
         store_code: filterStore,
         status: filterStatus !== "ALL" ? filterStatus : undefined,
-        search: searchQuery || undefined,
+        search: debouncedSearch || undefined,
         start_date: startDate || undefined,
         end_date: endDate || undefined,
       }),
@@ -203,6 +213,8 @@ export function ProductRequisitionPage({ initialStoreCode }: { initialStoreCode?
     },
     onError: (err: Error) => {
       toast.error(err.message || "Failed to update status");
+      // Most likely someone else moved the slip on first: show its real status.
+      queryClient.invalidateQueries({ queryKey: ["requisitions-list"] });
     },
   });
 
@@ -212,6 +224,7 @@ export function ProductRequisitionPage({ initialStoreCode }: { initialStoreCode?
       toast.success("Requisition slip deleted");
       queryClient.invalidateQueries({ queryKey: ["requisitions-list"] });
       setViewingSlip(null);
+      setDeletingSlip(null);
     },
     onError: (err: Error) => {
       toast.error(err.message || "Failed to delete requisition");
@@ -386,6 +399,21 @@ export function ProductRequisitionPage({ initialStoreCode }: { initialStoreCode?
   const handlePrintSlip = () => {
     window.print();
   };
+
+  // Offer only legal next states (lib/requisitionStatus.ts); preselect the first.
+  const openStatusModal = (slip: RequisitionSlip) => {
+    const options = nextStatuses(slip.status);
+    if (!options.length) return;
+    setStatusModalSlip(slip);
+    setNewStatus(options[0]);
+    setAdminResponseText(slip.admin_remarks || "");
+  };
+
+  // Managers may withdraw their own slip only while it is still Pending --
+  // deleting an Approved/Fulfilled slip erased the record of what was
+  // actioned (spec US-R2). Admin keeps full delete.
+  const canDelete = (slip: RequisitionSlip) =>
+    isAdmin || (slip.created_by_user === user?.username && slip.status === "Pending");
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
@@ -598,13 +626,16 @@ export function ProductRequisitionPage({ initialStoreCode }: { initialStoreCode?
 
                   {/* Date */}
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                      <Clock className="h-3.5 w-3.5 text-blue-500" />
+                    <Label htmlFor={`${fid}-date`} className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <Clock className="h-3.5 w-3.5 text-blue-500" aria-hidden="true" />
                       Requisition Date
                     </Label>
+                    {/* Capped at today (IST): a slip can't be raised for a future day. */}
                     <Input
+                      id={`${fid}-date`}
                       type="date"
                       value={slipDate}
+                      max={today}
                       onChange={(e) => setSlipDate(e.target.value)}
                       className="h-10 text-sm font-medium"
                       required
@@ -614,35 +645,25 @@ export function ProductRequisitionPage({ initialStoreCode }: { initialStoreCode?
 
                 {/* Priority & General Remarks */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-foreground">Priority Level</Label>
-                    <div className="flex gap-2">
-                      {(["Normal", "High", "Urgent"] as const).map((p) => (
-                        <Button
-                          key={p}
-                          type="button"
-                          size="sm"
-                          variant={slipPriority === p ? "default" : "outline"}
-                          onClick={() => setSlipPriority(p)}
-                          className={`flex-1 text-xs font-bold ${
-                            slipPriority === p
-                              ? p === "Urgent"
-                                ? "bg-rose-600 hover:bg-rose-700 text-white"
-                                : p === "High"
-                                ? "bg-amber-600 hover:bg-amber-700 text-white"
-                                : "bg-blue-600 hover:bg-blue-700 text-white"
-                              : ""
-                          }`}
-                        >
-                          {p}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
+                  <ChoiceChips
+                    legend="Priority Level"
+                    name="priority"
+                    value={slipPriority}
+                    options={[
+                      { value: "Normal", label: "Normal", activeClass: "border-blue-600 bg-blue-600 text-white shadow-sm" },
+                      { value: "High", label: "High", activeClass: "border-amber-600 bg-amber-600 text-white shadow-sm" },
+                      { value: "Urgent", label: "Urgent", activeClass: "border-rose-600 bg-rose-600 text-white shadow-sm" },
+                    ]}
+                    onChange={setSlipPriority}
+                  />
 
                   <div className="space-y-1.5 sm:col-span-2">
-                    <Label className="text-xs font-semibold text-foreground">General Slip Notes / Requisition Reason</Label>
+                    <Label htmlFor={`${fid}-remarks`} className="text-xs font-semibold text-foreground">
+                      General Slip Notes / Requisition Reason
+                    </Label>
                     <Input
+                      id={`${fid}-remarks`}
+                      maxLength={300}
                       placeholder="e.g. Urgent stock replenishment for weekend footfall surge"
                       value={generalRemarks}
                       onChange={(e) => setGeneralRemarks(e.target.value)}
@@ -836,11 +857,15 @@ export function ProductRequisitionPage({ initialStoreCode }: { initialStoreCode?
                         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3.5 pt-2">
                           {/* 3. BARCODE DETAILS DESCRIPTIONS */}
                           <div className="space-y-1.5 sm:col-span-2">
-                            <Label className="text-xs font-semibold text-foreground flex items-center gap-1">
-                              <Tag className="h-3 w-3 text-blue-500" />
+                            <Label htmlFor={`${fid}-${item.id}-barcode`} className="text-xs font-semibold text-foreground flex items-center gap-1">
+                              <Tag className="h-3 w-3 text-blue-500" aria-hidden="true" />
                               3. BARCODE DETAILS DESCRIPTIONS
                             </Label>
                             <Input
+                              id={`${fid}-${item.id}-barcode`}
+                              maxLength={200}
+                              autoComplete="off"
+                              spellCheck={false}
                               placeholder="e.g. 8901234567890 - Baby Rattle Blue 6M+"
                               value={item.barcode_details}
                               onChange={(e) => updateItem(idx, { barcode_details: e.target.value })}
@@ -850,8 +875,13 @@ export function ProductRequisitionPage({ initialStoreCode }: { initialStoreCode?
 
                           {/* 4. BRAND */}
                           <div className="space-y-1.5">
-                            <Label className="text-xs font-semibold text-foreground">4. BRAND</Label>
+                            <Label htmlFor={`${fid}-${item.id}-brand`} className="text-xs font-semibold text-foreground">
+                              4. BRAND
+                            </Label>
                             <Input
+                              id={`${fid}-${item.id}-brand`}
+                              maxLength={80}
+                              autoComplete="off"
                               placeholder="e.g. MeeMee / Citimart Basics"
                               value={item.brand}
                               onChange={(e) => updateItem(idx, { brand: e.target.value })}
@@ -861,8 +891,16 @@ export function ProductRequisitionPage({ initialStoreCode }: { initialStoreCode?
 
                           {/* 5. MRP */}
                           <div className="space-y-1.5">
-                            <Label className="text-xs font-semibold text-foreground">5. MRP (₹)</Label>
+                            <Label htmlFor={`${fid}-${item.id}-mrp`} className="text-xs font-semibold text-foreground">
+                              5. MRP (₹)
+                            </Label>
+                            {/* Free text used to accept "abc"; now an amount, checked on submit. */}
                             <Input
+                              id={`${fid}-${item.id}-mrp`}
+                              inputMode="decimal"
+                              pattern="\d{1,7}(\.\d{1,2})?"
+                              title="An amount like 499 or 499.50"
+                              autoComplete="off"
                               placeholder="e.g. 499.00"
                               value={item.mrp}
                               onChange={(e) => updateItem(idx, { mrp: e.target.value })}
@@ -875,28 +913,18 @@ export function ProductRequisitionPage({ initialStoreCode }: { initialStoreCode?
                         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3.5 pt-1">
                           {/* 6. Time Required */}
                           <div className="space-y-1.5 sm:col-span-2">
-                            <Label className="text-xs font-semibold text-foreground flex items-center gap-1">
-                              <Clock className="h-3 w-3 text-indigo-500" />
-                              6. Time Required
-                            </Label>
-                            <div className="flex gap-1.5 flex-wrap">
-                              {TIME_OPTIONS.map((opt) => (
-                                <button
-                                  key={opt}
-                                  type="button"
-                                  onClick={() => updateItem(idx, { time_required: opt })}
-                                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold border transition ${
-                                    item.time_required === opt
-                                      ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
-                                      : "bg-background text-muted-foreground border-border hover:border-indigo-400"
-                                  }`}
-                                >
-                                  {opt}
-                                </button>
-                              ))}
-                            </div>
+                            <ChoiceChips
+                              legend="6. Time Required"
+                              name={`time-${item.id}`}
+                              value={item.time_required}
+                              options={TIME_OPTIONS.map((opt) => ({ value: opt, label: opt }))}
+                              onChange={(opt) => updateItem(idx, { time_required: opt })}
+                            />
                             {item.time_required === "Other" && (
                               <Input
+                                aria-label={`Custom time required for item ${idx + 1}`}
+                                required
+                                maxLength={40}
                                 placeholder="Specify custom time required (e.g. 4 days)"
                                 value={item.customTimeRequired}
                                 onChange={(e) => updateItem(idx, { customTimeRequired: e.target.value })}
@@ -907,8 +935,12 @@ export function ProductRequisitionPage({ initialStoreCode }: { initialStoreCode?
 
                           {/* 7. Remarks */}
                           <div className="space-y-1.5 sm:col-span-2">
-                            <Label className="text-xs font-semibold text-foreground">7. Remarks</Label>
+                            <Label htmlFor={`${fid}-${item.id}-remarks`} className="text-xs font-semibold text-foreground">
+                              7. Remarks
+                            </Label>
                             <Input
+                              id={`${fid}-${item.id}-remarks`}
+                              maxLength={300}
                               placeholder="e.g. Low shelf stock, customer demanded"
                               value={item.remarks}
                               onChange={(e) => updateItem(idx, { remarks: e.target.value })}
@@ -985,28 +1017,39 @@ export function ProductRequisitionPage({ initialStoreCode }: { initialStoreCode?
                   <RefreshCw className="h-3 w-3 mr-1" />
                   Refresh
                 </Button>
-                <a
-                  href={api.getRequisitionExportUrl({
-                    store_code: filterStore,
-                    status: filterStatus !== "ALL" ? filterStatus : undefined,
-                    search: searchQuery || undefined,
-                    start_date: startDate || undefined,
-                    end_date: endDate || undefined,
-                  })}
-                  download
-                  className="inline-flex items-center justify-center rounded-md text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white h-8 px-3 transition shadow-sm"
+                <Button
+                  size="sm"
+                  disabled={exporting}
+                  onClick={async () => {
+                    setExporting(true);
+                    try {
+                      await downloadRequisitionsXlsx({
+                        store_code: filterStore,
+                        status: filterStatus !== "ALL" ? filterStatus : undefined,
+                        search: debouncedSearch || undefined,
+                        start_date: startDate || undefined,
+                        end_date: endDate || undefined,
+                      });
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : "Export failed");
+                    } finally {
+                      setExporting(false);
+                    }
+                  }}
+                  className="h-8 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
                 >
-                  <Download className="h-3.5 w-3.5 mr-1.5" />
-                  Export Excel (.xlsx)
-                </a>
+                  <Download className="h-3.5 w-3.5 mr-1.5" aria-hidden="true" />
+                  {exporting ? "Exporting…" : "Export Excel (.xlsx)"}
+                </Button>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2.5 pt-1">
+            <div role="search" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2.5 pt-1">
               {/* Store Filter */}
               <div className="space-y-1">
-                <Label className="text-[11px] font-semibold text-muted-foreground">Store</Label>
+                <Label htmlFor={`${fid}-f-store`} className="text-[11px] font-semibold text-muted-foreground">Store</Label>
                 <select
+                  id={`${fid}-f-store`}
                   value={filterStore}
                   disabled={!isAdmin && !!userStoreCode}
                   onChange={(e) => setFilterStore(e.target.value)}
@@ -1021,8 +1064,9 @@ export function ProductRequisitionPage({ initialStoreCode }: { initialStoreCode?
 
               {/* Status Filter */}
               <div className="space-y-1">
-                <Label className="text-[11px] font-semibold text-muted-foreground">Status</Label>
+                <Label htmlFor={`${fid}-f-status`} className="text-[11px] font-semibold text-muted-foreground">Status</Label>
                 <select
+                  id={`${fid}-f-status`}
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
                   className="w-full h-8 px-2 rounded border border-input bg-background text-xs font-medium focus:outline-none"
@@ -1039,10 +1083,13 @@ export function ProductRequisitionPage({ initialStoreCode }: { initialStoreCode?
 
               {/* Start Date */}
               <div className="space-y-1">
-                <Label className="text-[11px] font-semibold text-muted-foreground">From Date</Label>
+                <Label htmlFor={`${fid}-f-from`} className="text-[11px] font-semibold text-muted-foreground">From Date</Label>
+                {/* From ≤ To is enforced by min/max, so an inverted range can't silently return nothing. */}
                 <Input
+                  id={`${fid}-f-from`}
                   type="date"
                   value={startDate}
+                  max={endDate || today}
                   onChange={(e) => setStartDate(e.target.value)}
                   className="h-8 text-xs"
                 />
@@ -1050,10 +1097,13 @@ export function ProductRequisitionPage({ initialStoreCode }: { initialStoreCode?
 
               {/* End Date */}
               <div className="space-y-1">
-                <Label className="text-[11px] font-semibold text-muted-foreground">To Date</Label>
+                <Label htmlFor={`${fid}-f-to`} className="text-[11px] font-semibold text-muted-foreground">To Date</Label>
                 <Input
+                  id={`${fid}-f-to`}
                   type="date"
                   value={endDate}
+                  min={startDate || undefined}
+                  max={today}
                   onChange={(e) => setEndDate(e.target.value)}
                   className="h-8 text-xs"
                 />
@@ -1061,10 +1111,14 @@ export function ProductRequisitionPage({ initialStoreCode }: { initialStoreCode?
 
               {/* Search */}
               <div className="space-y-1">
-                <Label className="text-[11px] font-semibold text-muted-foreground">Search</Label>
+                <Label htmlFor={`${fid}-f-search`} className="text-[11px] font-semibold text-muted-foreground">Search</Label>
                 <div className="relative">
-                  <Search className="h-3.5 w-3.5 absolute left-2 top-2.5 text-muted-foreground" />
+                  <Search className="h-3.5 w-3.5 absolute left-2 top-2.5 text-muted-foreground" aria-hidden="true" />
                   <Input
+                    id={`${fid}-f-search`}
+                    type="search"
+                    autoComplete="off"
+                    spellCheck={false}
                     placeholder="Barcode, brand, item..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -1183,45 +1237,41 @@ export function ProductRequisitionPage({ initialStoreCode }: { initialStoreCode?
                           {/* Actions */}
                           <td className="py-3 px-3 text-center">
                             <div className="flex items-center justify-center gap-1">
+                              {/* Icon-only buttons need an accessible name; `title` alone isn't one. */}
                               <Button
                                 size="sm"
                                 variant="ghost"
                                 onClick={() => setViewingSlip(req)}
                                 title="View Full Slip"
+                                aria-label={`View slip ${req.req_code}`}
                                 className="h-7 w-7 p-0 text-blue-500 hover:text-blue-600 hover:bg-blue-500/10"
                               >
-                                <Eye className="h-3.5 w-3.5" />
+                                <Eye className="h-3.5 w-3.5" aria-hidden="true" />
                               </Button>
 
-                              {isAdmin && (
+                              {isAdmin && !isTerminalStatus(req.status) && (
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  onClick={() => {
-                                    setStatusModalSlip(req);
-                                    setNewStatus(req.status);
-                                    setAdminResponseText(req.admin_remarks || "");
-                                  }}
+                                  onClick={() => openStatusModal(req)}
                                   title="Update Status / Response"
+                                  aria-label={`Update status of slip ${req.req_code}`}
                                   className="h-7 w-7 p-0 text-indigo-500 hover:text-indigo-600 hover:bg-indigo-500/10"
                                 >
-                                  <Sparkles className="h-3.5 w-3.5" />
+                                  <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
                                 </Button>
                               )}
 
-                              {(isAdmin || req.created_by_user === user?.username) && (
+                              {canDelete(req) && (
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  onClick={() => {
-                                    if (confirm(`Are you sure you want to delete slip ${req.req_code}?`)) {
-                                      deleteMutation.mutate(req._id);
-                                    }
-                                  }}
+                                  onClick={() => setDeletingSlip(req)}
                                   title="Delete Slip"
+                                  aria-label={`Delete slip ${req.req_code}`}
                                   className="h-7 w-7 p-0 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10"
                                 >
-                                  <Trash2 className="h-3.5 w-3.5" />
+                                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                                 </Button>
                               )}
                             </div>
@@ -1244,9 +1294,10 @@ export function ProductRequisitionPage({ initialStoreCode }: { initialStoreCode?
             <div className="p-6 sm:p-8 space-y-6 bg-white text-slate-900" id="printable-requisition-slip">
               {/* Slip Header */}
               <div className="border-b-2 border-slate-900 pb-4 text-center space-y-1">
-                <h2 className="text-xl font-black uppercase tracking-wider text-slate-900">
+                {/* The dialog's accessible name (Radix requires a DialogTitle). */}
+                <DialogTitle className="text-xl font-black uppercase tracking-wider text-slate-900 leading-tight">
                   LOURDES TEXTILES PVT. LTD.
-                </h2>
+                </DialogTitle>
                 <h3 className="text-base font-bold uppercase text-slate-700">
                   UNIT - CITIMART {viewingSlip.store_name?.toUpperCase() || viewingSlip.store_code}
                 </h3>
@@ -1367,14 +1418,10 @@ export function ProductRequisitionPage({ initialStoreCode }: { initialStoreCode?
                     <Printer className="h-4 w-4 mr-1.5" />
                     Print Slip
                   </Button>
-                  {isAdmin && (
+                  {isAdmin && !isTerminalStatus(viewingSlip.status) && (
                     <Button
                       size="sm"
-                      onClick={() => {
-                        setStatusModalSlip(viewingSlip);
-                        setNewStatus(viewingSlip.status);
-                        setAdminResponseText(viewingSlip.admin_remarks || "");
-                      }}
+                      onClick={() => openStatusModal(viewingSlip)}
                       className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
                     >
                       Update Status
@@ -1402,25 +1449,29 @@ export function ProductRequisitionPage({ initialStoreCode }: { initialStoreCode?
           </DialogHeader>
 
           <div className="space-y-4 py-2 text-xs">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-foreground">Select Status</Label>
-              <select
+            {statusModalSlip && (
+              <p className="text-xs text-muted-foreground">
+                Current status:{" "}
+                <span className="font-bold text-foreground">{STATUS_CONFIGS[statusModalSlip.status]?.label}</span>
+              </p>
+            )}
+            {statusModalSlip && (
+              <ChoiceChips
+                legend="Move to"
+                name="next-status"
                 value={newStatus}
-                onChange={(e) => setNewStatus(e.target.value as RequisitionStatus)}
-                className="w-full h-9 px-3 rounded-md border border-input bg-background text-xs font-bold focus:outline-none"
-              >
-                <option value="Pending">Pending Review</option>
-                <option value="In Review">In Review</option>
-                <option value="Approved">Approved</option>
-                <option value="In Transit">In Transit / Dispatched</option>
-                <option value="Fulfilled">Fulfilled / Received</option>
-                <option value="Rejected">Rejected</option>
-              </select>
-            </div>
+                options={nextStatuses(statusModalSlip.status).map((s) => ({ value: s, label: STATUS_CONFIGS[s].label }))}
+                onChange={setNewStatus}
+              />
+            )}
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-foreground">Admin / Operational Head Remarks</Label>
+              <Label htmlFor={`${fid}-admin-remarks`} className="text-xs font-semibold text-foreground">
+                Admin / Operational Head Remarks
+              </Label>
               <Textarea
+                id={`${fid}-admin-remarks`}
+                maxLength={500}
                 rows={3}
                 placeholder="e.g. Approved. Transfer order dispatched from Central Warehouse."
                 value={adminResponseText}
@@ -1454,6 +1505,23 @@ export function ProductRequisitionPage({ initialStoreCode }: { initialStoreCode?
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deletingSlip !== null}
+        title="Delete this requisition slip?"
+        description={
+          deletingSlip
+            ? `${deletingSlip.req_code} (${deletingSlip.item_count} item${deletingSlip.item_count === 1 ? "" : "s"}, ${
+                deletingSlip.status
+              }) will be removed permanently.`
+            : ""
+        }
+        confirmLabel="Delete slip"
+        tone="danger"
+        pending={deleteMutation.isPending}
+        onCancel={() => setDeletingSlip(null)}
+        onConfirm={() => deletingSlip && deleteMutation.mutate(deletingSlip._id)}
+      />
     </div>
   );
 }

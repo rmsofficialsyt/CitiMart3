@@ -14,8 +14,30 @@ from pymongo.database import Database
 
 from config.settings import STORE_CODE_TO_NAME
 from db.models import STAFF_ATTENDANCE, STAFF_MEMBERS, next_id
+from src.time_utils import ist_today
 
 logger = logging.getLogger(__name__)
+
+# Only the admin may create someone in this role or move anyone into / out of it.
+PRIVILEGED_ROLES = frozenset({"Store Manager"})
+
+
+class UnknownStaffError(ValueError):
+    """Attendance named staff_ids that aren't (non-inactive) staff of the store."""
+
+    def __init__(self, staff_ids: List[str]):
+        self.staff_ids = staff_ids
+        super().__init__(f"Not on this store's active roster: {', '.join(staff_ids)}")
+
+
+def mask_contact(doc: Dict[str, Any]) -> Dict[str, Any]:
+    """List-view copy for a store manager: phone as ••••••1234, no email
+    (spec US-T4). The admin, and a single-profile GET, get full values."""
+    out = dict(doc)
+    phone = str(out.get("phone") or "")
+    out["phone"] = f"••••••{phone[-4:]}" if len(phone) >= 4 else ("••••" if phone else "")
+    out.pop("email", None)
+    return out
 
 
 def _clean_doc(doc: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -105,7 +127,7 @@ def create_staff_member(
         "phone": str(data.get("phone", "")).strip(),
         "email": str(data.get("email", "")).strip() or None,
         "status": str(data.get("status", "ACTIVE")).strip().upper(),
-        "joining_date": str(data.get("joining_date") or datetime.now(timezone.utc).strftime("%Y-%m-%d")).strip(),
+        "joining_date": str(data.get("joining_date") or ist_today().isoformat()).strip(),
         "shift_preference": str(data.get("shift_preference", "General")).strip(),
         "notes": str(data.get("notes", "")).strip(),
         "created_by": created_by,
@@ -236,11 +258,30 @@ def save_batch_attendance(
     records: List[Dict[str, Any]],
     marked_by: str,
 ) -> List[Dict[str, Any]]:
-    """Save or update attendance in batch for a date and store."""
+    """Save or update attendance in batch for a date and store.
+
+    All-or-nothing on membership: every staff_id must belong to `store_code`
+    and not be INACTIVE, or UnknownStaffError is raised before anything is
+    written. Without this an HB manager could write rows into HB's attendance
+    for NM's staff ids (spec US-T1). Who may edit which *date* is the route's
+    call (edit window, US-T2).
+    """
     code = store_code.upper()
     d_clean = date_str.strip()
     now_iso = datetime.now(timezone.utc).isoformat()
     saved = []
+
+    requested = [str(item["staff_id"]).strip() for item in records]
+    roster = {
+        doc["staff_id"]
+        for doc in db[STAFF_MEMBERS].find(
+            {"store_code": code, "staff_id": {"$in": requested}, "status": {"$ne": "INACTIVE"}},
+            {"staff_id": 1},
+        )
+    }
+    unknown = sorted(set(requested) - roster)
+    if unknown:
+        raise UnknownStaffError(unknown)
 
     valid_statuses = {"PRESENT", "ABSENT", "HALF_DAY", "WEEK_OFF", "PAID_LEAVE", "ON_LEAVE"}
 
@@ -289,7 +330,8 @@ def get_staff_summary(
 ) -> Dict[str, Any]:
     """Compute staff and attendance metrics for KPI cards."""
     code = store_code.upper() if store_code and store_code.upper() in STORE_CODE_TO_NAME else None
-    d_clean = (date_str or datetime.now(timezone.utc).strftime("%Y-%m-%d")).strip()
+    # IST, not UTC: between 00:00 and 05:30 IST the UTC date is still yesterday (US-T3).
+    d_clean = (date_str or ist_today().isoformat()).strip()
 
     staff_query: Dict[str, Any] = {}
     att_query: Dict[str, Any] = {"date": d_clean}

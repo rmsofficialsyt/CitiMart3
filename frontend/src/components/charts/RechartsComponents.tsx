@@ -63,7 +63,7 @@ export function ModernChartTooltip({
   if (!active || !payload || !payload.length) return null;
 
   return (
-    <div className="rounded-xl border border-border bg-card/95 dark:bg-[#1E1E24]/95 p-3 shadow-xl backdrop-blur-md min-w-[150px] animate-in fade-in-0 zoom-in-95 duration-150">
+    <div className="rounded-xl border border-border bg-popover/95 dark:bg-[#1E1E24]/95 p-3 text-popover-foreground shadow-xl backdrop-blur-md min-w-[150px] animate-in fade-in-0 zoom-in-95 duration-150">
       <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-1.5 mb-2">
         {label}
       </div>
@@ -80,7 +80,7 @@ export function ModernChartTooltip({
                   className="h-2.5 w-2.5 rounded-full ring-2 ring-primary/20"
                   style={{ backgroundColor: item.color || item.fill || MODERN_PALETTE.coral }}
                 />
-                <span className="font-medium text-foreground/80 dark:text-slate-300">{item.name}</span>
+                <span className="font-medium text-foreground/85 dark:text-slate-300">{item.name}</span>
               </div>
               <span className="font-mono font-bold text-foreground">{formattedVal}</span>
             </div>
@@ -119,7 +119,8 @@ export function SmartAxisTick({ x, y, payload }: any) {
         x={0}
         y={0}
         textAnchor="middle"
-        className="fill-slate-600 dark:fill-slate-400 text-[10px] sm:text-[11px] font-medium select-none"
+        style={{ fill: "var(--chart-tick, #475569)" }}
+        className="text-[10px] sm:text-[11px] font-medium select-none"
       >
         {line2 ? (
           <>
@@ -163,22 +164,22 @@ export function RechartsColumnChart({
           {showGrid && (
             <CartesianGrid
               strokeDasharray="3 3"
-              stroke="rgba(255, 255, 255, 0.07)"
+              stroke="var(--chart-grid, rgba(148, 163, 184, 0.2))"
               vertical={false}
             />
           )}
           <XAxis
             dataKey="name"
-            stroke="#94A3B8"
+            stroke="var(--chart-tick, #475569)"
             tickLine={false}
-            axisLine={{ stroke: "rgba(255, 255, 255, 0.1)" }}
+            axisLine={{ stroke: "var(--chart-axis, rgba(148, 163, 184, 0.35))" }}
             interval={0}
             height={44}
             tick={<SmartAxisTick />}
           />
           <YAxis
-            stroke="#94A3B8"
-            fontSize={10}
+            stroke="var(--chart-tick, #475569)"
+            tick={{ fill: "var(--chart-tick, #475569)", fontSize: 10 }}
             width={48}
             tickLine={false}
             axisLine={false}
@@ -186,12 +187,12 @@ export function RechartsColumnChart({
           />
           <Tooltip
             content={<ModernChartTooltip isCurrency={isCurrency} />}
-            cursor={{ fill: "rgba(255, 255, 255, 0.04)", radius: 6 }}
+            cursor={{ fill: "color-mix(in oklab, var(--primary) 8%, transparent)", radius: 6 }}
           />
           {showLegend && (
             <Legend
               verticalAlign="bottom"
-              wrapperStyle={{ paddingTop: "6px", fontSize: "11px" }}
+              wrapperStyle={{ paddingTop: "6px", fontSize: "11px", color: "var(--foreground)" }}
               iconType="circle"
             />
           )}
@@ -235,22 +236,22 @@ export function RechartsLineChart({
           {showGrid && (
             <CartesianGrid
               strokeDasharray="3 3"
-              stroke="rgba(255, 255, 255, 0.07)"
+              stroke="var(--chart-grid, rgba(148, 163, 184, 0.2))"
               vertical={false}
             />
           )}
           <XAxis
             dataKey="name"
-            stroke="#94A3B8"
+            stroke="var(--chart-tick, #475569)"
             tickLine={false}
-            axisLine={{ stroke: "rgba(255, 255, 255, 0.1)" }}
+            axisLine={{ stroke: "var(--chart-axis, rgba(148, 163, 184, 0.35))" }}
             interval={0}
             height={44}
             tick={<SmartAxisTick />}
           />
           <YAxis
-            stroke="#94A3B8"
-            fontSize={10}
+            stroke="var(--chart-tick, #475569)"
+            tick={{ fill: "var(--chart-tick, #475569)", fontSize: 10 }}
             width={48}
             tickLine={false}
             axisLine={false}
@@ -258,12 +259,12 @@ export function RechartsLineChart({
           />
           <Tooltip
             content={<ModernChartTooltip isCurrency={isCurrency} />}
-            cursor={{ stroke: "rgba(255, 255, 255, 0.2)", strokeDasharray: "4 4" }}
+            cursor={{ stroke: "var(--chart-axis, rgba(148, 163, 184, 0.4))", strokeDasharray: "4 4" }}
           />
           {showLegend && (
             <Legend
               verticalAlign="bottom"
-              wrapperStyle={{ paddingTop: "6px", fontSize: "11px" }}
+              wrapperStyle={{ paddingTop: "6px", fontSize: "11px", color: "var(--foreground)" }}
               iconType="circle"
             />
           )}
@@ -275,7 +276,7 @@ export function RechartsLineChart({
               name={s.name}
               stroke={s.color || DEFAULT_SERIES_COLORS[idx % DEFAULT_SERIES_COLORS.length]}
               strokeWidth={s.strokeWidth ?? 3}
-              dot={{ r: 3.5, fill: s.color, stroke: "#1E1E24", strokeWidth: 2 }}
+              dot={{ r: 3.5, fill: s.color, stroke: "var(--background)", strokeWidth: 2 }}
               activeDot={{ r: 6.5, fill: "#FFFFFF", stroke: s.color, strokeWidth: 3 }}
               animationDuration={800}
             />
@@ -320,22 +321,22 @@ export function RechartsAreaChart({
           {showGrid && (
             <CartesianGrid
               strokeDasharray="3 3"
-              stroke="rgba(255, 255, 255, 0.07)"
+              stroke="var(--chart-grid, rgba(148, 163, 184, 0.2))"
               vertical={false}
             />
           )}
           <XAxis
             dataKey="name"
-            stroke="#94A3B8"
+            stroke="var(--chart-tick, #475569)"
             tickLine={false}
-            axisLine={{ stroke: "rgba(255, 255, 255, 0.1)" }}
+            axisLine={{ stroke: "var(--chart-axis, rgba(148, 163, 184, 0.35))" }}
             interval={0}
             height={44}
             tick={<SmartAxisTick />}
           />
           <YAxis
-            stroke="#94A3B8"
-            fontSize={10}
+            stroke="var(--chart-tick, #475569)"
+            tick={{ fill: "var(--chart-tick, #475569)", fontSize: 10 }}
             width={48}
             tickLine={false}
             axisLine={false}
@@ -343,12 +344,12 @@ export function RechartsAreaChart({
           />
           <Tooltip
             content={<ModernChartTooltip isCurrency={isCurrency} />}
-            cursor={{ stroke: "rgba(255, 255, 255, 0.2)", strokeDasharray: "4 4" }}
+            cursor={{ stroke: "var(--chart-axis, rgba(148, 163, 184, 0.4))", strokeDasharray: "4 4" }}
           />
           {showLegend && (
             <Legend
               verticalAlign="bottom"
-              wrapperStyle={{ paddingTop: "6px", fontSize: "11px" }}
+              wrapperStyle={{ paddingTop: "6px", fontSize: "11px", color: "var(--foreground)" }}
               iconType="circle"
             />
           )}
@@ -364,7 +365,7 @@ export function RechartsAreaChart({
                 strokeWidth={2.5}
                 fillOpacity={1}
                 fill={`url(#area-grad-${s.key})`}
-                dot={{ r: 3, fill: color, stroke: "#1E1E24", strokeWidth: 1.5 }}
+                dot={{ r: 3, fill: color, stroke: "var(--background)", strokeWidth: 1.5 }}
                 activeDot={{ r: 6, fill: "#FFFFFF", stroke: color, strokeWidth: 2.5 }}
                 animationDuration={800}
               />
@@ -405,7 +406,7 @@ export function RechartsDonutChart({
             outerRadius="78%"
             paddingAngle={3}
             dataKey="value"
-            stroke="#1E1E24"
+            stroke="var(--background)"
             strokeWidth={2}
             animationDuration={600}
           >
@@ -419,7 +420,7 @@ export function RechartsDonutChart({
           {showLegend && (
             <Legend
               verticalAlign="bottom"
-              wrapperStyle={{ paddingTop: "8px", fontSize: "11px" }}
+              wrapperStyle={{ paddingTop: "8px", fontSize: "11px", color: "var(--foreground)" }}
               iconType="circle"
             />
           )}

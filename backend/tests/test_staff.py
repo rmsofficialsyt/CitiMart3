@@ -146,3 +146,180 @@ def test_staff_multi_tenant_authorization():
 
     # Admin allowed on any store
     assert require_store_access("CHW", admin_user).role == "admin"
+
+
+def test_batch_attendance_rejects_foreign_staff_id_atomically(client, db_session):
+    from db.models import STAFF_ATTENDANCE
+    from src.time_utils import ist_today
+    from tests.conftest import make_token
+
+    nm_staff = staff_store.create_staff_member(
+        db=db_session,
+        store_code="NM",
+        data={"name": "NM Person", "role": "Cashier", "department": "Billing", "phone": "9830011111"},
+        created_by="mgr_nm",
+    )
+    hb_staff = staff_store.create_staff_member(
+        db=db_session,
+        store_code="HB",
+        data={"name": "HB Person", "role": "Cashier", "department": "Billing", "phone": "9830022222"},
+        created_by="mgr_hb",
+    )
+    mgr_nm = make_token("manager", "NM", "mgr_nm")
+    today = ist_today().isoformat()
+
+    res = client.post(
+        "/api/daily/staff/attendance/batch",
+        json={
+            "store_code": "NM",
+            "date": today,
+            "records": [
+                {"staff_id": nm_staff["staff_id"], "status": "PRESENT"},
+                {"staff_id": hb_staff["staff_id"], "status": "PRESENT"},
+            ],
+        },
+        headers={"Authorization": f"Bearer {mgr_nm}"},
+    )
+    assert res.status_code == 400
+    assert db_session[STAFF_ATTENDANCE].count_documents({"store_code": "NM", "date": today}) == 0
+
+
+def test_attendance_edit_window_and_admin_override_audit(client, db_session):
+    from datetime import timedelta
+    from src.time_utils import ist_today
+    from tests.conftest import make_token
+
+    s = staff_store.create_staff_member(
+        db=db_session,
+        store_code="NM",
+        data={"name": "Window Staff", "role": "Cashier", "department": "Billing", "phone": "9830033333"},
+        created_by="mgr_nm",
+    )
+    mgr_nm = make_token("manager", "NM", "mgr_nm")
+    admin = make_token("admin", None, "admin")
+    today = ist_today()
+
+    # today - 3 -> 200 for manager
+    r_ok = client.post(
+        "/api/daily/staff/attendance/batch",
+        json={"store_code": "NM", "date": (today - timedelta(days=3)).isoformat(), "records": [{"staff_id": s["staff_id"], "status": "PRESENT"}]},
+        headers={"Authorization": f"Bearer {mgr_nm}"},
+    )
+    assert r_ok.status_code == 200
+
+    # today - 4 -> 403 for manager
+    r_locked = client.post(
+        "/api/daily/staff/attendance/batch",
+        json={"store_code": "NM", "date": (today - timedelta(days=4)).isoformat(), "records": [{"staff_id": s["staff_id"], "status": "PRESENT"}]},
+        headers={"Authorization": f"Bearer {mgr_nm}"},
+    )
+    assert r_locked.status_code == 403
+
+    # tomorrow -> 400 for everyone
+    r_future = client.post(
+        "/api/daily/staff/attendance/batch",
+        json={"store_code": "NM", "date": (today + timedelta(days=1)).isoformat(), "records": [{"staff_id": s["staff_id"], "status": "PRESENT"}]},
+        headers={"Authorization": f"Bearer {admin}"},
+    )
+    assert r_future.status_code == 400
+
+    # Admin today - 30 -> 200 and audit event recorded
+    r_admin = client.post(
+        "/api/daily/staff/attendance/batch",
+        json={"store_code": "NM", "date": (today - timedelta(days=30)).isoformat(), "records": [{"staff_id": s["staff_id"], "status": "PRESENT"}]},
+        headers={"Authorization": f"Bearer {admin}"},
+    )
+    assert r_admin.status_code == 200
+    from db.models import AUDIT_LOGS
+    assert db_session[AUDIT_LOGS].count_documents({"action": "staff.attendance.override"}) == 1
+
+
+def test_staff_summary_uses_ist_date_at_0030_ist(mock_db: Database, monkeypatch):
+    from datetime import date as date_type
+
+    monkeypatch.setattr(staff_store, "ist_today", lambda: date_type(2026, 11, 28))
+    summary = staff_store.get_staff_summary(mock_db, store_code="NM")
+    assert summary["date"] == "2026-11-28"
+
+
+def test_manager_cannot_create_or_modify_store_manager_role(client, db_session):
+    from tests.conftest import make_token
+
+    mgr_nm = make_token("manager", "NM", "mgr_nm")
+    admin = make_token("admin", None, "admin")
+
+    res = client.post(
+        "/api/daily/staff/members",
+        json={
+            "store_code": "NM",
+            "name": "Fake Boss",
+            "role": "Store Manager",
+            "department": "Management",
+            "phone": "9830044444",
+        },
+        headers={"Authorization": f"Bearer {mgr_nm}"},
+    )
+    assert res.status_code == 403
+
+    # Admin creates Store Manager; manager cannot demote them
+    created = client.post(
+        "/api/daily/staff/members",
+        json={
+            "store_code": "NM",
+            "name": "Real Boss",
+            "role": "Store Manager",
+            "department": "Management",
+            "phone": "9830055555",
+        },
+        headers={"Authorization": f"Bearer {admin}"},
+    )
+    assert created.status_code == 200
+    sid = created.json()["staff"]["staff_id"]
+
+    demote = client.put(
+        f"/api/daily/staff/members/{sid}?store_code=NM",
+        json={"role": "Cashier"},
+        headers={"Authorization": f"Bearer {mgr_nm}"},
+    )
+    assert demote.status_code == 403
+
+
+def test_staff_list_masks_pii_for_managers_and_single_get_audits(client, db_session):
+    from tests.conftest import make_token
+
+    mgr_nm = make_token("manager", "NM", "mgr_nm")
+    admin = make_token("admin", None, "admin")
+    created = staff_store.create_staff_member(
+        db=db_session,
+        store_code="NM",
+        data={
+            "name": "PII Staff",
+            "role": "Cashier",
+            "department": "Billing",
+            "phone": "9830098765",
+            "email": "pii@citimart.in",
+        },
+        created_by="admin",
+    )
+    sid = created["staff_id"]
+
+    mgr_list = client.get("/api/daily/staff/members?store_code=NM", headers={"Authorization": f"Bearer {mgr_nm}"})
+    assert mgr_list.status_code == 200
+    item_mgr = mgr_list.json()["items"][0]
+    assert item_mgr["phone"] == "••••••8765"
+    assert "email" not in item_mgr
+
+    adm_list = client.get("/api/daily/staff/members?store_code=NM", headers={"Authorization": f"Bearer {admin}"})
+    assert adm_list.status_code == 200
+    item_adm = adm_list.json()["items"][0]
+    assert item_adm["phone"] == "9830098765"
+    assert item_adm["email"] == "pii@citimart.in"
+
+    detail = client.get(f"/api/daily/staff/members/{sid}?store_code=NM", headers={"Authorization": f"Bearer {mgr_nm}"})
+    assert detail.status_code == 200
+    assert detail.json()["phone"] == "9830098765"
+    assert detail.json()["email"] == "pii@citimart.in"
+    from db.models import AUDIT_LOGS
+    log = db_session[AUDIT_LOGS].find_one({"action": "staff.contact.view", "target": sid})
+    assert log is not None
+    assert "9830098765" not in str(log)

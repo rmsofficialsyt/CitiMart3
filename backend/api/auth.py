@@ -174,6 +174,33 @@ def require_store_access(store: str, user: CurrentUser) -> CurrentUser:
     return user
 
 
+def resolve_store_scope(user: CurrentUser, requested: str | None) -> str | None:
+    """The store a list / summary / export route may read, failing closed.
+
+    Returns None for "every store" (admin + blank/ALL only), else a validated
+    store code. Replaces the old `user.store_code or store_code` pattern, which
+    let a manager token *without* a store fall back to whatever store the
+    client asked for (spec US-0).
+      * admin + "" / "ALL"           -> None (network-wide)
+      * admin + a store code         -> that code (400 if unknown)
+      * manager                      -> their own store; asking for another -> 403
+      * manager with no valid store  -> 403
+    """
+    req = (requested or "").strip().upper()
+    if user.is_admin:
+        if req in ("", "ALL"):
+            return None
+        if req not in STORE_CODE_TO_NAME:
+            raise HTTPException(status_code=400, detail=f"Unknown store code: {requested!r}")
+        return req
+    own = user.store_code
+    if not own or own not in STORE_CODE_TO_NAME:
+        raise HTTPException(status_code=403, detail="Your account is not linked to a store.")
+    if req not in ("", "ALL") and req != own:
+        raise HTTPException(status_code=403, detail="You do not have access to that store.")
+    return own
+
+
 # Re-exported so app.py / tests can build the same account list without importing
 # config.auth_users directly.
 KNOWN_USERNAMES = tuple(AUTH_USERS)

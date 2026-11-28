@@ -177,14 +177,14 @@ export function KpiCard({
           {IconComponent && (
             <div
               className={cn(
-                "flex h-4.5 w-4.5 sm:h-5 sm:w-5 shrink-0 items-center justify-center rounded-md border transition-all duration-300 shadow-xs",
+                "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-all duration-300 shadow-xs",
                 "group-hover:scale-110",
                 iconConfig.bg,
                 iconConfig.border,
                 iconConfig.color,
               )}
             >
-              <IconComponent className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+              <IconComponent className="h-3 w-3 shrink-0" />
             </div>
           )}
           {statusConfig && (
@@ -193,7 +193,7 @@ export function KpiCard({
               <span className={cn("relative inline-flex h-2 w-2 rounded-full", statusConfig.dotColor)} />
             </span>
           )}
-          <span className="text-muted-foreground group-hover:text-foreground/90 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate transition-colors">
+          <span className="text-foreground/75 group-hover:text-foreground text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate transition-colors">
             {displayLabel}
           </span>
         </div>
@@ -205,7 +205,7 @@ export function KpiCard({
               <button
                 type="button"
                 aria-label={`${label} formula`}
-                className="text-muted-foreground/60 hover:text-foreground hover:bg-muted/80 rounded p-0.5 sm:p-1 transition-all cursor-pointer"
+                className="text-foreground/60 hover:text-foreground hover:bg-muted/80 rounded p-0.5 sm:p-1 transition-all cursor-pointer"
               >
                 <Info className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               </button>

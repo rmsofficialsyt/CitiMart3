@@ -6,10 +6,18 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthProvider";
 import { TopBar } from "@/components/TopBar";
-import { NavigationSidebar, type DailyStoreId, type DailyStoreSel, type DailyView, OVERALL_STORE_ID } from "@/components/NavigationSidebar";
+import {
+  NavigationSidebar,
+  type DailyStoreId,
+  type DailyStoreSel,
+  type DailyView,
+  type NavPosition,
+  OVERALL_STORE_ID,
+} from "@/components/NavigationSidebar";
 import { BossAlertBanner } from "@/components/BossAlertBanner";
 import { AiChatbot } from "@/components/AiChatbot";
 import { Toaster } from "@/components/ui/sonner";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 import citimartLogo from "@/assets/citimart-logo.png";
 import { DAILY_STORE_ID_BY_CODE } from "@/lib/authUsers";
 import { isDailyView, isIsoDate, isStoreSel } from "@/lib/appLinks";
@@ -76,7 +84,64 @@ export default function App() {
   const setDailyStore = (store: DailyStoreSel) => updateParams({ store, date: null });
   const setDailyView = (view: DailyView) => updateParams({ view, date: null });
 
+  const isMobile = useIsMobile();
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [navPosition, setNavPosition] = useState<NavPosition>(() => {
+    try {
+      const saved = localStorage.getItem("citimart_nav_position");
+      if (saved === "left" || saved === "right" || saved === "bottom" || saved === "top") return saved;
+    } catch {
+      // ignore storage errors
+    }
+    return "left";
+  });
+  const updateNavPosition = useCallback((pos: NavPosition) => {
+    setNavPosition(pos);
+    try {
+      localStorage.setItem("citimart_nav_position", pos);
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+  const [navOpen, setNavOpen] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("citimart_nav_open") !== "false";
+    } catch {
+      return true;
+    }
+  });
+  const toggleNav = useCallback(() => {
+    setNavOpen((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("citimart_nav_open", String(next));
+      } catch {
+        // ignore storage errors
+      }
+      if (isMobile) {
+        setMobileDrawerOpen(next);
+      }
+      return next;
+    });
+  }, [isMobile]);
+
+  // Lock page scroll while the mobile navigation drawer is open.
+  useEffect(() => {
+    if (!isMobile || !mobileDrawerOpen) return;
+    const { body, documentElement: html } = document;
+    const previous = { body: body.style.overflow, html: html.style.overflow };
+    body.style.overflow = "hidden";
+    html.style.overflow = "hidden";
+    return () => {
+      body.style.overflow = previous.body;
+      html.style.overflow = previous.html;
+    };
+  }, [isMobile, mobileDrawerOpen]);
+
+  useEffect(() => {
+    if (!isMobile) setMobileDrawerOpen(false);
+  }, [isMobile]);
   // A shared conversation link (/app?chat=<id>) opens the Co-Pilot; AiChatbot loads it.
   const hasChatLink = searchParams.has("chat");
   useEffect(() => {
@@ -141,7 +206,15 @@ export default function App() {
   const animationKey = `daily-${effectiveStore}-${effectiveView}-${historyDate ?? ""}`;
 
   return (
-    <div className="bg-background min-h-screen">
+    <div className="bg-background min-h-screen relative">
+      {/* Subtle non-interactive CITIMART background watermark */}
+      <div
+        aria-hidden="true"
+        className="citimart-watermark fixed inset-0 z-0 flex items-center justify-center overflow-hidden text-6xl sm:text-8xl lg:text-[10rem] text-foreground/[0.03]"
+      >
+        <span className="-rotate-12">CITIMART</span>
+      </div>
+
       <TopBar
         activeStores={meta?.store_names ?? []}
         dateRange={meta?.date_range ?? ""}
@@ -161,8 +234,8 @@ export default function App() {
         onToggleChat={() => setIsChatOpen((prev) => !prev)}
       />
 
-      <div className="flex flex-col lg:flex-row items-start min-h-[calc(100vh-4.25rem)]">
-        {/* Left Side Navigation Sidebar */}
+      <div className="relative z-10 flex flex-col lg:flex-row items-start min-h-[calc(100vh-4.25rem)]">
+        {/* Left Side Navigation Sidebar (Center-aligned with icon-only Show/Hide) */}
         <NavigationSidebar
           effectiveStore={effectiveStore}
           setDailyStore={setDailyStore}
@@ -172,10 +245,21 @@ export default function App() {
           isAdmin={isAdmin}
           forcedStore={forcedStore}
           targetStoreCode={targetStoreCode}
+          navOpen={navOpen}
+          onToggleNav={toggleNav}
+          mobileDrawerOpen={mobileDrawerOpen}
+          onMobileDrawerOpenChange={setMobileDrawerOpen}
+          navPosition={navPosition}
+          onNavPositionChange={updateNavPosition}
         />
 
         {/* Main Content Area */}
-        <main className="min-w-0 flex-1 p-3 sm:p-4 lg:p-5 2xl:p-6 w-full">
+        <main
+          className={`min-w-0 flex-1 p-2.5 sm:p-4 lg:p-5 2xl:p-8 w-full ${
+            navPosition === "bottom" ? "pb-24" : navPosition === "top" ? "lg:pt-20" : ""
+          }`}
+        >
+          <div className="mx-auto w-full max-w-[1920px]">
           {/* Executive Directives Alert Banner from Operational Head */}
           <BossAlertBanner />
 
@@ -192,17 +276,18 @@ export default function App() {
           </AnimatePresence>
 
           <footer className="mt-6 sm:mt-8 2xl:mt-10 border-t border-border/40 py-4 sm:py-6 flex flex-col sm:flex-row items-center justify-center gap-3 text-xs text-muted-foreground">
-            <div className="shrink-0 rounded-lg bg-white px-2 py-0.5 shadow-sm border border-slate-200/40 flex items-center justify-center">
+            <div className="shrink-0 flex items-center justify-center">
               <img
                 src={citimartLogo}
                 alt="CITIMART Logo"
-                className="h-5 sm:h-6 2xl:h-7 w-auto object-contain"
+                className="h-6 sm:h-7 2xl:h-8 w-auto object-contain drop-shadow-xs"
               />
             </div>
             <span>
               CITIMART Sales KPI Dashboard &copy; {new Date().getFullYear()} CITIMART Operations. All Rights Reserved.
             </span>
           </footer>
+          </div>
         </main>
       </div>
 

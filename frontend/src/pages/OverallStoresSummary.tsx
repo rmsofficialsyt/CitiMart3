@@ -70,7 +70,7 @@ export function OverallStoresSummary() {
 
   return (
     <div className="space-y-6">
-      <DailyHeroCard storeName="All Stores Consolidated" data={data} />
+      <DailyHeroCard storeName="All Stores Consolidated" data={data} exportStoreCode="ALL" />
 
       {/* AI Decision Advisor: network morning brief / evening debrief (admin page) */}
       <NetworkBrief />

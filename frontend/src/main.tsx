@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MotionConfig } from "framer-motion";
-import { ThemeProvider } from "next-themes";
-import { StrictMode } from "react";
+import { ThemeProvider, useTheme } from "next-themes";
+import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
@@ -23,6 +23,16 @@ const queryClient = new QueryClient({
   },
 });
 
+function GlassyThemeSync() {
+  const { theme, resolvedTheme } = useTheme();
+  useEffect(() => {
+    const active = theme === "system" ? resolvedTheme : theme;
+    const lgTheme = active === "dark" || active === "neon" ? "dark" : "light";
+    document.documentElement.setAttribute("data-lg-theme", lgTheme);
+  }, [theme, resolvedTheme]);
+  return null;
+}
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
@@ -31,8 +41,9 @@ createRoot(document.getElementById("root")!).render(
         defaultTheme="light"
         enableSystem
         disableTransitionOnChange
-        themes={["light", "dark", "neon"]}
+        themes={["light", "dark", "neon", "glassy"]}
       >
+        <GlassyThemeSync />
         <QueryClientProvider client={queryClient}>
           <MotionConfig reducedMotion="user">
             <LanguageProvider>

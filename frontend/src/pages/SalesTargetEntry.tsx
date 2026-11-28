@@ -335,7 +335,7 @@ function SalesTargetEntry({ store }: { store: string }) {
 
         {/* Monthly Summary Statistics Pills */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 mt-4 pt-4 border-t border-border">
-          <div className="rounded-2xl border border-border/80 bg-muted/40 dark:bg-black/25 p-3">
+          <div className="rounded-2xl border border-border/80 bg-muted/50 glassy:bg-white/60 dark:bg-black/25 p-3">
             <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Month Target (Typed)</div>
             <div className="mt-1 font-mono text-base font-extrabold text-orange-600 dark:text-orange-400 sm:text-lg">
               {fmtCurrency(draftTargetTotal)}
@@ -343,7 +343,7 @@ function SalesTargetEntry({ store }: { store: string }) {
             <div className="text-[10px] text-muted-foreground">Saved: {fmtCurrency(savedTargetTotal)}</div>
           </div>
 
-          <div className="rounded-2xl border border-border/80 bg-muted/40 dark:bg-black/25 p-3">
+          <div className="rounded-2xl border border-border/80 bg-muted/50 glassy:bg-white/60 dark:bg-black/25 p-3">
             <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Prev. Year Total (Typed)</div>
             <div className="mt-1 font-mono text-base font-extrabold text-cyan-600 dark:text-cyan-400 sm:text-lg">
               {fmtCurrency(draftPrevYearTotal)}
@@ -351,7 +351,7 @@ function SalesTargetEntry({ store }: { store: string }) {
             <div className="text-[10px] text-muted-foreground">Saved: {fmtCurrency(savedPrevYearTotal)}</div>
           </div>
 
-          <div className="rounded-2xl border border-border/80 bg-muted/40 dark:bg-black/25 p-3">
+          <div className="rounded-2xl border border-border/80 bg-muted/50 glassy:bg-white/60 dark:bg-black/25 p-3">
             <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Present Net Sales (MTD)</div>
             <div className="mt-1 font-mono text-base font-extrabold text-foreground sm:text-lg">
               {fmtCurrency(days.reduce((sum, d) => sum + (existing.get(d)?.net_sales ?? 0), 0))}
@@ -359,7 +359,7 @@ function SalesTargetEntry({ store }: { store: string }) {
             <div className="text-[10px] text-muted-foreground">Actual Logged Revenue</div>
           </div>
 
-          <div className="rounded-2xl border border-border/80 bg-muted/40 dark:bg-black/25 p-3">
+          <div className="rounded-2xl border border-border/80 bg-muted/50 glassy:bg-white/60 dark:bg-black/25 p-3">
             <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Month Tally Growth</div>
             <div className="mt-1 font-mono text-base font-extrabold text-emerald-600 dark:text-emerald-400 sm:text-lg">
               {(() => {
@@ -374,7 +374,7 @@ function SalesTargetEntry({ store }: { store: string }) {
             <div className="text-[10px] text-muted-foreground">Actual vs Prev Year</div>
           </div>
 
-          <div className="rounded-2xl border border-border/80 bg-muted/40 dark:bg-black/25 p-3">
+          <div className="rounded-2xl border border-border/80 bg-muted/50 glassy:bg-white/60 dark:bg-black/25 p-3">
             <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Target Growth Pace</div>
             <div className="mt-1 font-mono text-base font-extrabold text-foreground sm:text-lg">
               {draftPrevYearTotal > 0
@@ -387,7 +387,7 @@ function SalesTargetEntry({ store }: { store: string }) {
       </div>
 
       {/* Target Table with Active Data Entry & All KPIs */}
-      <div className="rounded-3xl border border-border bg-card/90 dark:bg-[#18181D]/90 p-4 sm:p-6 shadow-xl backdrop-blur-xl">
+      <div className="rounded-3xl border border-border bg-card/90 glassy:bg-white/75 dark:bg-[#18181D]/90 p-4 sm:p-6 shadow-xl backdrop-blur-xl">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-bold uppercase tracking-wider text-foreground flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-orange-500 dark:text-orange-400" />

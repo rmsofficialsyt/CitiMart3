@@ -51,6 +51,11 @@ STORE_CODE_TO_NAME = {
 }
 STORE_NAME_TO_CODE = {v: k for k, v in STORE_CODE_TO_NAME.items()}
 
+# A store manager may save attendance for today (IST) and this many days back;
+# older days are locked for payroll. Admin may correct any past day (audited).
+# Mirrored by frontend/src/pages/StaffManagementPage.tsx's date picker clamp.
+ATTENDANCE_EDIT_WINDOW_DAYS = 3
+
 # The 4 time-of-day bands the daily logs bucket into. These are the literal
 # labels used by DATASET.xlsx's TIME WISE FOOTFALL-NOB sheet, kept identical
 # here so a Daily Operations export and an Analytics report can be read

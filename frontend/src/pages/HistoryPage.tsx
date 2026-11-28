@@ -485,7 +485,7 @@ export function HistoryPage({ storeCode, date }: HistoryPageProps) {
   return (
     <div className="space-y-6">
       {/* Top Header & Controls Card */}
-      <div className="glossy-card flex flex-col gap-4 rounded-3xl p-4 sm:p-6 shadow-2xl border border-white/10">
+      <div className="glossy-card flex flex-col gap-4 rounded-3xl p-4 sm:p-6 shadow-2xl border border-border">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">Operational History & Performance Analysis</h2>

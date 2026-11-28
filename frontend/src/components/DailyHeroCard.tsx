@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "@/auth/AuthProvider";
+import { DailyExportMenu } from "@/components/DailyExportMenu";
 import { fmtCurrency, fmtDateDot } from "@/lib/format";
 import type { DailyLiveSnapshot, DailyOverallSnapshot } from "@/lib/types";
 
@@ -33,11 +34,12 @@ function getGreeting(hour: number): string {
 interface DailyHeroCardProps {
   storeName: string;
   data?: DailyLiveSnapshot | DailyOverallSnapshot | null;
+  exportStoreCode?: string;
 }
 
 /** The Daily Dashboard's top hero card -- Teamify-inspired personalized greeting,
  * live-ticking wall clock, store badge, Month Target summary matrix, and integrated Environmental & Trading Conditions. */
-export function DailyHeroCard({ storeName, data }: DailyHeroCardProps) {
+export function DailyHeroCard({ storeName, data, exportStoreCode }: DailyHeroCardProps) {
   const [now, setNow] = useState(() => new Date());
   const { user } = useAuth();
 
@@ -76,10 +78,12 @@ export function DailyHeroCard({ storeName, data }: DailyHeroCardProps) {
           </p>
         </div>
 
-        {/* Right Side: Active Store Pill & Live Wall Clock */}
-        <div className="flex flex-wrap items-center gap-3 sm:justify-end">
-          <div className="flex items-center gap-2 rounded-2xl border border-border bg-card/60 dark:bg-black/30 px-3.5 py-2 shadow-xs">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30">
+        {/* Right Side: Active Store Pill, Live Wall Clock & Export Reports */}
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 sm:justify-end">
+          {exportStoreCode && <DailyExportMenu store={exportStoreCode} />}
+
+          <div className="flex items-center gap-2 rounded-2xl border border-border bg-card/85 dark:bg-black/30 glassy:bg-white/65 px-3.5 py-2 shadow-xs">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/35">
               <MapPin className="h-4 w-4" />
             </div>
             <div>
@@ -88,8 +92,8 @@ export function DailyHeroCard({ storeName, data }: DailyHeroCardProps) {
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 rounded-2xl border border-border bg-card/60 dark:bg-black/30 px-3.5 py-2 shadow-xs">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/30">
+          <div className="flex items-center gap-2.5 rounded-2xl border border-border bg-card/85 dark:bg-black/30 glassy:bg-white/65 px-3.5 py-2 shadow-xs">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/35">
               <Clock className="h-4 w-4" />
             </div>
             <div>

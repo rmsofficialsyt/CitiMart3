@@ -3,12 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
   BarChart2,
+  BarChart3,
   Calendar,
   Clock,
   Compass,
   Gauge,
   IndianRupee,
-  Layers,
   LineChart,
   Percent,
   Receipt,
@@ -556,12 +556,12 @@ export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCar
       <div className="grid grid-cols-1 gap-5 2xl:grid-cols-12 2xl:items-stretch">
         
         {/* Left Column: Multi-Metric Comparative Grid & Target Pace Tracker */}
-        <div className="flex flex-col justify-between rounded-2xl border border-border/80 bg-card/80 dark:bg-slate-900/60 p-3.5 sm:p-4 2xl:p-5 2xl:col-span-5 space-y-4 shadow-md backdrop-blur-xl">
+        <div className="flex flex-col justify-between rounded-2xl border border-border/80 bg-card/85 dark:bg-slate-900/60 glassy:bg-white/65 p-3.5 sm:p-4 2xl:p-5 2xl:col-span-5 space-y-4 shadow-md backdrop-blur-xl">
           <div className="space-y-4">
             {/* Header / Metric selector */}
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-foreground/90 flex items-center gap-1.5">
-                <Layers className="h-4 w-4 text-blue-500 dark:text-blue-400" />
+                <BarChart3 className="h-4 w-4 shrink-0 text-blue-500 dark:text-blue-400" />
                 Operational Metrics Comparison
               </span>
               <span className="text-[11px] text-muted-foreground font-mono">
@@ -582,8 +582,8 @@ export function AtAGlanceCard({ storeCode, storeName, date, data }: AtAGlanceCar
                     onClick={() => setSelectedMetric(m.id)}
                     className={`flex flex-col justify-between rounded-xl p-2.5 sm:p-3 text-left transition-all cursor-pointer border ${
                       isSelected
-                        ? "border-blue-500 bg-blue-500/10 dark:bg-blue-500/20 shadow-sm shadow-blue-500/10"
-                        : "border-border/80 bg-muted/30 hover:bg-muted/60 dark:border-white/5 dark:bg-black/25 dark:hover:bg-white/5"
+                        ? "border-blue-500 bg-blue-500/12 dark:bg-blue-500/20 shadow-sm shadow-blue-500/10"
+                        : "border-border/80 bg-muted/45 hover:bg-muted/70 glassy:bg-white/60 glassy:hover:bg-white/80 dark:border-white/5 dark:bg-black/25 dark:hover:bg-white/5"
                     }`}
                   >
                     <div className="flex items-center justify-between text-muted-foreground text-[10px] sm:text-[11px]">

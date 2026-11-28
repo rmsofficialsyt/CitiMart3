@@ -6,6 +6,7 @@
 
 @custom-variant dark (&:is(.dark *));
 @custom-variant neon (&:is(.neon *));
+@custom-variant glassy (&:is(.glassy *));
 
 :root {
   --radius: 0.625rem;
@@ -47,6 +48,9 @@
   --status-yellow-bg: oklch(0.95 0.08 90);
   --status-green: oklch(0.55 0.15 145);
   --status-green-bg: oklch(0.94 0.08 145);
+  --chart-grid: oklch(0.45 0.03 255 / 0.14);
+  --chart-axis: oklch(0.42 0.03 255 / 0.28);
+  --chart-tick: oklch(0.32 0.04 258);
 }
 
 .dark {
@@ -88,6 +92,9 @@
   --chart-3: oklch(0.78 0.15 75);
   --chart-4: oklch(0.7 0.13 300);
   --chart-5: oklch(0.75 0.12 190);
+  --chart-grid: oklch(1 0 0 / 0.08);
+  --chart-axis: oklch(1 0 0 / 0.14);
+  --chart-tick: oklch(0.72 0.03 255);
 }
 
 /* ---------------------------------------------------------------------------
@@ -138,6 +145,74 @@
   --status-yellow-bg: oklch(0.6 0.14 85 / 0.2);
   --status-green: oklch(0.8 0.15 160);
   --status-green-bg: oklch(0.55 0.13 160 / 0.2);
+  --chart-grid: oklch(0.82 0.14 205 / 0.12);
+  --chart-axis: oklch(0.82 0.14 205 / 0.22);
+  --chart-tick: oklch(0.78 0.03 250);
+}
+
+/* ---------------------------------------------------------------------------
+   "Glassy" theme (opt-in, GlassyUI liquid-glass aesthetic). Translucent
+   frosted surfaces over a soft cool-sky ambient canvas, specular top-rim
+   highlights, and high-contrast ink. Scoped under `.glassy` so light, dark,
+   and neon are unaffected.
+   --------------------------------------------------------------------------- */
+.glassy {
+  --background: oklch(0.955 0.018 242);
+  --foreground: oklch(0.16 0.04 258);
+  --card: oklch(0.99 0.005 242 / 0.76);
+  --card-foreground: oklch(0.16 0.04 258);
+  --popover: oklch(0.995 0.004 242 / 0.92);
+  --popover-foreground: oklch(0.16 0.04 258);
+  --primary: oklch(0.46 0.19 258);
+  --primary-foreground: oklch(0.99 0.005 247);
+  --secondary: oklch(0.94 0.025 245 / 0.78);
+  --secondary-foreground: oklch(0.24 0.1 258);
+  --muted: oklch(0.93 0.02 245 / 0.68);
+  --muted-foreground: oklch(0.35 0.04 255);
+  --accent: oklch(0.54 0.19 245);
+  --accent-foreground: oklch(0.99 0.005 247);
+  --destructive: oklch(0.55 0.24 27);
+  --border: oklch(0.62 0.04 252 / 0.32);
+  --input: oklch(0.58 0.045 252 / 0.38);
+  --ring: oklch(0.54 0.19 255);
+  --chart-1: oklch(0.46 0.19 258);
+  --chart-2: oklch(0.54 0.18 215);
+  --chart-3: oklch(0.64 0.17 75);
+  --chart-4: oklch(0.56 0.16 290);
+  --chart-5: oklch(0.52 0.16 165);
+  --chart-grid: oklch(0.45 0.04 255 / 0.14);
+  --chart-axis: oklch(0.42 0.04 255 / 0.28);
+  --chart-tick: oklch(0.28 0.04 258);
+  --sidebar: oklch(0.985 0.008 242 / 0.76);
+  --sidebar-foreground: oklch(0.16 0.04 258);
+  --sidebar-primary: oklch(0.46 0.19 258);
+  --sidebar-primary-foreground: oklch(0.99 0.005 247);
+  --sidebar-accent: oklch(0.92 0.03 248 / 0.78);
+  --sidebar-accent-foreground: oklch(0.24 0.1 258);
+  --sidebar-border: oklch(0.62 0.04 252 / 0.32);
+  --sidebar-ring: oklch(0.54 0.19 255);
+
+  --status-red: oklch(0.52 0.22 27);
+  --status-red-bg: oklch(0.93 0.06 27 / 0.78);
+  --status-yellow: oklch(0.54 0.16 75);
+  --status-yellow-bg: oklch(0.95 0.09 90 / 0.8);
+  --status-green: oklch(0.48 0.16 145);
+  --status-green-bg: oklch(0.93 0.09 145 / 0.78);
+
+  /* GlassyUI surface tokens */
+  --glassy-surface: oklch(0.99 0.005 242 / 0.72);
+  --glassy-surface-raised: oklch(1 0.004 240 / 0.86);
+  --glassy-border: oklch(0.62 0.04 252 / 0.32);
+  --glassy-border-strong: oklch(0.54 0.05 252 / 0.44);
+  --glassy-blur: 18px;
+  --glassy-shadow-base:
+    0 8px 32px oklch(0.35 0.08 255 / 0.1),
+    0 1px 2px oklch(0.25 0.05 255 / 0.06),
+    inset 0 1px 0 oklch(1 0 0 / 0.85);
+  --glassy-shadow-raised:
+    0 16px 44px oklch(0.35 0.1 255 / 0.16),
+    0 2px 6px oklch(0.25 0.05 255 / 0.08),
+    inset 0 1px 0 oklch(1 0 0 / 0.92);
 }
 
 @theme inline {
@@ -375,6 +450,94 @@ body {
 }
 
 /* ---------------------------------------------------------------------------
+   Glassy theme: liquid-glass backdrop blur, specular rim highlights, and
+   ambient mesh background (alexburlis/glassyui reference). Scoped under
+   `.glassy` so light, dark, and neon remain unaffected.
+   --------------------------------------------------------------------------- */
+.glassy body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  background-image:
+    radial-gradient(ellipse 80% 55% at 10% -8%, oklch(0.78 0.14 235 / 0.45), transparent 60%),
+    radial-gradient(ellipse 70% 55% at 92% 10%, oklch(0.82 0.12 285 / 0.36), transparent 55%),
+    radial-gradient(ellipse 90% 65% at 50% 108%, oklch(0.84 0.11 195 / 0.34), transparent 62%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+.glassy .lg-glass-surface,
+.glassy .bg-card,
+.glassy [data-slot="card"] {
+  backdrop-filter: blur(var(--glassy-blur, 18px)) saturate(1.75);
+  -webkit-backdrop-filter: blur(var(--glassy-blur, 18px)) saturate(1.75);
+  box-shadow: var(--glassy-shadow-base);
+}
+
+.glassy .bg-popover {
+  backdrop-filter: blur(22px) saturate(1.8);
+  -webkit-backdrop-filter: blur(22px) saturate(1.8);
+  box-shadow: var(--glassy-shadow-raised);
+}
+
+.glassy .bg-card:hover {
+  box-shadow: var(--glassy-shadow-raised);
+}
+
+.glassy .topbar {
+  background-color: oklch(0.24 0.06 258 / 0.74);
+  backdrop-filter: blur(18px) saturate(1.75);
+  -webkit-backdrop-filter: blur(18px) saturate(1.75);
+  border-bottom: 1px solid oklch(1 0 0 / 0.28);
+  box-shadow: 0 8px 28px oklch(0.2 0.06 258 / 0.18), inset 0 1px 0 oklch(1 0 0 / 0.22);
+}
+
+.glassy .landing-glass-card {
+  background: oklch(1 0.005 240 / 0.68);
+  backdrop-filter: blur(18px) saturate(1.75);
+  -webkit-backdrop-filter: blur(18px) saturate(1.75);
+  border-color: oklch(1 0 0 / 0.85);
+  box-shadow: var(--glassy-shadow-base);
+}
+
+.glassy .landing-glass-card:hover {
+  box-shadow: var(--glassy-shadow-raised);
+}
+
+.glassy .landing-glass-tile {
+  background: oklch(1 0.004 240 / 0.78);
+  backdrop-filter: blur(14px) saturate(1.65);
+  -webkit-backdrop-filter: blur(14px) saturate(1.65);
+  border-color: oklch(1 0 0 / 0.9);
+  box-shadow:
+    0 4px 16px oklch(0.35 0.08 255 / 0.08),
+    inset 0 1px 0 oklch(1 0 0 / 0.9);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glassy {
+    --card: oklch(0.99 0.004 242 / 0.96);
+    --popover: oklch(0.99 0.004 242 / 0.98);
+    --glassy-surface: oklch(0.99 0.004 242 / 0.96);
+    --glassy-surface-raised: oklch(1 0 0 / 0.98);
+  }
+  .glassy .lg-glass-surface,
+  .glassy .bg-card,
+  .glassy [data-slot="card"],
+  .glassy .bg-popover,
+  .glassy .topbar {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glassy body {
+    background-attachment: scroll;
+  }
+}
+
+/* ---------------------------------------------------------------------------
    Glossy Design System (Theme Adaptive: Clean Classic Light & Rich Dark/Neon Glass)
    --------------------------------------------------------------------------- */
 
@@ -389,12 +552,20 @@ body {
 }
 
 .light .glass-panel,
-:root:not(.dark):not(.neon) .glass-panel {
+:root:not(.dark):not(.neon):not(.glassy) .glass-panel {
   background: #ffffff;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   border: 1px solid #e2e8f0;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+}
+
+.glassy .glass-panel {
+  background: var(--glassy-surface);
+  backdrop-filter: blur(var(--glassy-blur, 18px)) saturate(1.75);
+  -webkit-backdrop-filter: blur(var(--glassy-blur, 18px)) saturate(1.75);
+  border: 1px solid var(--glassy-border);
+  box-shadow: var(--glassy-shadow-base);
 }
 
 .neon .glass-panel {
@@ -414,12 +585,20 @@ body {
 }
 
 .light .glossy-card,
-:root:not(.dark):not(.neon) .glossy-card {
+:root:not(.dark):not(.neon):not(.glassy) .glossy-card {
   background: #ffffff;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   border: 1px solid #e2e8f0;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+}
+
+.glassy .glossy-card {
+  background: linear-gradient(180deg, oklch(1 0.004 240 / 0.78) 0%, oklch(0.985 0.008 242 / 0.68) 100%);
+  backdrop-filter: blur(var(--glassy-blur, 18px)) saturate(1.75);
+  -webkit-backdrop-filter: blur(var(--glassy-blur, 18px)) saturate(1.75);
+  border: 1px solid var(--glassy-border);
+  box-shadow: var(--glassy-shadow-base);
 }
 
 .neon .glossy-card {
@@ -436,9 +615,14 @@ body {
 }
 
 .light .glossy-card:hover,
-:root:not(.dark):not(.neon) .glossy-card:hover {
+:root:not(.dark):not(.neon):not(.glassy) .glossy-card:hover {
   border-color: #cbd5e1;
   box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+}
+
+.glassy .glossy-card:hover {
+  border-color: var(--glassy-border-strong);
+  box-shadow: var(--glassy-shadow-raised);
 }
 
 .neon .glossy-card:hover {
@@ -463,7 +647,7 @@ body {
     0 8px 24px -4px rgba(16, 185, 129, 0.25) !important;
 }
 .light .glossy-kpi-green,
-:root:not(.dark):not(.neon) .glossy-kpi-green {
+:root:not(.dark):not(.neon):not(.glassy) .glossy-kpi-green {
   background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 45%, #ffffff 100%) !important;
   border: 1px solid rgba(16, 185, 129, 0.45) !important;
   border-left: 5px solid #059669 !important;
@@ -471,6 +655,16 @@ body {
     inset 0 1px 2px 0 rgba(255, 255, 255, 0.9),
     inset 3px 0 10px 0 rgba(16, 185, 129, 0.2),
     0 4px 16px -2px rgba(16, 185, 129, 0.2) !important;
+}
+.glassy .glossy-kpi-green {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.22) 0%, rgba(236, 253, 245, 0.78) 45%, rgba(255, 255, 255, 0.8) 100%) !important;
+  backdrop-filter: blur(var(--glassy-blur, 18px)) saturate(1.7);
+  -webkit-backdrop-filter: blur(var(--glassy-blur, 18px)) saturate(1.7);
+  border: 1px solid rgba(16, 185, 129, 0.42) !important;
+  border-left: 5px solid #059669 !important;
+  box-shadow:
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.9),
+    0 8px 24px -4px rgba(16, 185, 129, 0.18) !important;
 }
 .neon .glossy-kpi-green {
   background: linear-gradient(135deg, rgba(52, 199, 89, 0.3) 0%, oklch(0.2 0.05 278 / 0.88) 100%) !important;
@@ -501,7 +695,7 @@ body {
     0 8px 24px -4px rgba(245, 158, 11, 0.25) !important;
 }
 .light .glossy-kpi-yellow,
-:root:not(.dark):not(.neon) .glossy-kpi-yellow {
+:root:not(.dark):not(.neon):not(.glassy) .glossy-kpi-yellow {
   background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 45%, #ffffff 100%) !important;
   border: 1px solid rgba(245, 158, 11, 0.45) !important;
   border-left: 5px solid #d97706 !important;
@@ -509,6 +703,16 @@ body {
     inset 0 1px 2px 0 rgba(255, 255, 255, 0.9),
     inset 3px 0 10px 0 rgba(245, 158, 11, 0.2),
     0 4px 16px -2px rgba(245, 158, 11, 0.2) !important;
+}
+.glassy .glossy-kpi-yellow {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(255, 251, 235, 0.78) 45%, rgba(255, 255, 255, 0.8) 100%) !important;
+  backdrop-filter: blur(var(--glassy-blur, 18px)) saturate(1.7);
+  -webkit-backdrop-filter: blur(var(--glassy-blur, 18px)) saturate(1.7);
+  border: 1px solid rgba(217, 119, 6, 0.42) !important;
+  border-left: 5px solid #d97706 !important;
+  box-shadow:
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.9),
+    0 8px 24px -4px rgba(245, 158, 11, 0.18) !important;
 }
 .neon .glossy-kpi-yellow {
   background: linear-gradient(135deg, rgba(255, 204, 0, 0.3) 0%, oklch(0.2 0.05 278 / 0.88) 100%) !important;
@@ -539,7 +743,7 @@ body {
     0 8px 24px -4px rgba(244, 63, 94, 0.25) !important;
 }
 .light .glossy-kpi-red,
-:root:not(.dark):not(.neon) .glossy-kpi-red {
+:root:not(.dark):not(.neon):not(.glassy) .glossy-kpi-red {
   background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 45%, #ffffff 100%) !important;
   border: 1px solid rgba(244, 63, 94, 0.45) !important;
   border-left: 5px solid #e11d48 !important;
@@ -547,6 +751,16 @@ body {
     inset 0 1px 2px 0 rgba(255, 255, 255, 0.9),
     inset 3px 0 10px 0 rgba(244, 63, 94, 0.2),
     0 4px 16px -2px rgba(244, 63, 94, 0.2) !important;
+}
+.glassy .glossy-kpi-red {
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.18) 0%, rgba(255, 241, 242, 0.78) 45%, rgba(255, 255, 255, 0.8) 100%) !important;
+  backdrop-filter: blur(var(--glassy-blur, 18px)) saturate(1.7);
+  -webkit-backdrop-filter: blur(var(--glassy-blur, 18px)) saturate(1.7);
+  border: 1px solid rgba(225, 29, 72, 0.42) !important;
+  border-left: 5px solid #e11d48 !important;
+  box-shadow:
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.9),
+    0 8px 24px -4px rgba(244, 63, 94, 0.18) !important;
 }
 .neon .glossy-kpi-red {
   background: linear-gradient(135deg, rgba(255, 45, 85, 0.3) 0%, oklch(0.2 0.05 278 / 0.88) 100%) !important;
@@ -576,11 +790,19 @@ body {
     0 8px 24px -8px rgba(0, 0, 0, 0.45) !important;
 }
 .light .glossy-kpi-neutral,
-:root:not(.dark):not(.neon) .glossy-kpi-neutral {
+:root:not(.dark):not(.neon):not(.glassy) .glossy-kpi-neutral {
   background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%) !important;
   border: 1px solid #e2e8f0 !important;
   border-left: 4px solid #94a3b8 !important;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03) !important;
+}
+.glassy .glossy-kpi-neutral {
+  background: linear-gradient(180deg, oklch(1 0.004 240 / 0.8) 0%, oklch(0.97 0.01 245 / 0.72) 100%) !important;
+  backdrop-filter: blur(var(--glassy-blur, 18px)) saturate(1.7);
+  -webkit-backdrop-filter: blur(var(--glassy-blur, 18px)) saturate(1.7);
+  border: 1px solid var(--glassy-border) !important;
+  border-left: 4px solid #64748b !important;
+  box-shadow: var(--glassy-shadow-base) !important;
 }
 .neon .glossy-kpi-neutral {
   background: linear-gradient(180deg, oklch(0.24 0.05 278 / 0.75) 0%, oklch(0.18 0.04 278 / 0.9) 100%) !important;
@@ -596,28 +818,48 @@ body {
 }
 
 .glossy-topbar {
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(11, 17, 32, 0.98) 100%);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.04) 48%, rgba(0, 0, 0, 0.14) 100%),
+    linear-gradient(105deg, #b52026 0%, #8f1d3b 38%, #23407d 72%, #172b59 100%);
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow:
-    inset 0 -1px 0 0 rgba(255, 255, 255, 0.04),
-    0 4px 20px rgba(0, 0, 0, 0.4);
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.32),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.22),
+    0 6px 24px rgba(15, 23, 42, 0.35);
 }
 
 .light .glossy-topbar,
-:root:not(.dark):not(.neon) .glossy-topbar {
-  background: #ffffff;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border-bottom: 1px solid #e2e8f0;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+:root:not(.dark):not(.neon):not(.glassy) .glossy-topbar {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.26) 0%, rgba(255, 255, 255, 0.06) 48%, rgba(0, 0, 0, 0.08) 100%),
+    linear-gradient(105deg, #c2242b 0%, #992242 38%, #26488c 74%, #1b346b 100%);
+  backdrop-filter: blur(18px) saturate(1.25);
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.38),
+    0 4px 18px rgba(23, 43, 89, 0.22);
 }
 
 .neon .glossy-topbar {
-  background: linear-gradient(180deg, oklch(0.2 0.04 278 / 0.85) 0%, oklch(0.16 0.04 278 / 0.95) 100%);
-  border-bottom: 1px solid oklch(0.8 0.14 205 / 0.25);
-  box-shadow: 0 4px 24px oklch(0.06 0.04 275 / 0.5);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.03) 48%, rgba(0, 0, 0, 0.2) 100%),
+    linear-gradient(105deg, rgba(181, 32, 38, 0.92) 0%, rgba(120, 30, 82, 0.9) 42%, rgba(35, 64, 125, 0.94) 100%);
+  border-bottom: 1px solid oklch(0.8 0.14 205 / 0.35);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.28),
+    0 6px 26px rgba(15, 23, 42, 0.55);
+}
+
+.citimart-watermark {
+  pointer-events: none;
+  user-select: none;
+  letter-spacing: 0.22em;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
 .glossy-sidebar {
@@ -631,12 +873,20 @@ body {
 }
 
 .light .glossy-sidebar,
-:root:not(.dark):not(.neon) .glossy-sidebar {
+:root:not(.dark):not(.neon):not(.glassy) .glossy-sidebar {
   background: #ffffff;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   border-right: 1px solid #e2e8f0;
   box-shadow: 1px 0 2px 0 rgba(0, 0, 0, 0.03);
+}
+
+.glassy .glossy-sidebar {
+  background: linear-gradient(180deg, oklch(0.99 0.006 242 / 0.78) 0%, oklch(0.965 0.014 245 / 0.74) 100%);
+  backdrop-filter: blur(20px) saturate(1.75);
+  -webkit-backdrop-filter: blur(20px) saturate(1.75);
+  border-right: 1px solid var(--glassy-border);
+  box-shadow: 4px 0 24px oklch(0.35 0.08 255 / 0.1), inset -1px 0 0 oklch(1 0 0 / 0.75);
 }
 
 .neon .glossy-sidebar {
@@ -655,11 +905,20 @@ body {
 }
 
 .light .glossy-btn,
-:root:not(.dark):not(.neon) .glossy-btn {
+:root:not(.dark):not(.neon):not(.glassy) .glossy-btn {
   background: #f1f5f9;
   color: #0f172a;
   border: 1px solid #cbd5e1;
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+}
+
+.glassy .glossy-btn {
+  background: oklch(1 0.004 240 / 0.72);
+  color: oklch(0.16 0.04 258);
+  border: 1px solid oklch(0.62 0.04 252 / 0.36);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 2px 8px oklch(0.35 0.08 255 / 0.08), inset 0 1px 0 oklch(1 0 0 / 0.85);
 }
 
 .glossy-btn:hover {
@@ -672,10 +931,16 @@ body {
 }
 
 .light .glossy-btn:hover,
-:root:not(.dark):not(.neon) .glossy-btn:hover {
+:root:not(.dark):not(.neon):not(.glassy) .glossy-btn:hover {
   background: #e2e8f0;
   border-color: #94a3b8;
   box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+}
+
+.glassy .glossy-btn:hover {
+  background: oklch(1 0.004 240 / 0.9);
+  border-color: oklch(0.54 0.05 252 / 0.5);
+  box-shadow: 0 4px 12px oklch(0.35 0.08 255 / 0.14), inset 0 1px 0 oklch(1 0 0 / 0.95);
 }
 
 .glossy-btn:active {
@@ -700,4 +965,59 @@ body {
     inset 0 1px 0 0 rgba(255, 255, 255, 0.45),
     0 6px 18px rgba(37, 99, 235, 0.45);
   transform: translateY(-1px);
+}
+
+/* Hide browser-native password reveal/clear icons (e.g. Edge) so only the custom toggle shows */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}
+
+/* Native modal <dialog> (components/ModalDialog.tsx). Both overscroll rules
+   are what stop a scroll over the backdrop or inside the dialog from scrolling
+   the page behind it (modern-web-guidance "dialog"). Deliberately no
+   overflow:hidden on html/body -- that removes the root scrollbar and shifts
+   layout. `display` is never set on the dialog itself: that would override
+   its closed state. */
+dialog.modal-dialog:modal {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+dialog.modal-dialog::backdrop {
+  background: rgb(0 0 0 / 0.6);
+  backdrop-filter: blur(4px);
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+/* Deferred validation styling: only after the user has edited + left a field
+   or tried to submit (:user-invalid), never on first paint or mid-typing
+   (modern-web-guidance "validate-input-after-interaction"). Pair with
+   hooks/useUserInvalidAria.ts, which mirrors the state into aria-invalid. */
+.validated :is(input, select, textarea):user-invalid {
+  border-color: var(--destructive);
+  background-color: color-mix(in oklab, var(--destructive) 8%, transparent);
+}
+.validated .field-error {
+  display: none;
+}
+.validated .field:has(:user-invalid) .field-error {
+  display: flex;
+}
+
+/* Print only the requisition slip, not the whole app shell behind its dialog
+   (ProductRequisitionPage "Print Slip"). */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-requisition-slip,
+  #printable-requisition-slip * {
+    visibility: visible;
+  }
+  #printable-requisition-slip {
+    position: absolute;
+    inset: 0;
+  }
 }

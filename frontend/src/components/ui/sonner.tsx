@@ -6,8 +6,8 @@ import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon
 
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = "system" } = useTheme()
-  // Sonner only understands light | dark | system; the "neon" theme is a dark surface.
-  const sonnerTheme = (theme === "neon" ? "dark" : theme) as ToasterProps["theme"]
+  // Sonner only understands light | dark | system; "neon" is dark, "glassy" is light.
+  const sonnerTheme = (theme === "neon" ? "dark" : theme === "glassy" ? "light" : theme) as ToasterProps["theme"]
 
   return (
     <Sonner

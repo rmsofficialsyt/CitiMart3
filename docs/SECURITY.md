@@ -91,6 +91,11 @@ Enforced in `backend/api/routes_targets.py`:
 - **Startup Secret Validation:** On boot, `assert_production_secrets()` checks if `MONGODB_URI` is configured. If an active database is detected alongside the default insecure secret (`INSECURE_JWT_SECRET_DEFAULT`), the process halts with `RuntimeError`.
 - **Git Ignore Safeguard:** `.gitignore` excludes `.env`, `LOGIN_CREDENTIALS*.txt`, `CREDENTIALS*.txt`, and all certificates/keys.
 
+### 3.5 Personal Data (PII) Inventory (`PRIV-01`, `PRIV-04`)
+| Collection / Surface | Fields | Purpose | Access & Masking | Retention |
+|---|---|---|---|---|
+| `staff_members` | `name`, `phone`, `email` | Contacting store staff | List responses mask `phone` (`••••••1234`) and omit `email` for store managers; single-profile reads (`GET /api/daily/staff/members/{id}`) return full contact details and are audited (`staff.contact.view`) | While employed + 90 days *(pending HR/legal confirmation)* |
+
 ---
 
 ## 4. Vulnerability Disclosure Policy

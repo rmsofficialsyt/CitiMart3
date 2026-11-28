@@ -149,6 +149,34 @@ const NEON_PALETTE: GaugePalette = {
   naText: "#6366f1",
 };
 
+const GLASSY_PALETTE: GaugePalette = {
+  red: "#e11d48",
+  yellow: "#d97706",
+  green: "#059669",
+  bezelOuter: "#475569",
+  bezelGrad: ["#e2e8f0", "#94a3b8", "#475569", "#1e293b"],
+  bezelInner: "#1e293b",
+  face: "#ffffff",
+  faceStroke: "#cbd5e1",
+  faceRing: "#f1f5f9",
+  tick: "#0f172a",
+  subtick: "#64748b",
+  label: "#334155",
+  needleLeft: "#e11d48",
+  needleRight: "#be123c",
+  needleStroke: "#9f1239",
+  pivotRing: "#cbd5e1",
+  pivot: "#0f172a",
+  pivotJewel: "#2563eb",
+  readout: "#0f172a",
+  readoutBg: "#f8fafc",
+  readoutBorder: "#94a3b8",
+  activeArcGlow: "rgba(37, 99, 235, 0.35)",
+  naBezel: "#64748b",
+  naFace: "#f8fafc",
+  naText: "#475569",
+};
+
 function polar(r: number, angleDeg: number): { x: number; y: number } {
   const rad = (angleDeg * Math.PI) / 180;
   return { x: CX + r * Math.cos(rad), y: CY + r * Math.sin(rad) };
@@ -271,8 +299,9 @@ function renderGaugeEtchedEmblem(title: string | undefined, p: GaugePalette) {
 export function GlossyGauge({ spec, className, neon }: { spec: GaugeSpec; className?: string; neon?: boolean }) {
   const { theme, resolvedTheme } = useTheme();
   const isNeon = neon ?? theme === "neon";
-  const isDark = isNeon ? false : resolvedTheme === "dark" || theme === "dark";
-  const p = isNeon ? NEON_PALETTE : isDark ? DARK_PALETTE : DEFAULT_PALETTE;
+  const isGlassy = !isNeon && theme === "glassy";
+  const isDark = isNeon || isGlassy ? false : resolvedTheme === "dark" || theme === "dark";
+  const p = isNeon ? NEON_PALETTE : isGlassy ? GLASSY_PALETTE : isDark ? DARK_PALETTE : DEFAULT_PALETTE;
 
   const uniqueId = useId().replace(/:/g, "");
   const wrapperClass = className ?? "h-[140px] sm:h-[155px] 2xl:h-[175px] w-full";

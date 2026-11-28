@@ -16,7 +16,7 @@ export function Section({
   action?: ReactNode;
 }) {
   return (
-    <div className={cn("glossy-card bg-card/90 mb-4 rounded-2xl border border-border p-3.5 sm:p-5 shadow-xl backdrop-blur-xl transition-all", className)}>
+    <div className={cn("glossy-card mb-4 rounded-2xl border border-border p-3.5 sm:p-5 shadow-xl backdrop-blur-xl transition-all", className)}>
       {title && (
         <div className="mb-3.5 flex items-center justify-between gap-2 border-b border-border/60 pb-2.5">
           <h3 className="text-sm sm:text-base font-bold text-foreground tracking-tight">{title}</h3>

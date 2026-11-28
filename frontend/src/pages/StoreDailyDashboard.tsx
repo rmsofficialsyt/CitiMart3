@@ -4,7 +4,6 @@ import { Gauge, Sparkles } from "lucide-react";
 import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthProvider";
 import { ChartPanel } from "@/components/ChartPanel";
-import { DailyExportMenu } from "@/components/DailyExportMenu";
 import { DailyHeroCard } from "@/components/DailyHeroCard";
 import { KpiCard } from "@/components/KpiCard";
 import { LoggedDailyEntries } from "@/components/LoggedDailyEntries";
@@ -95,12 +94,7 @@ function StoreDailyDashboard({ store }: { store: StoreCode }) {
 
   return (
     <div className="space-y-6">
-      <DailyHeroCard storeName={storeName} data={data} />
-
-
-      <div className="flex flex-wrap justify-end gap-2">
-        <DailyExportMenu store={store} />
-      </div>
+      <DailyHeroCard storeName={storeName} data={data} exportStoreCode={store} />
 
       {/* AI Store Intelligence & Decision Advisor */}
       {data && (

@@ -200,16 +200,16 @@ export function ChartPanel({ chartId, filters, extra = {}, className, spec }: Ch
   return (
     <div className="space-y-3">
       {/* Chart Control Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 border-b border-white/5 pb-2">
+      <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 border-b border-border/60 pb-2">
         {isTimeslotChart ? (
-          <div className="flex flex-wrap items-center gap-1 rounded-xl border border-white/10 bg-black/20 p-0.5 sm:p-1 shadow-inner">
+          <div className="flex flex-wrap items-center gap-1 rounded-xl border border-border bg-muted/60 dark:bg-black/25 glassy:bg-white/60 p-0.5 sm:p-1 shadow-inner">
             <button
               type="button"
               onClick={() => setChartFormat("column")}
               className={`flex items-center gap-1 sm:gap-1.5 rounded-lg px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-semibold transition-all cursor-pointer ${
                 chartFormat === "column"
                   ? "glossy-btn-primary text-white shadow-md"
-                  : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                  : "text-foreground/75 hover:text-foreground hover:bg-background/60 dark:hover:bg-white/10"
               }`}
               title="Column Chart"
             >
@@ -222,7 +222,7 @@ export function ChartPanel({ chartId, filters, extra = {}, className, spec }: Ch
               className={`flex items-center gap-1 sm:gap-1.5 rounded-lg px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-semibold transition-all cursor-pointer ${
                 chartFormat === "line"
                   ? "glossy-btn-primary text-white shadow-md"
-                  : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                  : "text-foreground/75 hover:text-foreground hover:bg-background/60 dark:hover:bg-white/10"
               }`}
               title="Line Chart"
             >
@@ -235,7 +235,7 @@ export function ChartPanel({ chartId, filters, extra = {}, className, spec }: Ch
               className={`flex items-center gap-1 sm:gap-1.5 rounded-lg px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-semibold transition-all cursor-pointer ${
                 chartFormat === "area"
                   ? "glossy-btn-primary text-white shadow-md"
-                  : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                  : "text-foreground/75 hover:text-foreground hover:bg-background/60 dark:hover:bg-white/10"
               }`}
               title="Area Chart"
             >
@@ -248,7 +248,7 @@ export function ChartPanel({ chartId, filters, extra = {}, className, spec }: Ch
               className={`flex items-center gap-1 sm:gap-1.5 rounded-lg px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-semibold transition-all cursor-pointer ${
                 chartFormat === "pie"
                   ? "glossy-btn-primary text-white shadow-md"
-                  : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                  : "text-foreground/75 hover:text-foreground hover:bg-background/60 dark:hover:bg-white/10"
               }`}
               title="Donut / Pie Chart"
             >
@@ -308,7 +308,7 @@ export function ChartPanel({ chartId, filters, extra = {}, className, spec }: Ch
 
       {/* Donut/Pie Sub-Breakdown Selector (for multi-trace charts like Footfall vs NOB) */}
       {isTimeslotChart && chartFormat === "pie" && traces && traces.length > 1 && (
-        <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-white/10 bg-muted/20 px-2.5 sm:px-3 py-1.5 text-xs">
+        <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-border bg-muted/40 glassy:bg-white/55 px-2.5 sm:px-3 py-1.5 text-xs">
           <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-muted-foreground mr-1">
             Breakdown:
           </span>
@@ -349,7 +349,7 @@ export function ChartPanel({ chartId, filters, extra = {}, className, spec }: Ch
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="rounded-2xl border border-white/10 bg-card/60 p-2 sm:p-3.5 backdrop-blur-md shadow-xs hover:border-white/20 transition-all"
+        className="rounded-2xl border border-border bg-card/85 glassy:bg-white/60 p-2 sm:p-3.5 backdrop-blur-md shadow-xs hover:border-border/90 transition-all"
       >
         {chartFormat === "column" && (
           <RechartsColumnChart
@@ -401,7 +401,7 @@ export function ChartPanel({ chartId, filters, extra = {}, className, spec }: Ch
             transition={{ duration: 0.2 }}
             className="overflow-hidden w-full"
           >
-            <div className="mt-2 max-h-80 overflow-x-auto rounded-xl border border-white/10 w-full">
+            <div className="mt-2 max-h-80 overflow-x-auto rounded-xl border border-border w-full">
               <Table>
                 <TableHeader className="bg-muted/50">
                   <TableRow>

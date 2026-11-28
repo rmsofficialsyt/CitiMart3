@@ -201,3 +201,239 @@ def test_stocks_multi_tenant_authorization():
     # Admin allowed on any valid store
     assert require_store_access("HB", admin_user).role == "admin"
     assert require_store_access("CHW", admin_user).role == "admin"
+
+
+def test_double_dispatch_blocked_and_single_movement(mock_db: Database):
+    barcode = "8901010101010"
+    stocks_store.record_inward_grn(
+        db=mock_db,
+        store_code="NM",
+        items=[{"barcode": barcode, "item_name": "Jacket", "quantity": 10}],
+        created_by="mgr_nm",
+    )
+    trf = stocks_store.create_transfer(
+        db=mock_db,
+        from_store="NM",
+        to_store="HB",
+        items=[{"barcode": barcode, "quantity": 4}],
+        created_by="mgr_nm",
+    )
+    stocks_store.dispatch_transfer(mock_db, trf["transfer_id"], dispatched_by="mgr_nm")
+
+    with pytest.raises(stocks_store.StockConflict):
+        stocks_store.dispatch_transfer(mock_db, trf["transfer_id"], dispatched_by="mgr_nm")
+
+    assert stocks_store.get_stock_item(mock_db, "NM", barcode)["current_stock"] == 6
+    movs = mock_db[STOCK_MOVEMENTS].count_documents(
+        {"reference_id": trf["transfer_id"], "movement_type": "TRANSFER_OUT"}
+    )
+    assert movs == 1
+
+
+def test_dispatch_compensates_when_stock_drops_after_create(mock_db: Database):
+    b1, b2 = "8902020202001", "8902020202002"
+    stocks_store.record_inward_grn(
+        db=mock_db,
+        store_code="NM",
+        items=[
+            {"barcode": b1, "item_name": "Item 1", "quantity": 10},
+            {"barcode": b2, "item_name": "Item 2", "quantity": 5},
+        ],
+        created_by="mgr_nm",
+    )
+    trf = stocks_store.create_transfer(
+        db=mock_db,
+        from_store="NM",
+        to_store="HB",
+        items=[{"barcode": b1, "quantity": 4}, {"barcode": b2, "quantity": 5}],
+        created_by="mgr_nm",
+    )
+    # Stock for b2 drops before dispatch
+    stocks_store.record_adjustment(
+        db=mock_db,
+        store_code="NM",
+        barcode=b2,
+        adjustment_type="DAMAGE_WRITE_OFF",
+        quantity_change=-2,
+        reason="Damaged during handling",
+        created_by="mgr_nm",
+    )
+
+    with pytest.raises(stocks_store.StockConflict, match=b2):
+        stocks_store.dispatch_transfer(mock_db, trf["transfer_id"], dispatched_by="mgr_nm")
+
+    # b1 compensated back to 10, b2 stays 3, transfer back to INITIATED, no TRANSFER_OUT movements
+    assert stocks_store.get_stock_item(mock_db, "NM", b1)["current_stock"] == 10
+    assert stocks_store.get_stock_item(mock_db, "NM", b2)["current_stock"] == 3
+    assert stocks_store.get_transfer(mock_db, trf["transfer_id"])["status"] == "INITIATED"
+    assert mock_db[STOCK_MOVEMENTS].count_documents({"reference_id": trf["transfer_id"]}) == 0
+
+
+def test_concurrent_negative_adjustments_never_go_below_zero(mock_db: Database):
+    from concurrent.futures import ThreadPoolExecutor
+
+    barcode = "8903030303001"
+    stocks_store.record_inward_grn(
+        db=mock_db,
+        store_code="NM",
+        items=[{"barcode": barcode, "item_name": "Concurrent Item", "quantity": 5}],
+        created_by="mgr_nm",
+    )
+
+    def _deduct(_i: int) -> bool:
+        try:
+            stocks_store.record_adjustment(
+                db=mock_db,
+                store_code="NM",
+                barcode=barcode,
+                adjustment_type="DAMAGE_WRITE_OFF",
+                quantity_change=-1,
+                reason="Concurrent write-off check",
+                created_by="mgr_nm",
+            )
+            return True
+        except ValueError:
+            return False
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(_deduct, range(12)))
+
+    succeeded = sum(1 for r in results if r)
+    final_stock = stocks_store.get_stock_item(mock_db, "NM", barcode)["current_stock"]
+    assert final_stock >= 0
+    assert final_stock == 5 - succeeded
+    assert succeeded == 5
+
+
+def test_adjustment_authority_and_extra_forbid(client: TestClient, db_session):
+    from tests.conftest import make_token
+
+    mgr_nm = make_token("manager", "NM", "mgr_nm")
+    admin = make_token("admin", None, "admin")
+    barcode = "8904040404001"
+    stocks_store.record_inward_grn(
+        db=db_session,
+        store_code="NM",
+        items=[{"barcode": barcode, "item_name": "Shirt", "quantity": 10}],
+        created_by="admin",
+    )
+
+    # Manager positive AUDIT_ADJUSTMENT -> 403
+    r_pos_mgr = client.post(
+        "/api/daily/stocks/adjustment",
+        json={
+            "store_code": "NM",
+            "barcode": barcode,
+            "adjustment_type": "AUDIT_ADJUSTMENT",
+            "quantity_change": 3,
+            "reason": "Found extra units on shelf",
+        },
+        headers={"Authorization": f"Bearer {mgr_nm}"},
+    )
+    assert r_pos_mgr.status_code == 403
+
+    # Admin positive AUDIT_ADJUSTMENT -> 200
+    r_pos_adm = client.post(
+        "/api/daily/stocks/adjustment",
+        json={
+            "store_code": "NM",
+            "barcode": barcode,
+            "adjustment_type": "AUDIT_ADJUSTMENT",
+            "quantity_change": 3,
+            "reason": "Found extra units on shelf",
+        },
+        headers={"Authorization": f"Bearer {admin}"},
+    )
+    assert r_pos_adm.status_code == 200
+
+    # Manager negative AUDIT_ADJUSTMENT -> 200
+    r_neg_mgr = client.post(
+        "/api/daily/stocks/adjustment",
+        json={
+            "store_code": "NM",
+            "barcode": barcode,
+            "adjustment_type": "AUDIT_ADJUSTMENT",
+            "quantity_change": -2,
+            "reason": "Damaged during display setup",
+        },
+        headers={"Authorization": f"Bearer {mgr_nm}"},
+    )
+    assert r_neg_mgr.status_code == 200
+
+    # Extra unknown field -> 422
+    r_extra = client.post(
+        "/api/daily/stocks/adjustment",
+        json={
+            "store_code": "NM",
+            "barcode": barcode,
+            "adjustment_type": "DAMAGE_WRITE_OFF",
+            "quantity_change": -1,
+            "reason": "Extra field validation check",
+            "unexpected_field": "nope",
+        },
+        headers={"Authorization": f"Bearer {mgr_nm}"},
+    )
+    assert r_extra.status_code == 422
+
+
+def test_second_grn_preserves_reorder_level_unless_sent(client: TestClient, db_session):
+    from tests.conftest import make_token
+
+    mgr_nm = make_token("manager", "NM", "mgr_nm")
+    barcode = "8905050505001"
+
+    r1 = client.post(
+        "/api/daily/stocks/inward",
+        json={
+            "store_code": "NM",
+            "items": [{"barcode": barcode, "item_name": "Kurta", "quantity": 5, "reorder_level": 25}],
+        },
+        headers={"Authorization": f"Bearer {mgr_nm}"},
+    )
+    assert r1.status_code == 200
+    assert stocks_store.get_stock_item(db_session, "NM", barcode)["reorder_level"] == 25
+
+    # Second GRN without reorder_level keeps 25
+    r2 = client.post(
+        "/api/daily/stocks/inward",
+        json={"store_code": "NM", "items": [{"barcode": barcode, "item_name": "Kurta", "quantity": 5}]},
+        headers={"Authorization": f"Bearer {mgr_nm}"},
+    )
+    assert r2.status_code == 200
+    assert stocks_store.get_stock_item(db_session, "NM", barcode)["reorder_level"] == 25
+
+    # Third GRN with explicit reorder_level updates it
+    r3 = client.post(
+        "/api/daily/stocks/inward",
+        json={
+            "store_code": "NM",
+            "items": [{"barcode": barcode, "item_name": "Kurta", "quantity": 5, "reorder_level": 40}],
+        },
+        headers={"Authorization": f"Bearer {mgr_nm}"},
+    )
+    assert r3.status_code == 200
+    assert stocks_store.get_stock_item(db_session, "NM", barcode)["reorder_level"] == 40
+
+
+def test_transfer_rejection_writes_transfer_reversal(mock_db: Database):
+    barcode = "8906060606001"
+    stocks_store.record_inward_grn(
+        db=mock_db,
+        store_code="NM",
+        items=[{"barcode": barcode, "item_name": "Saree", "quantity": 10}],
+        created_by="mgr_nm",
+    )
+    trf = stocks_store.create_transfer(
+        db=mock_db,
+        from_store="NM",
+        to_store="HB",
+        items=[{"barcode": barcode, "quantity": 3}],
+        created_by="mgr_nm",
+    )
+    stocks_store.dispatch_transfer(mock_db, trf["transfer_id"], dispatched_by="mgr_nm")
+    stocks_store.reject_or_cancel_transfer(mock_db, trf["transfer_id"], action="REJECT", user="mgr_hb", reason="Wrong")
+
+    movs = stocks_store.list_movements(mock_db, store_code="NM", movement_type="TRANSFER_REVERSAL")
+    assert len(movs) == 1
+    assert movs[0]["reference_id"] == trf["transfer_id"]
+    assert movs[0]["quantity"] == 3

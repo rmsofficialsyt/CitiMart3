@@ -27,11 +27,15 @@ const DATE_INPUT_CLASS = "border-input bg-background w-full rounded-md border px
 export function DailyExportMenu({ store }: { store: string }) {
   const today = todayLocalDate();
   const [open, setOpen] = useState(false);
+  const [selectedStore, setSelectedStore] = useState<"NM" | "HB" | "CHW">("NM");
   const [scope, setScope] = useState<Scope>("all");
   const [day, setDay] = useState(today);
   const [start, setStart] = useState(today);
   const [end, setEnd] = useState(today);
   const [exporting, setExporting] = useState<"xlsx" | "pdf" | null>(null);
+
+  const isAllStores = store === "ALL";
+  const targetStore = isAllStores ? selectedStore : store;
 
   // Only "Date range" can be invalid: an inverted window the backend would
   // reject with a 400 anyway.
@@ -48,7 +52,7 @@ export function DailyExportMenu({ store }: { store: string }) {
   const runExport = async (format: "xlsx" | "pdf") => {
     setExporting(format);
     try {
-      await downloadDailyReport(store, format, rangeForScope());
+      await downloadDailyReport(targetStore, format, rangeForScope());
       setOpen(false);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Export failed.");
@@ -62,7 +66,7 @@ export function DailyExportMenu({ store }: { store: string }) {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="glossy-btn flex items-center gap-2 rounded-xl px-3.5 py-1.5 text-xs font-semibold text-foreground transition-all cursor-pointer"
+          className="glossy-btn flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold text-foreground transition-all cursor-pointer"
         >
           <Download className="h-3.5 w-3.5 text-primary" />
           <span>Export Reports</span>
@@ -70,6 +74,26 @@ export function DailyExportMenu({ store }: { store: string }) {
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72">
         <div className="text-xs font-semibold tracking-wide uppercase">Export daily report</div>
+
+        {isAllStores && (
+          <div className="mt-3 space-y-1.5">
+            <Label className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">Store</Label>
+            <div className="grid grid-cols-3 gap-1">
+              {(["NM", "HB", "CHW"] as const).map((code) => (
+                <Button
+                  key={code}
+                  type="button"
+                  size="sm"
+                  variant={selectedStore === code ? "default" : "outline"}
+                  className="h-7 px-1 text-xs"
+                  onClick={() => setSelectedStore(code)}
+                >
+                  {code}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mt-3 space-y-1.5">
           <Label className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">Dates</Label>

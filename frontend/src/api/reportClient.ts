@@ -28,7 +28,8 @@ async function triggerDownload(res: Response, fallbackName: string): Promise<voi
   // needs Content-Disposition in the backend's CORS expose_headers when the
   // SPA calls Render directly (VITE_API_BASE_URL mode) -- see app.py.
   const disposition = res.headers.get("Content-Disposition") ?? "";
-  const match = /filename="([^"]+)"/.exec(disposition);
+  // Quoted or bare: the requisition export sends `filename=CITIMART_...xlsx`.
+  const match = /filename="?([^";]+)"?/.exec(disposition);
   const filename = match?.[1] ?? fallbackName;
 
   const url = URL.createObjectURL(blob);
@@ -50,6 +51,29 @@ export async function downloadAdvisorBrief(kind: "morning" | "midday" | "evening
     throw new Error(await errorMessage(res));
   }
   await triggerDownload(res, `citimart-${kind}-brief.pdf`);
+}
+
+/** Requisition slips as .xlsx (GET /api/daily/requisitions/export/xlsx).
+ * Must go through authFetch: the old plain `<a href download>` link sent no
+ * bearer token, so every click got a 401 instead of a file. */
+export async function downloadRequisitionsXlsx(params: {
+  store_code?: string;
+  start_date?: string;
+  end_date?: string;
+  status?: string;
+  search?: string;
+}): Promise<void> {
+  const q = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value) q.set(key, value);
+  }
+  const qs = q.toString();
+  const res = await authFetch(apiUrl(`/api/daily/requisitions/export/xlsx${qs ? `?${qs}` : ""}`));
+  if (!res.ok) {
+    if (res.status === 401) handleUnauthorized();
+    throw new Error(await errorMessage(res));
+  }
+  await triggerDownload(res, "citimart-requisitions.xlsx");
 }
 
 /** Per-store Daily Operations export (GET /api/daily/report). `start`/`end`

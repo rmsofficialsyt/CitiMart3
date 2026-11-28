@@ -51,6 +51,30 @@ export interface DashboardMeta {
   last_refresh: string;
 }
 
+export interface SystemStatus {
+  database: {
+    status: "up" | "down";
+    latency_ms: number | null;
+    database_name: string;
+    pool: {
+      min_size: number;
+      max_size: number;
+    };
+    error: string | null;
+  };
+  cache: {
+    status: "up" | "disabled" | "down";
+    latency_ms: number | null;
+    mode: "redis" | "in-process";
+  };
+  server: {
+    status: "up";
+    started_at: string;
+    uptime_seconds: number;
+    checked_at: string;
+  };
+}
+
 // FastAPI's HTTPException responses are {"detail": "..."} -- e.g. the clear
 // "MONGODB_URI is not set" a misconfigured deployment returns. Surface that
 // instead of a bare status code so toasts (and anything else reading
@@ -118,6 +142,12 @@ async function deleteJSON<T>(url: string): Promise<T> {
 }
 
 export const api = {
+  systemStatus: async (): Promise<SystemStatus & { api_roundtrip_ms: number }> => {
+    const t0 = performance.now();
+    const data = await getJSON<SystemStatus>("/api/meta/status");
+    return { ...data, api_roundtrip_ms: Math.round(performance.now() - t0) };
+  },
+
   advisor: (store: string, date: string) =>
     getJSON<AdvisorResponse>(`/api/advisor?${new URLSearchParams({ store, date })}`),
 
@@ -361,22 +391,8 @@ export const api = {
   deleteRequisition: (reqId: number) =>
     deleteJSON<{ status: string; deleted: boolean }>(`/api/daily/requisitions/${reqId}`),
 
-  getRequisitionExportUrl: (params?: {
-    store_code?: string;
-    start_date?: string;
-    end_date?: string;
-    status?: string;
-    search?: string;
-  }) => {
-    const q = new URLSearchParams();
-    if (params?.store_code) q.set("store_code", params.store_code);
-    if (params?.start_date) q.set("start_date", params.start_date);
-    if (params?.end_date) q.set("end_date", params.end_date);
-    if (params?.status) q.set("status", params.status);
-    if (params?.search) q.set("search", params.search);
-    const qs = q.toString();
-    return apiUrl(qs ? `/api/daily/requisitions/export/xlsx?${qs}` : "/api/daily/requisitions/export/xlsx");
-  },
+  // The .xlsx export is api/reportClient.ts::downloadRequisitionsXlsx -- it
+  // needs the bearer header, which a plain <a href> link can't send.
 
   // Stocks Management API
   getStocksSummary: (storeCode?: string) =>
@@ -458,6 +474,9 @@ export const api = {
 
   createStaffMember: (payload: any) =>
     postJSON<{ status: string; staff: any }>("/api/daily/staff/members", payload),
+
+  getStaffMember: (staffId: string, storeCode: string) =>
+    getJSON<any>(`/api/daily/staff/members/${staffId}?store_code=${storeCode}`),
 
   updateStaffMember: (staffId: string, storeCode: string, payload: any) =>
     putJSON<{ status: string; staff: any }>(`/api/daily/staff/members/${staffId}?store_code=${storeCode}`, payload),
